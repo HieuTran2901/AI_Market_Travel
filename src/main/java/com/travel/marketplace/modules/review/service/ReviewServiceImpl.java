@@ -16,10 +16,12 @@ import com.travel.marketplace.modules.review.dto.ReviewResponse;
 import com.travel.marketplace.modules.review.dto.ReviewSummaryResponse;
 import com.travel.marketplace.modules.review.dto.ReviewUpdateRequest;
 import com.travel.marketplace.modules.review.entity.Review;
+import com.travel.marketplace.modules.review.entity.ReviewImage;
 import com.travel.marketplace.modules.review.entity.ReviewReply;
 import com.travel.marketplace.modules.review.enums.ReviewStatus;
 import com.travel.marketplace.modules.review.enums.TripType;
 import com.travel.marketplace.modules.review.mapper.ReviewMapper;
+import com.travel.marketplace.modules.review.repository.ReviewImageRepository;
 import com.travel.marketplace.modules.review.repository.ReviewReplyRepository;
 import com.travel.marketplace.modules.review.repository.ReviewRepository;
 import com.travel.marketplace.modules.user.entity.User;
@@ -39,6 +41,7 @@ import java.util.Map;
 public class ReviewServiceImpl implements ReviewService {
 
     private final ReviewRepository reviewRepository;
+    private final ReviewImageRepository reviewImageRepository;
     private final ReviewReplyRepository reviewReplyRepository;
     private final ListingRepository listingRepository;
     private final BookingRepository bookingRepository;
@@ -47,6 +50,7 @@ public class ReviewServiceImpl implements ReviewService {
 
     public ReviewServiceImpl(
             ReviewRepository reviewRepository,
+            ReviewImageRepository reviewImageRepository,
             ReviewReplyRepository reviewReplyRepository,
             ListingRepository listingRepository,
             BookingRepository bookingRepository,
@@ -54,6 +58,7 @@ public class ReviewServiceImpl implements ReviewService {
             ReviewMapper reviewMapper
     ) {
         this.reviewRepository = reviewRepository;
+        this.reviewImageRepository = reviewImageRepository;
         this.reviewReplyRepository = reviewReplyRepository;
         this.listingRepository = listingRepository;
         this.bookingRepository = bookingRepository;
@@ -128,6 +133,7 @@ public class ReviewServiceImpl implements ReviewService {
                 .build();
 
         Review saved = reviewRepository.save(review);
+        saveReviewImages(saved, request.getImageUrls());
         recalculateListingRating(listingId);
         return toResponse(saved);
     }
@@ -198,7 +204,29 @@ public class ReviewServiceImpl implements ReviewService {
     private ReviewResponse toResponse(Review review) {
         ReviewReply reply = reviewReplyRepository.findFirstByReviewIdAndStatusOrderByCreatedAtDesc(review.getId(), ReviewStatus.PUBLISHED)
                 .orElse(null);
-        return reviewMapper.toResponse(review, reply);
+        List<ReviewImage> images = reviewImageRepository.findByReviewIdOrderByDisplayOrderAsc(review.getId());
+        return reviewMapper.toResponse(review, reply, images);
+    }
+
+    private void saveReviewImages(Review review, List<String> imageUrls) {
+        if (imageUrls == null || imageUrls.isEmpty()) {
+            return;
+        }
+
+        for (int i = 0; i < Math.min(imageUrls.size(), 6); i++) {
+            String imageUrl = trimToNull(imageUrls.get(i));
+            if (imageUrl == null) {
+                continue;
+            }
+
+            ReviewImage image = ReviewImage.builder()
+                    .review(review)
+                    .imageUrl(imageUrl)
+                    .altText("Review photo " + (i + 1))
+                    .displayOrder(i)
+                    .build();
+            reviewImageRepository.save(image);
+        }
     }
 
     private List<RatingDistributionResponse> buildDistribution(Long listingId) {

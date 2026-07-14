@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.Instant;
+import java.util.List;
 
 @Data
 @Builder
@@ -25,4 +26,14 @@ public class ReviewResponse {
     private Instant createdAt;
     private Instant updatedAt;
     private ReviewReplyResponse providerReply;
+    private List<ReviewImageResponse> images;
+
+    @Data
+    @Builder
+    public static class ReviewImageResponse {
+        private Long id;
+        private String imageUrl;
+        private String altText;
+        private Integer displayOrder;
+    }
 }

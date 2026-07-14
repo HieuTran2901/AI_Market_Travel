@@ -8,6 +8,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class ReviewCreateRequest {
     @NotNull(message = "Booking id is required")
@@ -26,4 +28,7 @@ public class ReviewCreateRequest {
     private String comment;
 
     private TripType tripType;
+
+    @Size(max = 6, message = "You can attach up to 6 review images")
+    private List<@Size(max = 1000, message = "Image URL must be 1000 characters or less") String> imageUrls;
 }

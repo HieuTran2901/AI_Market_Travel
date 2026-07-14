@@ -7,11 +7,14 @@ import com.travel.marketplace.modules.user.entity.ProviderProfile;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Map;
 
 /**
  * Base marketplace listing entity.
@@ -83,6 +86,10 @@ public class Listing {
     @Column(nullable = false, length = 3)
     @Builder.Default
     private String currency = "VND";
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "details_extra", columnDefinition = "json")
+    private Map<String, Object> detailsExtra;
 
     // ── Status & Metrics ──────────────────────────────────────
     @Enumerated(EnumType.STRING)

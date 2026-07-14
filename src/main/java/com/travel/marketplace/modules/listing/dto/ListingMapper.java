@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -67,6 +68,8 @@ public class ListingMapper {
             builder.images(Collections.emptyList());
         }
 
+        Map<String, Object> mergedDetails = new LinkedHashMap<>();
+
         if (detailEntity != null) {
             try {
                 // Convert detail entity to Map using Jackson
@@ -75,11 +78,17 @@ public class ListingMapper {
                 // Remove some internal fields
                 detailsMap.remove("id");
                 detailsMap.remove("listing");
-                builder.details(detailsMap);
+                mergedDetails.putAll(detailsMap);
             } catch (Exception e) {
                 log.error("Failed to map detail entity to map", e);
             }
         }
+
+        if (listing.getDetailsExtra() != null && !listing.getDetailsExtra().isEmpty()) {
+            mergedDetails.putAll(listing.getDetailsExtra());
+        }
+
+        builder.details(mergedDetails);
 
         return builder.build();
     }

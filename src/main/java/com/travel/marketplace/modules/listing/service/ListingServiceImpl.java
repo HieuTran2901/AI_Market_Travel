@@ -28,9 +28,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.text.Normalizer;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 @Service
@@ -49,6 +53,27 @@ public class ListingServiceImpl implements ListingService {
     private final ProviderProfileRepository providerProfileRepository;
     private final ListingMapper listingMapper;
     private final ObjectMapper objectMapper;
+
+    private static final Set<String> HOTEL_DETAIL_KEYS = new HashSet<>(Arrays.asList(
+            "starRating", "totalRooms", "checkInTime", "checkOutTime",
+            "hasPool", "hasSpa", "hasGym", "hasRestaurant", "hasFreeWifi", "hasParking", "petFriendly"
+    ));
+    private static final Set<String> TOUR_DETAIL_KEYS = new HashSet<>(Arrays.asList(
+            "durationDays", "durationHours", "maxGroupSize", "minGroupSize", "tourType",
+            "meetingPoint", "includes", "excludes", "itinerary"
+    ));
+    private static final Set<String> RESTAURANT_DETAIL_KEYS = new HashSet<>(Arrays.asList(
+            "cuisineType", "seatingCapacity", "openingHours", "priceRange", "hasDelivery",
+            "hasDineIn", "hasTakeaway", "hasReservations", "halalCertified", "vegetarianFriendly"
+    ));
+    private static final Set<String> VEHICLE_DETAIL_KEYS = new HashSet<>(Arrays.asList(
+            "vehicleType", "brand", "model", "manufactureYear", "seats", "fuelType",
+            "transmission", "hasDriver", "requiresLicense", "minRentalDays"
+    ));
+    private static final Set<String> EXPERIENCE_DETAIL_KEYS = new HashSet<>(Arrays.asList(
+            "durationHours", "maxParticipants", "minParticipants", "skillLevel",
+            "includes", "whatToBring", "meetingPoint"
+    ));
 
     public ListingServiceImpl(
             ListingRepository listingRepository,
@@ -101,6 +126,7 @@ public class ListingServiceImpl implements ListingService {
                 .coverImageUrl(request.getCoverImageUrl())
                 .basePrice(request.getBasePrice())
                 .currency(request.getCurrency() != null ? request.getCurrency() : "VND")
+                .detailsExtra(extractExtraDetails(category, request.getDetails()))
                 .status(ListingStatus.DRAFT) // Always starts as DRAFT
                 .build();
 
@@ -142,6 +168,7 @@ public class ListingServiceImpl implements ListingService {
         if (request.getCoverImageUrl() != null) listing.setCoverImageUrl(request.getCoverImageUrl());
         if (request.getBasePrice() != null) listing.setBasePrice(request.getBasePrice());
         if (request.getCurrency() != null) listing.setCurrency(request.getCurrency());
+        if (request.getDetails() != null) listing.setDetailsExtra(extractExtraDetails(listing.getCategory(), request.getDetails()));
 
         Listing savedListing = listingRepository.save(listing);
 
@@ -339,23 +366,23 @@ public class ListingServiceImpl implements ListingService {
         try {
             switch (category) {
                 case HOTEL:
-                    HotelDetail hotelDetail = objectMapper.convertValue(detailsMap, HotelDetail.class);
+                    HotelDetail hotelDetail = objectMapper.convertValue(extractCategoryDetails(category, detailsMap), HotelDetail.class);
                     hotelDetail.setListing(listing);
                     return hotelDetailRepository.save(hotelDetail);
                 case TOUR:
-                    TourDetail tourDetail = objectMapper.convertValue(detailsMap, TourDetail.class);
+                    TourDetail tourDetail = objectMapper.convertValue(extractCategoryDetails(category, detailsMap), TourDetail.class);
                     tourDetail.setListing(listing);
                     return tourDetailRepository.save(tourDetail);
                 case RESTAURANT:
-                    RestaurantDetail restaurantDetail = objectMapper.convertValue(detailsMap, RestaurantDetail.class);
+                    RestaurantDetail restaurantDetail = objectMapper.convertValue(extractCategoryDetails(category, detailsMap), RestaurantDetail.class);
                     restaurantDetail.setListing(listing);
                     return restaurantDetailRepository.save(restaurantDetail);
                 case VEHICLE:
-                    VehicleDetail vehicleDetail = objectMapper.convertValue(detailsMap, VehicleDetail.class);
+                    VehicleDetail vehicleDetail = objectMapper.convertValue(extractCategoryDetails(category, detailsMap), VehicleDetail.class);
                     vehicleDetail.setListing(listing);
                     return vehicleDetailRepository.save(vehicleDetail);
                 case EXPERIENCE:
-                    ExperienceDetail experienceDetail = objectMapper.convertValue(detailsMap, ExperienceDetail.class);
+                    ExperienceDetail experienceDetail = objectMapper.convertValue(extractCategoryDetails(category, detailsMap), ExperienceDetail.class);
                     experienceDetail.setListing(listing);
                     return experienceDetailRepository.save(experienceDetail);
                 default:
@@ -389,27 +416,27 @@ public class ListingServiceImpl implements ListingService {
         try {
             switch (listing.getCategory()) {
                 case HOTEL:
-                    HotelDetail newHotel = objectMapper.convertValue(newDetailsMap, HotelDetail.class);
+                    HotelDetail newHotel = objectMapper.convertValue(extractCategoryDetails(listing.getCategory(), newDetailsMap), HotelDetail.class);
                     if (currentDetail != null) newHotel.setId(((HotelDetail)currentDetail).getId());
                     newHotel.setListing(listing);
                     return hotelDetailRepository.save(newHotel);
                 case TOUR:
-                    TourDetail newTour = objectMapper.convertValue(newDetailsMap, TourDetail.class);
+                    TourDetail newTour = objectMapper.convertValue(extractCategoryDetails(listing.getCategory(), newDetailsMap), TourDetail.class);
                     if (currentDetail != null) newTour.setId(((TourDetail)currentDetail).getId());
                     newTour.setListing(listing);
                     return tourDetailRepository.save(newTour);
                 case RESTAURANT:
-                    RestaurantDetail newRestaurant = objectMapper.convertValue(newDetailsMap, RestaurantDetail.class);
+                    RestaurantDetail newRestaurant = objectMapper.convertValue(extractCategoryDetails(listing.getCategory(), newDetailsMap), RestaurantDetail.class);
                     if (currentDetail != null) newRestaurant.setId(((RestaurantDetail)currentDetail).getId());
                     newRestaurant.setListing(listing);
                     return restaurantDetailRepository.save(newRestaurant);
                 case VEHICLE:
-                    VehicleDetail newVehicle = objectMapper.convertValue(newDetailsMap, VehicleDetail.class);
+                    VehicleDetail newVehicle = objectMapper.convertValue(extractCategoryDetails(listing.getCategory(), newDetailsMap), VehicleDetail.class);
                     if (currentDetail != null) newVehicle.setId(((VehicleDetail)currentDetail).getId());
                     newVehicle.setListing(listing);
                     return vehicleDetailRepository.save(newVehicle);
                 case EXPERIENCE:
-                    ExperienceDetail newExperience = objectMapper.convertValue(newDetailsMap, ExperienceDetail.class);
+                    ExperienceDetail newExperience = objectMapper.convertValue(extractCategoryDetails(listing.getCategory(), newDetailsMap), ExperienceDetail.class);
                     if (currentDetail != null) newExperience.setId(((ExperienceDetail)currentDetail).getId());
                     newExperience.setListing(listing);
                     return experienceDetailRepository.save(newExperience);
@@ -419,6 +446,44 @@ public class ListingServiceImpl implements ListingService {
         } catch (Exception e) {
             log.error("Failed to update detail entity from map", e);
             throw new BadRequestException("Invalid details provided for category " + listing.getCategory());
+        }
+    }
+
+    private Map<String, Object> extractCategoryDetails(ListingCategory category, Map<String, Object> detailsMap) {
+        return filterDetails(detailsMap, categoryKeys(category), true);
+    }
+
+    private Map<String, Object> extractExtraDetails(ListingCategory category, Map<String, Object> detailsMap) {
+        return filterDetails(detailsMap, categoryKeys(category), false);
+    }
+
+    private Map<String, Object> filterDetails(Map<String, Object> detailsMap, Set<String> allowedKeys, boolean keepAllowed) {
+        Map<String, Object> filtered = new LinkedHashMap<>();
+        if (detailsMap == null) return filtered;
+        for (Map.Entry<String, Object> entry : detailsMap.entrySet()) {
+            if (entry.getValue() == null) continue;
+            boolean isAllowed = allowedKeys.contains(entry.getKey());
+            if ((keepAllowed && isAllowed) || (!keepAllowed && !isAllowed)) {
+                filtered.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return filtered;
+    }
+
+    private Set<String> categoryKeys(ListingCategory category) {
+        switch (category) {
+            case HOTEL:
+                return HOTEL_DETAIL_KEYS;
+            case TOUR:
+                return TOUR_DETAIL_KEYS;
+            case RESTAURANT:
+                return RESTAURANT_DETAIL_KEYS;
+            case VEHICLE:
+                return VEHICLE_DETAIL_KEYS;
+            case EXPERIENCE:
+                return EXPERIENCE_DETAIL_KEYS;
+            default:
+                return Set.of();
         }
     }
 }

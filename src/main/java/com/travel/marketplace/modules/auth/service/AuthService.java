@@ -81,6 +81,11 @@ public class AuthService {
             throw new BadRequestException("Email is already registered", ErrorCode.EMAIL_ALREADY_EXISTS);
         }
 
+        String fullName = resolveFullName(request);
+        if (fullName.isBlank()) {
+            throw new BadRequestException("First name and last name are required");
+        }
+
         Set<Role> roles = new HashSet<>();
 
         // Every registered account receives ROLE_CUSTOMER by default
@@ -122,7 +127,7 @@ public class AuthService {
         User user = User.builder()
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .fullName(request.getFullName())
+                .fullName(fullName)
                 .phoneNumber(request.getPhoneNumber())
                 .roles(roles)
                 .isActive(true)
@@ -135,6 +140,21 @@ public class AuthService {
 
         userRepository.save(user);
         log.info("Successfully registered user: {}", request.getEmail());
+    }
+
+    private String resolveFullName(RegisterRequest request) {
+        String firstName = trimToEmpty(request.getFirstName());
+        String lastName = trimToEmpty(request.getLastName());
+
+        if (!firstName.isBlank() || !lastName.isBlank()) {
+            return (firstName + " " + lastName).trim();
+        }
+
+        return trimToEmpty(request.getFullName());
+    }
+
+    private String trimToEmpty(String value) {
+        return value == null ? "" : value.trim();
     }
 
     public TokenResponse login(LoginRequest request) {
