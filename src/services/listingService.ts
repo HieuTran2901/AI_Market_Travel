@@ -26,6 +26,15 @@ export const listingService = {
     return response.data;
   },
 
+  getMyListingById: async (id: number) => {
+    const response = await api.get<ApiResponse<PageResponse<ListingResponse>>>('/listings/my', {
+      params: { page: 0, size: 100 }
+    });
+    const listing = response.data.data.content.find((item) => item.id === id);
+    if (!listing) throw new Error('Listing not found in your provider account.');
+    return listing;
+  },
+
   createListing: async (data: CreateListingRequest) => {
     const response = await api.post<ApiResponse<ListingResponse>>('/listings', data);
     return response.data;

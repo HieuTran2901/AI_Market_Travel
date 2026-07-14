@@ -6,6 +6,8 @@ interface WizardContextType {
   setStep: (step: number) => void;
   nextStep: () => void;
   prevStep: () => void;
+  mode: 'create' | 'edit';
+  listingId?: number;
   formData: Partial<CreateListingRequest>;
   updateFormData: (data: Partial<CreateListingRequest>) => void;
   resetForm: () => void;
@@ -13,12 +15,18 @@ interface WizardContextType {
 
 const ListingWizardContext = createContext<WizardContextType | undefined>(undefined);
 
-export const ListingWizardProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const ListingWizardProvider: React.FC<{
+  children: React.ReactNode;
+  initialData?: Partial<CreateListingRequest>;
+  mode?: 'create' | 'edit';
+  listingId?: number;
+}> = ({ children, initialData, mode = 'create', listingId }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<Partial<CreateListingRequest>>({
     currency: 'VND',
     imageUrls: [],
-    details: {}
+    details: {},
+    ...(initialData || {}),
   });
 
   const updateFormData = (data: Partial<CreateListingRequest>) => {
@@ -39,6 +47,8 @@ export const ListingWizardProvider: React.FC<{ children: React.ReactNode }> = ({
       setStep: setCurrentStep,
       nextStep,
       prevStep,
+      mode,
+      listingId,
       formData,
       updateFormData,
       resetForm

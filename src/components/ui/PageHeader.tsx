@@ -21,8 +21,8 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       {eyebrow && (
         <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">{eyebrow}</p>
       )}
-      <h1 className="mt-1 text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">{title}</h1>
-      {description && <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">{description}</p>}
+      <h1 className="mt-1 text-2xl font-bold tracking-tight text-gray-900 dark:text-slate-50 sm:text-3xl">{title}</h1>
+      {description && <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-slate-400">{description}</p>}
     </div>
     {actions && <div className="flex flex-wrap items-center gap-3">{actions}</div>}
   </div>

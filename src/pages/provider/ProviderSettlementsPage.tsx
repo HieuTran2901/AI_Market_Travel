@@ -78,8 +78,8 @@ export const ProviderSettlementsPage: React.FC = () => {
                   <stat.icon className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">{stat.label}</p>
-                  <p className="text-xl font-bold text-gray-900 mt-0.5">{stat.value}</p>
+                  <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">{stat.label}</p>
+                  <p className="mt-0.5 text-xl font-bold text-gray-900 dark:text-slate-50">{stat.value}</p>
                 </div>
               </div>
             </CardContent>
@@ -104,31 +104,31 @@ export const ProviderSettlementsPage: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="text-left py-3 px-5 font-semibold text-gray-500 uppercase text-xs tracking-wide">ID</th>
-                    <th className="text-left py-3 px-5 font-semibold text-gray-500 uppercase text-xs tracking-wide">Period</th>
-                    <th className="text-right py-3 px-5 font-semibold text-gray-500 uppercase text-xs tracking-wide">Gross</th>
-                    <th className="text-right py-3 px-5 font-semibold text-gray-500 uppercase text-xs tracking-wide">Platform Fee</th>
-                    <th className="text-right py-3 px-5 font-semibold text-gray-500 uppercase text-xs tracking-wide">Tax</th>
-                    <th className="text-right py-3 px-5 font-semibold text-gray-500 uppercase text-xs tracking-wide">You Receive</th>
-                    <th className="text-center py-3 px-5 font-semibold text-gray-500 uppercase text-xs tracking-wide">Status</th>
+                  <tr className="border-b border-gray-100 bg-gray-50 dark:border-slate-700/60 dark:bg-slate-800/80">
+                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">ID</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Period</th>
+                    <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Gross</th>
+                    <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Platform Fee</th>
+                    <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Tax</th>
+                    <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">You Receive</th>
+                    <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {settlements.map((settlement, index) => (
-                    <tr key={settlement.id} className={`border-b border-gray-50 hover:bg-blue-50/30 transition-colors ${index % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
-                      <td className="py-4 px-5 font-mono font-semibold text-gray-900">SET-{settlement.id}</td>
-                      <td className="py-4 px-5 text-gray-600">
+                    <tr key={settlement.id} className={`border-b border-gray-50 transition-colors hover:bg-blue-50/30 dark:border-slate-700/40 dark:hover:bg-slate-800/60 ${index % 2 === 0 ? '' : 'bg-gray-50/50 dark:bg-slate-950/30'}`}>
+                      <td className="px-5 py-4 font-mono font-semibold text-gray-900 dark:text-slate-100">SET-{settlement.id}</td>
+                      <td className="px-5 py-4 text-gray-600 dark:text-slate-400">
                         <div className="flex items-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5 text-gray-400" />
                           {new Date(settlement.periodStart).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                         </div>
                       </td>
-                      <td className="py-4 px-5 text-right font-medium text-gray-900">{money(settlement.grossAmount, settlement.currency)}</td>
-                      <td className="py-4 px-5 text-right text-red-500">-{money(settlement.platformFee, settlement.currency)}</td>
-                      <td className="py-4 px-5 text-right text-red-500">-{money(settlement.taxAmount, settlement.currency)}</td>
-                      <td className="py-4 px-5 text-right font-bold text-emerald-600">{money(settlement.providerAmount, settlement.currency)}</td>
-                      <td className="py-4 px-5 text-center">
+                      <td className="px-5 py-4 text-right font-medium text-gray-900 dark:text-slate-100">{money(settlement.grossAmount, settlement.currency)}</td>
+                      <td className="px-5 py-4 text-right text-red-500 dark:text-red-300">-{money(settlement.platformFee, settlement.currency)}</td>
+                      <td className="px-5 py-4 text-right text-red-500 dark:text-red-300">-{money(settlement.taxAmount, settlement.currency)}</td>
+                      <td className="px-5 py-4 text-right font-bold text-emerald-600 dark:text-emerald-300">{money(settlement.providerAmount, settlement.currency)}</td>
+                      <td className="px-5 py-4 text-center">
                         <StatusBadge kind="settlement" status={settlement.status} />
                       </td>
                     </tr>
@@ -140,8 +140,8 @@ export const ProviderSettlementsPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      <Card className="border-dashed border-amber-300 bg-amber-50">
-        <CardContent className="p-4 text-sm text-amber-800">
+      <Card className="border-dashed border-amber-300 bg-amber-50 dark:border-amber-400/30 dark:bg-amber-500/10">
+        <CardContent className="p-4 text-sm text-amber-800 dark:text-amber-200">
           Payout request controls are not shown because the backend exposes settlement history only.
         </CardContent>
       </Card>

@@ -1,8 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 
 export const ScrollToTop = () => {
-  const { pathname, search, hash } = useLocation();
+  const { pathname, hash } = useLocation();
+  const previousPathnameRef = useRef<string | null>(null);
+  const previousHashRef = useRef<string>('');
 
   useEffect(() => {
     if ('scrollRestoration' in window.history) {
@@ -17,6 +19,19 @@ export const ScrollToTop = () => {
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
+      const previousPathname = previousPathnameRef.current;
+      const previousHash = previousHashRef.current;
+      const isInitialRender = previousPathname === null;
+      const didPathnameChange = previousPathname !== pathname;
+      const didHashChange = previousHash !== hash;
+
+      previousPathnameRef.current = pathname;
+      previousHashRef.current = hash;
+
+      if (!isInitialRender && !didPathnameChange && !didHashChange) {
+        return;
+      }
+
       if (hash) {
         const target = document.getElementById(hash.slice(1));
 
@@ -26,11 +41,13 @@ export const ScrollToTop = () => {
         }
       }
 
-      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      if (isInitialRender || didPathnameChange) {
+        window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      }
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [pathname, search, hash]);
+  }, [pathname, hash]);
 
   return null;
 };

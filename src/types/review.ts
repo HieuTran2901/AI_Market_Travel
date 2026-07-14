@@ -13,6 +13,14 @@ export interface ReviewReply {
   updatedAt: string;
 }
 
+export interface ReviewImage {
+  id?: number;
+  imageUrl?: string;
+  url?: string;
+  altText?: string;
+  displayOrder?: number;
+}
+
 export interface Review {
   id: number;
   listingId: number;
@@ -29,6 +37,10 @@ export interface Review {
   createdAt: string;
   updatedAt: string;
   providerReply?: ReviewReply;
+  images?: ReviewImage[];
+  media?: ReviewImage[];
+  attachments?: ReviewImage[];
+  imageUrls?: string[];
 }
 
 export interface RatingDistribution {
@@ -51,6 +63,7 @@ export interface ReviewCreateRequest {
   title?: string;
   comment: string;
   tripType?: TripType;
+  imageUrls?: string[];
 }
 
 export interface ReviewUpdateRequest {

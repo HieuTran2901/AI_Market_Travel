@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -156,6 +157,83 @@ const defaultFilters: FilterState = {
   languages: [],
 };
 
+function safeString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function trimmed(value: unknown): string {
+  return safeString(value).trim();
+}
+
+function safeStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function safeNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function optionalNumber(value: unknown): number | undefined {
+  const valueText = trimmed(value);
+  if (!valueText) return undefined;
+  const numberValue = Number(valueText);
+  return Number.isFinite(numberValue) ? numberValue : undefined;
+}
+
+function normalizeFilters(filters?: Partial<FilterState>): FilterState {
+  return {
+    ...defaultFilters,
+    ...filters,
+    keyword: safeString(filters?.keyword),
+    category: filters?.category || "",
+    city: safeString(filters?.city),
+    locationMode: filters?.locationMode || "",
+    locationLabel: safeString(filters?.locationLabel),
+    latitude: safeString(filters?.latitude),
+    longitude: safeString(filters?.longitude),
+    radiusKm: safeString(filters?.radiusKm) || defaultFilters.radiusKm,
+    minPrice: safeString(filters?.minPrice),
+    maxPrice: safeString(filters?.maxPrice),
+    rating: (filters?.rating as RatingFilter) || "",
+    sortBy: safeString(filters?.sortBy) || defaultFilters.sortBy,
+    availableOnly: Boolean(filters?.availableOnly),
+    instantBooking: Boolean(filters?.instantBooking),
+    freeCancellation: Boolean(filters?.freeCancellation),
+    amenities: safeStringArray(filters?.amenities),
+    guestCapacity: safeString(filters?.guestCapacity),
+    providerRating: safeString(filters?.providerRating),
+    language: safeString(filters?.language),
+    reserveNowPayLater: Boolean(filters?.reserveNowPayLater),
+    noPrepayment: Boolean(filters?.noPrepayment),
+    flexibleCancellation: Boolean(filters?.flexibleCancellation),
+    payAtProperty: Boolean(filters?.payAtProperty),
+    confirmationWithin24Hours: Boolean(filters?.confirmationWithin24Hours),
+    propertyType: safeString(filters?.propertyType),
+    accessibility: safeStringArray(filters?.accessibility),
+    neighborhood: safeString(filters?.neighborhood),
+    neighborhoodQuery: safeString(filters?.neighborhoodQuery),
+    neighborhoodDistance: safeString(filters?.neighborhoodDistance),
+    adults: safeNumber(filters?.adults),
+    children: safeNumber(filters?.children),
+    infants: safeNumber(filters?.infants),
+    rooms: safeNumber(filters?.rooms),
+    bedrooms: safeNumber(filters?.bedrooms),
+    bathrooms: safeNumber(filters?.bathrooms),
+    priceUnit: safeString(filters?.priceUnit) || defaultFilters.priceUnit,
+    providerVerifiedOnly: Boolean(filters?.providerVerifiedOnly),
+    providerTopRatedOnly: Boolean(filters?.providerTopRatedOnly),
+    providerPreferredOnly: Boolean(filters?.providerPreferredOnly),
+    providerNewOnly: Boolean(filters?.providerNewOnly),
+    providerInstantResponse: Boolean(filters?.providerInstantResponse),
+    providerRespondsWithin24h: Boolean(filters?.providerRespondsWithin24h),
+    providerTypes: safeStringArray(filters?.providerTypes),
+    providerMinReviews: safeString(filters?.providerMinReviews),
+    languages: safeStringArray(filters?.languages),
+  };
+}
+
 const categoryOptions: CategoryOption[] = [
   { label: "All", value: "", icon: Grid2X2 },
   { label: "Hotel", value: "HOTEL", icon: Hotel },
@@ -298,7 +376,7 @@ const heroSlides = [
 ];
 
 function filtersFromSearchParams(searchParams: URLSearchParams): FilterState {
-  return {
+  return normalizeFilters({
     ...defaultFilters,
     keyword: searchParams.get("keyword") || "",
     category: (searchParams.get("category") as ListingCategory) || "",
@@ -352,142 +430,267 @@ function filtersFromSearchParams(searchParams: URLSearchParams): FilterState {
       searchParams.get("providerTypes")?.split(",").filter(Boolean) || [],
     providerMinReviews: searchParams.get("providerMinReviews") || "",
     languages: searchParams.get("languages")?.split(",").filter(Boolean) || [],
-  };
+  });
 }
 
-function toApiParams(filters: FilterState, page = 0): ListingSearchRequest {
+function mapSortToApi(sortBy: string): string | undefined {
+  switch (sortBy) {
+    case "price_asc":
+      return "PRICE_ASC";
+    case "price_desc":
+      return "PRICE_DESC";
+    case "rating_desc":
+      return "RATING_DESC";
+    case "newest":
+      return "NEWEST";
+    default:
+      return undefined;
+  }
+}
+
+function filtersToApiParams(
+  filters: Partial<FilterState> | undefined,
+  page = 0,
+): ListingSearchRequest {
+  const normalized = normalizeFilters(filters);
+  const latitude = optionalNumber(normalized.latitude);
+  const longitude = optionalNumber(normalized.longitude);
+  const radiusKm = optionalNumber(normalized.radiusKm);
+  const minPrice = optionalNumber(normalized.minPrice);
+  const maxPrice = optionalNumber(normalized.maxPrice);
+  const hasCoordinates =
+    normalized.locationMode === "coordinates" &&
+    latitude !== undefined &&
+    longitude !== undefined;
+
   return {
-    keyword: filters.keyword.trim() || undefined,
-    category: filters.category || undefined,
-    city: filters.locationMode === "coordinates" ? undefined : filters.city.trim() || undefined,
-    latitude:
-      filters.locationMode === "coordinates" && filters.latitude
-        ? Number(filters.latitude)
-        : undefined,
-    longitude:
-      filters.locationMode === "coordinates" && filters.longitude
-        ? Number(filters.longitude)
-        : undefined,
-    radiusKm:
-      filters.locationMode === "coordinates" && filters.radiusKm
-        ? Number(filters.radiusKm)
-        : undefined,
-    minPrice: filters.minPrice ? Number(filters.minPrice) : undefined,
-    maxPrice: filters.maxPrice ? Number(filters.maxPrice) : undefined,
-    sortBy: filters.sortBy !== "recommended" ? filters.sortBy : undefined,
+    keyword: trimmed(normalized.keyword) || undefined,
+    category: normalized.category || undefined,
+    city: hasCoordinates ? undefined : trimmed(normalized.city) || undefined,
+    latitude: hasCoordinates ? latitude : undefined,
+    longitude: hasCoordinates ? longitude : undefined,
+    radiusKm: hasCoordinates ? radiusKm : undefined,
+    minPrice,
+    maxPrice,
+    sortBy: mapSortToApi(normalized.sortBy),
     page,
   };
 }
 
-function buildSearchParams(filters: FilterState, page = 0) {
+function filtersToSearchParams(filters: Partial<FilterState> | undefined, page = 0) {
+  const normalized = normalizeFilters(filters);
   const next = new URLSearchParams();
 
-  if (filters.keyword.trim()) next.set("keyword", filters.keyword.trim());
-  if (filters.category) next.set("category", filters.category);
-  if (filters.city.trim()) next.set("city", filters.city.trim());
-  if (filters.locationMode) next.set("locationMode", filters.locationMode);
-  if (filters.locationLabel.trim())
-    next.set("locationLabel", filters.locationLabel.trim());
-  if (filters.locationMode === "coordinates" && filters.latitude)
-    next.set("latitude", filters.latitude);
-  if (filters.locationMode === "coordinates" && filters.longitude)
-    next.set("longitude", filters.longitude);
-  if (filters.locationMode === "coordinates" && filters.radiusKm)
-    next.set("radiusKm", filters.radiusKm);
-  if (filters.minPrice) next.set("minPrice", filters.minPrice);
-  if (filters.maxPrice) next.set("maxPrice", filters.maxPrice);
-  if (filters.rating) next.set("rating", filters.rating);
-  if (filters.sortBy !== "recommended") next.set("sortBy", filters.sortBy);
-  if (filters.availableOnly) next.set("availableOnly", "true");
-  if (filters.instantBooking) next.set("instantBooking", "true");
-  if (filters.freeCancellation) next.set("freeCancellation", "true");
-  if (filters.amenities.length)
-    next.set("amenities", filters.amenities.join(","));
-  if (filters.guestCapacity) next.set("guestCapacity", filters.guestCapacity);
-  if (filters.providerRating)
-    next.set("providerRating", filters.providerRating);
-  if (filters.language) next.set("language", filters.language);
-  if (filters.reserveNowPayLater) next.set("reserveNowPayLater", "true");
-  if (filters.noPrepayment) next.set("noPrepayment", "true");
-  if (filters.flexibleCancellation) next.set("flexibleCancellation", "true");
-  if (filters.payAtProperty) next.set("payAtProperty", "true");
-  if (filters.confirmationWithin24Hours)
+  if (trimmed(normalized.keyword)) next.set("keyword", trimmed(normalized.keyword));
+  if (normalized.category) next.set("category", normalized.category);
+  if (trimmed(normalized.city)) next.set("city", trimmed(normalized.city));
+  if (normalized.locationMode) next.set("locationMode", normalized.locationMode);
+  if (trimmed(normalized.locationLabel))
+    next.set("locationLabel", trimmed(normalized.locationLabel));
+  if (normalized.locationMode === "coordinates" && normalized.latitude)
+    next.set("latitude", normalized.latitude);
+  if (normalized.locationMode === "coordinates" && normalized.longitude)
+    next.set("longitude", normalized.longitude);
+  if (normalized.locationMode === "coordinates" && normalized.radiusKm)
+    next.set("radiusKm", normalized.radiusKm);
+  if (normalized.minPrice) next.set("minPrice", normalized.minPrice);
+  if (normalized.maxPrice) next.set("maxPrice", normalized.maxPrice);
+  if (normalized.rating) next.set("rating", normalized.rating);
+  if (normalized.sortBy !== "recommended") next.set("sortBy", normalized.sortBy);
+  if (normalized.availableOnly) next.set("availableOnly", "true");
+  if (normalized.instantBooking) next.set("instantBooking", "true");
+  if (normalized.freeCancellation) next.set("freeCancellation", "true");
+  if (normalized.amenities.length)
+    next.set("amenities", normalized.amenities.join(","));
+  if (normalized.guestCapacity) next.set("guestCapacity", normalized.guestCapacity);
+  if (normalized.providerRating)
+    next.set("providerRating", normalized.providerRating);
+  if (normalized.language) next.set("language", normalized.language);
+  if (normalized.reserveNowPayLater) next.set("reserveNowPayLater", "true");
+  if (normalized.noPrepayment) next.set("noPrepayment", "true");
+  if (normalized.flexibleCancellation) next.set("flexibleCancellation", "true");
+  if (normalized.payAtProperty) next.set("payAtProperty", "true");
+  if (normalized.confirmationWithin24Hours)
     next.set("confirmationWithin24Hours", "true");
-  if (filters.propertyType) next.set("propertyType", filters.propertyType);
-  if (filters.accessibility.length)
-    next.set("accessibility", filters.accessibility.join(","));
-  if (filters.neighborhood) next.set("neighborhood", filters.neighborhood);
-  if (filters.neighborhoodQuery)
-    next.set("neighborhoodQuery", filters.neighborhoodQuery);
-  if (filters.neighborhoodDistance)
-    next.set("neighborhoodDistance", filters.neighborhoodDistance);
-  if (filters.adults) next.set("adults", String(filters.adults));
-  if (filters.children) next.set("children", String(filters.children));
-  if (filters.infants) next.set("infants", String(filters.infants));
-  if (filters.rooms) next.set("rooms", String(filters.rooms));
-  if (filters.bedrooms) next.set("bedrooms", String(filters.bedrooms));
-  if (filters.bathrooms) next.set("bathrooms", String(filters.bathrooms));
-  if (filters.priceUnit !== "ANY") next.set("priceUnit", filters.priceUnit);
-  if (filters.providerVerifiedOnly) next.set("providerVerifiedOnly", "true");
-  if (filters.providerTopRatedOnly) next.set("providerTopRatedOnly", "true");
-  if (filters.providerPreferredOnly) next.set("providerPreferredOnly", "true");
-  if (filters.providerNewOnly) next.set("providerNewOnly", "true");
-  if (filters.providerInstantResponse)
+  if (normalized.propertyType) next.set("propertyType", normalized.propertyType);
+  if (normalized.accessibility.length)
+    next.set("accessibility", normalized.accessibility.join(","));
+  if (normalized.neighborhood) next.set("neighborhood", normalized.neighborhood);
+  if (normalized.neighborhoodQuery)
+    next.set("neighborhoodQuery", normalized.neighborhoodQuery);
+  if (normalized.neighborhoodDistance)
+    next.set("neighborhoodDistance", normalized.neighborhoodDistance);
+  if (normalized.adults) next.set("adults", String(normalized.adults));
+  if (normalized.children) next.set("children", String(normalized.children));
+  if (normalized.infants) next.set("infants", String(normalized.infants));
+  if (normalized.rooms) next.set("rooms", String(normalized.rooms));
+  if (normalized.bedrooms) next.set("bedrooms", String(normalized.bedrooms));
+  if (normalized.bathrooms) next.set("bathrooms", String(normalized.bathrooms));
+  if (normalized.priceUnit !== "ANY") next.set("priceUnit", normalized.priceUnit);
+  if (normalized.providerVerifiedOnly) next.set("providerVerifiedOnly", "true");
+  if (normalized.providerTopRatedOnly) next.set("providerTopRatedOnly", "true");
+  if (normalized.providerPreferredOnly) next.set("providerPreferredOnly", "true");
+  if (normalized.providerNewOnly) next.set("providerNewOnly", "true");
+  if (normalized.providerInstantResponse)
     next.set("providerInstantResponse", "true");
-  if (filters.providerRespondsWithin24h)
+  if (normalized.providerRespondsWithin24h)
     next.set("providerRespondsWithin24h", "true");
-  if (filters.providerTypes.length)
-    next.set("providerTypes", filters.providerTypes.join(","));
-  if (filters.providerMinReviews)
-    next.set("providerMinReviews", filters.providerMinReviews);
-  if (filters.languages.length) next.set("languages", filters.languages.join(","));
+  if (normalized.providerTypes.length)
+    next.set("providerTypes", normalized.providerTypes.join(","));
+  if (normalized.providerMinReviews)
+    next.set("providerMinReviews", normalized.providerMinReviews);
+  if (normalized.languages.length) next.set("languages", normalized.languages.join(","));
   if (page > 0) next.set("page", String(page));
 
   return next;
 }
 
-function activeFilterCount(filters: FilterState) {
+function getAdvancedFilterCount(filters: Partial<FilterState> | undefined) {
+  const normalized = normalizeFilters(filters);
   return [
-    filters.keyword.trim(),
-    filters.category,
-    filters.city.trim() || (filters.locationMode === "coordinates" && filters.latitude && filters.longitude),
-    filters.minPrice || filters.maxPrice,
-    filters.rating,
-    filters.sortBy !== "recommended",
-    filters.availableOnly,
-    filters.instantBooking,
-    filters.freeCancellation,
-    filters.amenities.length,
-    filters.guestCapacity,
-    filters.providerRating,
-    filters.language,
-    filters.reserveNowPayLater,
-    filters.noPrepayment,
-    filters.flexibleCancellation,
-    filters.payAtProperty,
-    filters.confirmationWithin24Hours,
-    filters.propertyType,
-    filters.accessibility.length,
-    filters.neighborhood,
-    filters.neighborhoodQuery,
-    filters.neighborhoodDistance,
-    filters.adults,
-    filters.children,
-    filters.infants,
-    filters.rooms,
-    filters.bedrooms,
-    filters.bathrooms,
-    filters.priceUnit !== "ANY",
-    filters.providerVerifiedOnly,
-    filters.providerTopRatedOnly,
-    filters.providerPreferredOnly,
-    filters.providerNewOnly,
-    filters.providerInstantResponse,
-    filters.providerRespondsWithin24h,
-    filters.providerTypes.length,
-    filters.providerMinReviews,
-    filters.languages.length,
+    normalized.availableOnly,
+    normalized.instantBooking,
+    normalized.freeCancellation,
+    normalized.amenities.length,
+    normalized.guestCapacity,
+    normalized.providerRating,
+    normalized.language,
+    normalized.reserveNowPayLater,
+    normalized.noPrepayment,
+    normalized.flexibleCancellation,
+    normalized.payAtProperty,
+    normalized.confirmationWithin24Hours,
+    normalized.propertyType,
+    normalized.accessibility.length,
+    normalized.neighborhood,
+    normalized.neighborhoodQuery,
+    normalized.neighborhoodDistance,
+    normalized.adults,
+    normalized.children,
+    normalized.infants,
+    normalized.rooms,
+    normalized.bedrooms,
+    normalized.bathrooms,
+    normalized.priceUnit !== "ANY",
+    normalized.providerVerifiedOnly,
+    normalized.providerTopRatedOnly,
+    normalized.providerPreferredOnly,
+    normalized.providerNewOnly,
+    normalized.providerInstantResponse,
+    normalized.providerRespondsWithin24h,
+    normalized.providerTypes.length,
+    normalized.providerMinReviews,
+    normalized.languages.length,
   ].filter(Boolean).length;
+}
+
+function getActiveFilterCount(filters: Partial<FilterState> | undefined) {
+  const normalized = normalizeFilters(filters);
+  return [
+    trimmed(normalized.keyword),
+    normalized.category,
+    trimmed(normalized.city) ||
+      (normalized.locationMode === "coordinates" &&
+        normalized.latitude &&
+        normalized.longitude),
+    normalized.minPrice || normalized.maxPrice,
+    normalized.rating,
+    normalized.sortBy !== "recommended",
+    getAdvancedFilterCount(normalized),
+  ].filter(Boolean).length;
+}
+
+function getActiveFilterChips(filters: Partial<FilterState> | undefined) {
+  const normalized = normalizeFilters(filters);
+  const chips: Array<{ label: string; clear: Partial<FilterState> }> = [];
+
+  if (trimmed(normalized.keyword))
+    chips.push({ label: trimmed(normalized.keyword), clear: { keyword: "" } });
+  if (trimmed(normalized.city) || normalized.locationMode === "coordinates")
+    chips.push({
+      label: formatLocationLabel(normalized),
+      clear: clearLocationPatch(),
+    });
+  if (normalized.category)
+    chips.push({
+      label: formatCategory(normalized.category),
+      clear: { category: "" },
+    });
+  if (normalized.minPrice || normalized.maxPrice)
+    chips.push({
+      label: formatPriceLabel(normalized),
+      clear: { minPrice: "", maxPrice: "" },
+    });
+  if (normalized.rating)
+    chips.push({ label: `${normalized.rating}+ rating`, clear: { rating: "" } });
+  if (normalized.sortBy !== "recommended")
+    chips.push({
+      label:
+        sortOptions.find((option) => option.value === normalized.sortBy)?.label ||
+        normalized.sortBy,
+      clear: { sortBy: "recommended" },
+    });
+  if (normalized.availableOnly)
+    chips.push({ label: "Available only", clear: { availableOnly: false } });
+  if (normalized.instantBooking)
+    chips.push({ label: "Instant booking", clear: { instantBooking: false } });
+  if (normalized.freeCancellation)
+    chips.push({
+      label: "Free cancellation",
+      clear: { freeCancellation: false },
+    });
+  if (normalized.reserveNowPayLater)
+    chips.push({
+      label: "Reserve now, pay later",
+      clear: { reserveNowPayLater: false },
+    });
+  if (normalized.propertyType)
+    chips.push({
+      label: normalized.propertyType,
+      clear: { propertyType: "" },
+    });
+  if (normalized.guestCapacity)
+    chips.push({
+      label: `${normalized.guestCapacity}+ guests`,
+      clear: { guestCapacity: "" },
+    });
+  if (normalized.providerRating)
+    chips.push({
+      label: `${normalized.providerRating}+ provider`,
+      clear: { providerRating: "" },
+    });
+  if (normalized.language)
+    chips.push({ label: normalized.language, clear: { language: "" } });
+  if (normalized.neighborhood)
+    chips.push({
+      label: normalized.neighborhood,
+      clear: { neighborhood: "" },
+    });
+  normalized.amenities.forEach((amenity) =>
+    chips.push({
+      label: amenity,
+      clear: {
+        amenities: normalized.amenities.filter((item) => item !== amenity),
+      },
+    }),
+  );
+  normalized.accessibility.forEach((item) =>
+    chips.push({
+      label: item,
+      clear: {
+        accessibility: normalized.accessibility.filter((value) => value !== item),
+      },
+    }),
+  );
+
+  return chips;
+}
+
+function clearSingleFilter(
+  filters: Partial<FilterState> | undefined,
+  clear: Partial<FilterState>,
+) {
+  return normalizeFilters({ ...normalizeFilters(filters), ...clear });
 }
 
 function formatCategory(category: ListingCategory | "") {
@@ -521,7 +724,7 @@ function HeroBannerSlider() {
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
-      <div className="relative h-[280px] overflow-hidden rounded-3xl border border-white/70 bg-slate-950 shadow-xl shadow-blue-100/60 sm:h-[300px] lg:h-[300px] xl:h-[320px]">
+      <div className="relative h-[320px] overflow-hidden rounded-3xl border border-white/70 bg-slate-950 shadow-2xl shadow-blue-200/50 sm:h-[380px] lg:h-[460px] xl:h-[520px]">
       {heroSlides.map((item, itemIndex) => (
         <img
           key={item.title}
@@ -535,27 +738,28 @@ function HeroBannerSlider() {
           )}
         />
       ))}
-      <div className="absolute inset-0 bg-gradient-to-r from-slate-950/70 via-slate-900/30 to-transparent" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(15,23,42,0.55)_0%,rgba(15,23,42,0.28)_35%,rgba(15,23,42,0.05)_60%,transparent_75%)]" />
 
-      <div className="relative z-10 flex h-full flex-col justify-between p-5 text-white sm:p-6 xl:p-7">
-        <div className="max-w-[27rem]">
-          <span className="inline-flex rounded-full bg-blue-600 px-4 py-2 text-xs font-black shadow-lg shadow-blue-900/30">
+      <div className="relative z-10 flex h-full flex-col justify-between p-5 text-white sm:p-7 lg:p-8 xl:p-10">
+        <div className="max-w-[33rem]">
+          <span className="inline-flex rounded-full bg-blue-600 px-5 py-2.5 text-sm font-black shadow-lg shadow-blue-900/30">
             {slide.badge}
           </span>
-          <h2 className="mt-4 text-2xl font-black tracking-tight sm:text-3xl xl:text-[2rem]">
+          <h2 className="mt-6 text-3xl font-black leading-tight tracking-tight sm:text-4xl xl:text-[3.05rem]">
             {slide.title}
           </h2>
-          <p className="mt-3 max-w-sm text-base font-semibold leading-7 text-blue-50 xl:text-lg">
+          <p className="mt-4 max-w-lg text-lg font-bold leading-8 text-blue-50 xl:text-2xl xl:leading-10">
             {slide.subtitle}
           </p>
-          <Button className="mt-5 h-12 rounded-2xl bg-white px-6 font-black text-blue-700 shadow-xl hover:bg-blue-50">
-            Explore now
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
         </div>
 
+        <Button className="absolute bottom-16 left-5 inline-flex items-center justify-center gap-4 rounded-2xl bg-white px-7 py-4 text-base font-semibold tracking-[-0.01em] text-blue-600 shadow-lg shadow-slate-900/10 transition-all duration-300 hover:-translate-y-0.5 hover:bg-white hover:shadow-xl sm:bottom-7 sm:left-7 sm:px-8 sm:py-5 lg:bottom-10 lg:left-10 xl:bottom-12 xl:left-12">
+          Explore now
+          <ArrowRight className="h-5 w-5" strokeWidth={2.1} />
+        </Button>
+
         <div className="flex items-end justify-between gap-4">
-          <div className="flex flex-1 justify-center gap-2">
+          <div className="flex flex-1 justify-center gap-2 md:justify-start md:pl-[32%]">
             {heroSlides.map((item, itemIndex) => (
               <button
                 key={item.title}
@@ -564,7 +768,7 @@ function HeroBannerSlider() {
                 className={cn(
                   "h-3 rounded-full transition-all",
                   itemIndex === index
-                    ? "w-8 bg-blue-500"
+                    ? "w-9 bg-blue-500"
                     : "w-3 bg-white/70 hover:bg-white",
                 )}
                 aria-label={`View banner ${itemIndex + 1}`}
@@ -572,16 +776,16 @@ function HeroBannerSlider() {
             ))}
           </div>
 
-          <div className="hidden gap-2 rounded-2xl bg-white/15 p-2 backdrop-blur md:flex">
+          <div className="hidden items-center gap-3 rounded-3xl bg-slate-950/35 p-3 backdrop-blur md:flex">
             {heroSlides.map((item, itemIndex) => (
               <button
                 key={item.title}
                 type="button"
                 onClick={() => goTo(itemIndex)}
                 className={cn(
-                  "h-14 w-20 overflow-hidden rounded-xl border transition-all",
+                  "h-16 w-24 overflow-hidden rounded-2xl border transition-all xl:h-[72px] xl:w-28",
                   itemIndex === index
-                    ? "border-cyan-300"
+                    ? "border-cyan-300 shadow-lg shadow-cyan-500/20"
                     : "border-white/20 opacity-80 hover:opacity-100",
                 )}
               >
@@ -592,7 +796,7 @@ function HeroBannerSlider() {
                 />
               </button>
             ))}
-            <span className="flex h-14 min-w-16 items-center justify-center rounded-xl bg-slate-950/45 px-3 text-sm font-black">
+            <span className="flex h-16 min-w-16 items-center justify-center rounded-2xl bg-slate-950/60 px-4 text-lg font-black xl:h-[72px] xl:min-w-20">
               {index + 1} / {heroSlides.length}
             </span>
           </div>
@@ -603,7 +807,7 @@ function HeroBannerSlider() {
       <button
         type="button"
         onClick={() => goTo(index - 1)}
-        className="absolute left-0 top-1/2 z-20 hidden h-8 w-8 -translate-x-[35%] -translate-y-1/2 items-center justify-center rounded-full border border-slate-200/70 bg-white/95 text-blue-600 shadow-md backdrop-blur-sm transition-all duration-200 hover:scale-105 hover:bg-white hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 sm:flex xl:h-9 xl:w-9"
+        className="absolute left-0 top-1/2 z-20 hidden h-9 w-9 -translate-x-[35%] -translate-y-1/2 items-center justify-center rounded-full border border-slate-200/70 bg-white/95 text-blue-600 shadow-md backdrop-blur-sm transition-all duration-200 hover:scale-105 hover:bg-white hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 sm:flex"
         aria-label="Previous slide"
       >
         <ChevronLeft className="h-4 w-4" strokeWidth={2.25} />
@@ -611,7 +815,7 @@ function HeroBannerSlider() {
       <button
         type="button"
         onClick={() => goTo(index + 1)}
-        className="absolute right-0 top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 translate-x-[35%] items-center justify-center rounded-full border border-slate-200/70 bg-white/95 text-blue-600 shadow-md backdrop-blur-sm transition-all duration-200 hover:scale-105 hover:bg-white hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 sm:flex xl:h-9 xl:w-9"
+        className="absolute right-0 top-1/2 z-20 hidden h-9 w-9 -translate-y-1/2 translate-x-[35%] items-center justify-center rounded-full border border-slate-200/70 bg-white/95 text-blue-600 shadow-md backdrop-blur-sm transition-all duration-200 hover:scale-105 hover:bg-white hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 sm:flex"
         aria-label="Next slide"
       >
         <ChevronRight className="h-4 w-4" strokeWidth={2.25} />
@@ -621,42 +825,119 @@ function HeroBannerSlider() {
 }
 
 function HeroSection() {
-  const badges = [
-    ["Verified providers", BadgeCheck],
-    ["Secure booking", ShieldCheck],
-    ["AI recommended", Sparkles],
+  const trustCards = [
+    {
+      title: "Verified providers",
+      subtitle: "Trusted local partners",
+      icon: BadgeCheck,
+    },
+    {
+      title: "Secure booking",
+      subtitle: "Protected payments",
+      icon: ShieldCheck,
+    },
+    {
+      title: "AI recommended",
+      subtitle: "Personalized suggestions",
+      icon: Sparkles,
+    },
+  ] as const;
+  const stats = [
+    { value: "20K+", label: "Listings", icon: Hotel, color: "bg-blue-50 text-blue-600" },
+    { value: "5", label: "Categories", icon: Grid2X2, color: "bg-emerald-50 text-emerald-600" },
+    { value: "24/7", label: "Support", icon: ShieldCheck, color: "bg-violet-50 text-violet-600" },
   ] as const;
 
   return (
-    <section className="grid grid-cols-1 items-center gap-6 py-6 lg:grid-cols-12 lg:gap-8 xl:py-8">
-      <div className="lg:col-span-5">
-        <span className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-5 py-2 text-sm font-black text-blue-700 shadow-sm">
+    <section className="relative overflow-hidden rounded-[32px] border border-blue-100/80 bg-gradient-to-br from-white via-blue-50/40 to-white px-5 py-8 shadow-sm sm:px-7 lg:grid lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:gap-10 lg:px-8 lg:py-10 xl:gap-12 xl:px-10 xl:py-12">
+      <div className="relative max-w-2xl">
+        <div className="pointer-events-none absolute -right-8 top-8 hidden text-blue-300/50 lg:block xl:-right-14">
+          <div className="h-36 w-28 rounded-full border-r-2 border-dashed border-blue-200/80" />
+          <Plane className="absolute -right-2 -top-3 h-10 w-10 rotate-[-18deg]" />
+          <Sparkles className="absolute -left-5 top-20 h-5 w-5" />
+        </div>
+
+        <span className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-gradient-to-r from-blue-50 to-cyan-50 px-5 py-2 text-sm font-black text-blue-700 shadow-sm shadow-blue-100/60">
           <Sparkles className="h-4 w-4" />
-          Travel Marketplace
+          AI Travel Marketplace
         </span>
-        <h1 className="mt-6 max-w-2xl text-4xl font-black leading-tight tracking-tight text-slate-950 sm:text-5xl xl:text-[3.15rem]">
-          Find your next <span className="text-blue-600">travel</span>{" "}
-          experience
+        <h1 className="mt-7 text-4xl font-black leading-[1.02] tracking-tight text-slate-950 sm:text-5xl xl:text-[4rem] 2xl:text-[4.25rem]">
+          Find your next{" "}
+          <span className="relative inline-block bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">
+            travel experience
+            <span className="absolute -bottom-1.5 left-1 h-2.5 w-11/12 rounded-full bg-blue-100/80" />
+          </span>
         </h1>
-        <p className="mt-4 max-w-xl text-lg font-medium leading-8 text-slate-600 sm:text-xl">
-          Search stays, tours, restaurants, vehicles, and local experiences from
-          trusted providers.
+        <p className="mt-5 max-w-xl text-base font-semibold leading-8 text-slate-600 sm:text-lg xl:text-xl xl:leading-9">
+          Discover trusted stays, tours, restaurants, vehicles, and local
+          experiences — all in one intelligent travel marketplace.
         </p>
-        <div className="mt-5 flex flex-wrap gap-3">
-          {badges.map(([label, Icon]) => (
-            <span
-              key={label}
-              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-blue-100 bg-white px-4 text-sm font-black text-slate-800 shadow-sm"
+
+        <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+          <Button className="h-14 rounded-2xl bg-blue-600 px-7 text-base font-black text-white shadow-lg shadow-blue-500/25 transition hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-500/30">
+            <Search className="mr-3 h-5 w-5" />
+            Start exploring
+            <ArrowRight className="ml-3 h-5 w-5" />
+          </Button>
+          <Button
+            variant="outline"
+            className="h-14 rounded-2xl border-blue-100 bg-white px-7 text-base font-black text-blue-700 shadow-sm shadow-blue-100/50 transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50"
+          >
+            <Sparkles className="mr-3 h-5 w-5" />
+            Plan with AI
+            <ArrowRight className="ml-3 h-5 w-5" />
+          </Button>
+        </div>
+
+        <div className="mt-7 grid overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-lg shadow-blue-100/40 sm:grid-cols-3">
+          {trustCards.map(({ title, subtitle, icon: Icon }, index) => (
+            <div
+              key={title}
+              className={cn(
+                "flex min-w-0 items-center gap-3 p-4 xl:p-5",
+                index > 0 && "border-t border-slate-100 sm:border-l sm:border-t-0",
+              )}
             >
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-50 text-blue-600">
-                <Icon className="h-4 w-4" />
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                <Icon className="h-5 w-5" />
               </span>
-              {label}
-            </span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-black text-slate-950">
+                  {title}
+                </span>
+                <span className="mt-1 block text-xs font-semibold leading-5 text-slate-500">
+                  {subtitle}
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-3 grid overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-md shadow-blue-100/30 sm:grid-cols-3">
+          {stats.map(({ value, label, icon: Icon, color }, index) => (
+            <div
+              key={label}
+              className={cn(
+                "flex items-center gap-3 p-4 xl:p-5",
+                index > 0 && "border-t border-slate-100 sm:border-l sm:border-t-0",
+              )}
+            >
+              <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl", color)}>
+                <Icon className="h-5 w-5" />
+              </span>
+              <span>
+                <span className="block text-xl font-black leading-none text-blue-700">
+                  {value}
+                </span>
+                <span className="mt-1 block text-xs font-semibold text-slate-500">
+                  {label}
+                </span>
+              </span>
+            </div>
           ))}
         </div>
       </div>
-      <div className="min-w-0 lg:col-span-7">
+      <div className="mt-8 min-w-0 lg:mt-0">
         <HeroBannerSlider />
       </div>
     </section>
@@ -667,7 +948,7 @@ function formatPriceLabel(filters: FilterState) {
   if (!filters.minPrice && !filters.maxPrice) return "Any price";
   if (filters.minPrice && !filters.maxPrice) return `$${filters.minPrice}+`;
   if (!filters.minPrice && filters.maxPrice) return `Under $${filters.maxPrice}`;
-  return `$${filters.minPrice}-$${filters.maxPrice}`;
+  return `$${filters.minPrice}–$${filters.maxPrice}`;
 }
 
 function formatLocationLabel(filters: Pick<FilterState, "city" | "locationLabel" | "locationMode">) {
@@ -853,7 +1134,15 @@ function LocationPicker({
     "idle" | "requesting" | "success" | "denied" | "unavailable" | "error"
   >("idle");
   const [geoMessage, setGeoMessage] = useState("");
+  const [popoverPosition, setPopoverPosition] = useState({
+    left: 0,
+    top: 0,
+    width: 420,
+    maxHeight: 560,
+  });
+  const [isDesktopPopover, setIsDesktopPopover] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -875,7 +1164,11 @@ function LocationPicker({
     if (!open) return;
 
     const handlePointerDown = (event: MouseEvent | TouchEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        !rootRef.current?.contains(target) &&
+        !dropdownRef.current?.contains(target)
+      ) {
         setOpen(false);
       }
     };
@@ -894,6 +1187,50 @@ function LocationPicker({
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("touchstart", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const updatePopoverPosition = () => {
+      const trigger = rootRef.current;
+      if (!trigger) return;
+      const isDesktop = window.matchMedia("(min-width: 768px)").matches;
+      setIsDesktopPopover(isDesktop);
+      if (!isDesktop) return;
+
+      const rect = trigger.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const gap = 10;
+      const collisionPadding = 16;
+      const desiredWidth = Math.min(420, viewportWidth - collisionPadding * 2);
+      const left = Math.min(
+        Math.max(rect.left, collisionPadding),
+        viewportWidth - desiredWidth - collisionPadding,
+      );
+      const spaceBelow = viewportHeight - rect.bottom - collisionPadding - gap;
+      const spaceAbove = rect.top - collisionPadding - gap;
+      const openAbove = spaceBelow < 360 && spaceAbove > spaceBelow;
+      const maxHeight = Math.max(
+        280,
+        Math.min(560, openAbove ? spaceAbove : spaceBelow),
+      );
+      const top = openAbove
+        ? Math.max(collisionPadding, rect.top - gap - maxHeight)
+        : rect.bottom + gap;
+
+      setPopoverPosition({ left, top, width: desiredWidth, maxHeight });
+    };
+
+    updatePopoverPosition();
+    window.addEventListener("resize", updatePopoverPosition);
+    window.addEventListener("scroll", updatePopoverPosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePopoverPosition);
+      window.removeEventListener("scroll", updatePopoverPosition, true);
     };
   }, [open]);
 
@@ -1018,8 +1355,21 @@ function LocationPicker({
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-slate-400 transition", open && "rotate-180")} />
       </button>
 
-      {open && (
-        <div className="fixed inset-x-3 bottom-3 z-[9999] max-h-[calc(100vh-96px)] overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.24)] md:absolute md:inset-auto md:left-0 md:top-full md:mt-3 md:w-[420px] md:max-w-[calc(100vw-2rem)] md:rounded-[24px]">
+      {open && typeof document !== "undefined" && createPortal(
+        <div
+          ref={dropdownRef}
+          className="fixed inset-x-3 bottom-3 z-[60] max-h-[calc(100vh-96px)] overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.24)] md:inset-auto md:bottom-auto md:rounded-[24px]"
+          style={
+            isDesktopPopover
+              ? {
+                  left: popoverPosition.left,
+                  top: popoverPosition.top,
+                  width: popoverPosition.width,
+                  maxHeight: popoverPosition.maxHeight,
+                }
+              : undefined
+          }
+        >
           <div className="flex justify-center pt-2 md:hidden">
             <span className="h-1 w-12 rounded-full bg-slate-200" />
           </div>
@@ -1140,7 +1490,8 @@ function LocationPicker({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
@@ -1148,17 +1499,23 @@ function LocationPicker({
 
 function ExploreFilterBar({
   filters,
+  appliedFilters,
   activeCount,
+  advancedCount,
   onChange,
   onApply,
   onClear,
+  onRemoveApplied,
   onOpenMore,
 }: {
   filters: FilterState;
+  appliedFilters: FilterState;
   activeCount: number;
+  advancedCount: number;
   onChange: (next: Partial<FilterState>) => void;
   onApply: () => void;
   onClear: () => void;
+  onRemoveApplied: (next: Partial<FilterState>) => void;
   onOpenMore: () => void;
 }) {
   return (
@@ -1256,7 +1613,7 @@ function ExploreFilterBar({
 
         <Button
           className="flex h-[62px] items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 font-bold text-white shadow-[0_8px_18px_rgba(37,99,235,0.22)] transition hover:bg-blue-700"
-          onClick={onApply}
+          onClick={() => onApply()}
         >
           Apply filters
           {activeCount > 0 && (
@@ -1304,32 +1661,36 @@ function ExploreFilterBar({
             <SlidersHorizontal className="h-4 w-4" />
           </span>
           More filters
-          {activeCount > 0 && (
+          {advancedCount > 0 && (
             <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] text-white">
-              {activeCount}
+              {advancedCount}
             </span>
           )}
         </button>
       </div>
 
-      <ActiveFilterChips filters={filters} onRemove={onChange} onClear={onClear} embedded />
+      <ActiveFilterChips filters={appliedFilters} onRemove={onRemoveApplied} onClear={onClear} embedded />
     </section>
   );
 }
 
 function MobileExploreFilterBar({
   filters,
-  activeCount,
+  appliedFilters,
+  advancedCount,
   onChange,
   onApply,
   onClear,
+  onRemoveApplied,
   onOpenMore,
 }: {
   filters: FilterState;
-  activeCount: number;
+  appliedFilters: FilterState;
+  advancedCount: number;
   onChange: (next: Partial<FilterState>) => void;
   onApply: () => void;
   onClear: () => void;
+  onRemoveApplied: (next: Partial<FilterState>) => void;
   onOpenMore: () => void;
 }) {
   return (
@@ -1345,9 +1706,9 @@ function MobileExploreFilterBar({
         >
           <SlidersHorizontal className="mr-2 h-4 w-4" />
           Filters
-          {activeCount > 0 && (
+          {advancedCount > 0 && (
             <span className="ml-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-black text-white">
-              {activeCount}
+              {advancedCount}
             </span>
           )}
         </Button>
@@ -1377,7 +1738,7 @@ function MobileExploreFilterBar({
         <LocationPicker filters={filters} onChange={onChange} />
       </div>
 
-      <ActiveFilterChips filters={filters} onRemove={onChange} onClear={onClear} embedded mobile />
+      <ActiveFilterChips filters={appliedFilters} onRemove={onRemoveApplied} onClear={onClear} embedded mobile />
     </section>
   );
 }
@@ -1395,86 +1756,7 @@ function ActiveFilterChips({
   embedded?: boolean;
   mobile?: boolean;
 }) {
-  const chips: Array<{ label: string; clear: Partial<FilterState> }> = [];
-
-  if (filters.keyword.trim())
-    chips.push({ label: filters.keyword.trim(), clear: { keyword: "" } });
-  if (filters.city.trim() || filters.locationMode === "coordinates")
-    chips.push({
-      label: formatLocationLabel(filters),
-      clear: clearLocationPatch(),
-    });
-  if (filters.category)
-    chips.push({
-      label: formatCategory(filters.category),
-      clear: { category: "" },
-    });
-  if (filters.minPrice || filters.maxPrice)
-    chips.push({
-      label: `${filters.minPrice || "$0"}-${filters.maxPrice || "$300+"}`,
-      clear: { minPrice: "", maxPrice: "" },
-    });
-  if (filters.rating)
-    chips.push({ label: `${filters.rating}+ rating`, clear: { rating: "" } });
-  if (filters.sortBy !== "recommended")
-    chips.push({
-      label:
-        sortOptions.find((option) => option.value === filters.sortBy)?.label ||
-        filters.sortBy,
-      clear: { sortBy: "recommended" },
-    });
-  if (filters.availableOnly)
-    chips.push({ label: "Available only", clear: { availableOnly: false } });
-  if (filters.instantBooking)
-    chips.push({ label: "Instant booking", clear: { instantBooking: false } });
-  if (filters.freeCancellation)
-    chips.push({
-      label: "Free cancellation",
-      clear: { freeCancellation: false },
-    });
-  if (filters.reserveNowPayLater)
-    chips.push({
-      label: "Reserve now, pay later",
-      clear: { reserveNowPayLater: false },
-    });
-  if (filters.propertyType)
-    chips.push({
-      label: filters.propertyType,
-      clear: { propertyType: "" },
-    });
-  if (filters.guestCapacity)
-    chips.push({
-      label: `${filters.guestCapacity}+ guests`,
-      clear: { guestCapacity: "" },
-    });
-  if (filters.providerRating)
-    chips.push({
-      label: `${filters.providerRating}+ provider`,
-      clear: { providerRating: "" },
-    });
-  if (filters.language)
-    chips.push({ label: filters.language, clear: { language: "" } });
-  if (filters.neighborhood)
-    chips.push({
-      label: filters.neighborhood,
-      clear: { neighborhood: "" },
-    });
-  filters.amenities.forEach((amenity) =>
-    chips.push({
-      label: amenity,
-      clear: {
-        amenities: filters.amenities.filter((item) => item !== amenity),
-      },
-    }),
-  );
-  filters.accessibility.forEach((item) =>
-    chips.push({
-      label: item,
-      clear: {
-        accessibility: filters.accessibility.filter((value) => value !== item),
-      },
-    }),
-  );
+  const chips = getActiveFilterChips(filters);
 
   if (!chips.length) return null;
 
@@ -1513,7 +1795,7 @@ function ActiveFilterChips({
 
 function MoreFiltersModal({
   open,
-  filters,
+  filters: rawFilters,
   onClose,
   onChange,
   onApply,
@@ -1529,6 +1811,7 @@ function MoreFiltersModal({
   const [activeSection, setActiveSection] = useState("amenities");
   const [showAllAmenities, setShowAllAmenities] = useState(false);
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
+  const filters = normalizeFilters(rawFilters);
 
   useEffect(() => {
     if (!open) return;
@@ -1547,7 +1830,7 @@ function MoreFiltersModal({
 
   if (!open) return null;
 
-  const selectedCount = activeFilterCount(filters);
+  const selectedCount = getActiveFilterCount(filters);
   const bookingPolicyCount = [
     filters.instantBooking,
     filters.freeCancellation,
@@ -2291,65 +2574,85 @@ function Pagination({
 export const SearchPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialFilters = useMemo(
-    () => filtersFromSearchParams(searchParams),
+    () => normalizeFilters(filtersFromSearchParams(searchParams)),
     [],
   );
   const initialPage = useMemo(
-    () => parseInt(searchParams.get("page") || "0", 10),
+    () => {
+      const parsedPage = Number(searchParams.get("page") || 0);
+      return Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 0;
+    },
     [],
   );
 
   const [draftFilters, setDraftFilters] = useState<FilterState>(initialFilters);
-  const [appliedFilters, setAppliedFilters] = useState<ListingSearchRequest>(
-    toApiParams(initialFilters, initialPage),
-  );
+  const [appliedFilters, setAppliedFilters] =
+    useState<FilterState>(initialFilters);
+  const [page, setCurrentPage] = useState(initialPage);
   const [isMoreFiltersOpen, setIsMoreFiltersOpen] = useState(false);
   const [moreFiltersBaseline, setMoreFiltersBaseline] =
     useState<FilterState>(initialFilters);
 
-  const activeCount = activeFilterCount(draftFilters);
+  const draftActiveCount = getActiveFilterCount(draftFilters);
+  const draftAdvancedCount = getAdvancedFilterCount(draftFilters);
+  const appliedApiParams = useMemo(
+    () => filtersToApiParams(appliedFilters, page),
+    [appliedFilters, page],
+  );
 
   const { data, isLoading } = useQuery({
-    queryKey: ["search-listings", appliedFilters],
+    queryKey: ["search-listings", appliedApiParams],
     queryFn: () =>
-      listingService.searchListings({ ...appliedFilters, status: "ACTIVE" }),
+      listingService.searchListings({ ...appliedApiParams, status: "ACTIVE" }),
   });
 
   const updateDraft = (next: Partial<FilterState>) => {
-    setDraftFilters((prev) => ({ ...prev, ...next }));
+    setDraftFilters((prev) => normalizeFilters({ ...prev, ...next }));
   };
 
   const applyFilters = (nextFilters = draftFilters) => {
-    setDraftFilters(nextFilters);
-    setAppliedFilters(toApiParams(nextFilters, 0));
-    setSearchParams(buildSearchParams(nextFilters, 0));
+    const normalized = normalizeFilters(nextFilters);
+    setDraftFilters(normalized);
+    setAppliedFilters(normalized);
+    setCurrentPage(0);
+    setSearchParams(filtersToSearchParams(normalized, 0));
     setIsMoreFiltersOpen(false);
   };
 
   const openMoreFilters = () => {
-    setMoreFiltersBaseline(draftFilters);
+    setMoreFiltersBaseline(normalizeFilters(draftFilters));
     setIsMoreFiltersOpen(true);
   };
 
   const closeMoreFilters = () => {
-    setDraftFilters(moreFiltersBaseline);
+    setDraftFilters(normalizeFilters(moreFiltersBaseline));
     setIsMoreFiltersOpen(false);
   };
 
   const clearFilters = () => {
-    setDraftFilters(defaultFilters);
-    setAppliedFilters(toApiParams(defaultFilters, 0));
+    const normalized = normalizeFilters(defaultFilters);
+    setDraftFilters(normalized);
+    setAppliedFilters(normalized);
+    setCurrentPage(0);
     setSearchParams(new URLSearchParams());
     setIsMoreFiltersOpen(false);
   };
 
+  const removeAppliedFilter = (clear: Partial<FilterState>) => {
+    const nextFilters = clearSingleFilter(appliedFilters, clear);
+    setDraftFilters(nextFilters);
+    setAppliedFilters(nextFilters);
+    setCurrentPage(0);
+    setSearchParams(filtersToSearchParams(nextFilters, 0));
+  };
+
   const setPage = (newPage: number) => {
-    setAppliedFilters((prev) => ({ ...prev, page: newPage }));
-    setSearchParams(buildSearchParams(draftFilters, newPage));
+    setCurrentPage(newPage);
+    setSearchParams(filtersToSearchParams(appliedFilters, newPage));
   };
 
   const totalResults = data?.data?.totalElements || 0;
-  const currentPage = appliedFilters.page || 0;
+  const currentPage = page;
 
   return (
     <div className="overflow-x-hidden bg-gradient-to-b from-slate-50 via-white to-blue-50/30">
@@ -2359,18 +2662,23 @@ export const SearchPage: React.FC = () => {
         <div className="mt-5">
           <MobileExploreFilterBar
             filters={draftFilters}
-            activeCount={activeCount}
+            appliedFilters={appliedFilters}
+            advancedCount={draftAdvancedCount}
             onChange={updateDraft}
             onApply={applyFilters}
             onClear={clearFilters}
+            onRemoveApplied={removeAppliedFilter}
             onOpenMore={openMoreFilters}
           />
           <ExploreFilterBar
             filters={draftFilters}
-            activeCount={activeCount}
+            appliedFilters={appliedFilters}
+            activeCount={draftActiveCount}
+            advancedCount={draftAdvancedCount}
             onChange={updateDraft}
             onApply={applyFilters}
             onClear={clearFilters}
+            onRemoveApplied={removeAppliedFilter}
             onOpenMore={openMoreFilters}
           />
         </div>

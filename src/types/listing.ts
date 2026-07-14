@@ -10,6 +10,14 @@ export interface ListingImage {
   isPrimary: boolean;
 }
 
+export type ListingImageCategory = 'Exterior' | 'Room' | 'Bathroom' | 'Pool' | 'Dining' | 'View' | 'Amenity' | 'Other';
+
+export interface ListingImageDraft {
+  url: string;
+  caption?: string;
+  category?: ListingImageCategory;
+}
+
 export interface ListingResponse {
   id: number;
   providerId: number;

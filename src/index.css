@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600;1,700&family=Dancing+Script:wght@600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,7 +6,8 @@
 
 @layer base {
   :root {
-    --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --font-sans: 'Plus Jakarta Sans', Manrope, Inter, ui-sans-serif, system-ui, sans-serif;
+    --font-script: 'Dancing Script', cursive;
     
     --background: 210 20% 98%;
     --foreground: 224 71% 4%;
@@ -70,6 +71,38 @@
   }
 }
 
+@layer components {
+  .listing-wizard-premium label {
+    @apply text-sm font-semibold text-slate-800;
+  }
+
+  .listing-wizard-premium input,
+  .listing-wizard-premium select {
+    @apply h-12 rounded-xl border-slate-300 bg-white px-3.5 text-sm font-medium text-slate-900 shadow-sm transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100;
+  }
+
+  .listing-wizard-premium textarea {
+    @apply rounded-xl border-slate-300 bg-white px-3.5 py-3 text-sm font-medium leading-6 text-slate-900 shadow-sm transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100;
+  }
+
+  .wizard-section {
+    @apply rounded-[20px] border border-blue-100 bg-blue-50/30 p-4 sm:p-5;
+  }
+
+  .wizard-section-header {
+    @apply mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between;
+  }
+
+  .wizard-icon {
+    @apply flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-blue-600 ring-1 ring-blue-200;
+  }
+
+  .wizard-action-bar {
+    @apply sticky bottom-0 z-10 -mx-5 mt-7 flex flex-col gap-3 border-t border-slate-100 bg-white/95 px-5 py-4 backdrop-blur sm:-mx-7 sm:flex-row sm:items-center sm:justify-between sm:px-7;
+    padding-bottom: calc(env(safe-area-inset-bottom) + 1rem);
+  }
+}
+
 @layer base {
   * {
     @apply border-border;
@@ -128,11 +161,809 @@
     animation: detail-fade-in 700ms ease both;
   }
 
+  @keyframes rating-fill {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  @keyframes star-pop {
+    from {
+      opacity: 0;
+      transform: translateY(4px) scale(0.72);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes marker-pulse {
+    0%,
+    100% {
+      opacity: 0.28;
+      transform: translate(-50%, -50%) scale(0.8);
+    }
+    50% {
+      opacity: 0.08;
+      transform: translate(-50%, -50%) scale(1.35);
+    }
+  }
+
+  @keyframes price-highlight {
+    0%,
+    100% {
+      background-color: transparent;
+      box-shadow: none;
+    }
+    35% {
+      background-color: rgba(219, 234, 254, 0.92);
+      box-shadow: 0 0 0 8px rgba(219, 234, 254, 0.36);
+    }
+  }
+
+  @keyframes book-emphasis {
+    0%,
+    100% {
+      transform: translateY(0) scale(1);
+    }
+    42% {
+      transform: translateY(-1px) scale(1.015);
+    }
+  }
+
+  @keyframes mobile-booking-bar {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes travel-ai-border-sweep {
+    0% {
+      opacity: 0;
+      transform: translateX(-32%) rotate(0deg);
+    }
+    28% {
+      opacity: 0.42;
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(32%) rotate(8deg);
+    }
+  }
+
+  @keyframes travel-ai-header-blink {
+    0%,
+    100% {
+      opacity: 0;
+      transform: translate(-50%, -50%) scaleX(0.25);
+    }
+    42%,
+    62% {
+      opacity: 0.78;
+      transform: translate(-50%, -50%) scaleX(1);
+    }
+  }
+
+  @keyframes travel-ai-robot-idle {
+    0%,
+    100% {
+      transform: translateY(0) rotate(var(--robot-tilt, 0deg));
+    }
+    50% {
+      transform: translateY(-1.5px) rotate(calc(var(--robot-tilt, 0deg) + 1deg));
+    }
+  }
+
+  @keyframes travel-ai-eye-wander {
+    0%,
+    28%,
+    100% {
+      transform: translate(var(--eye-x, 0px), var(--eye-y, 0px));
+    }
+    42%,
+    58% {
+      transform: translate(calc(var(--eye-x, 0px) - 2px), calc(var(--eye-y, 0px) + 0.5px));
+    }
+    72%,
+    84% {
+      transform: translate(calc(var(--eye-x, 0px) + 2px), calc(var(--eye-y, 0px) - 0.5px));
+    }
+  }
+
+  @keyframes travel-ai-eye-blink {
+    0%,
+    91%,
+    94%,
+    100% {
+      transform: scaleY(1);
+    }
+    92.5% {
+      transform: scaleY(0.12);
+    }
+  }
+
+  @keyframes travel-ai-robot-press {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    42% {
+      transform: scale(1.08, 0.9);
+    }
+    72% {
+      transform: scale(0.96, 1.06);
+    }
+  }
+
+  @keyframes travel-ai-thinking-eye {
+    0%,
+    100% {
+      opacity: 0.85;
+      filter: drop-shadow(0 0 0 rgba(103, 232, 249, 0));
+    }
+    50% {
+      opacity: 1;
+      filter: drop-shadow(0 0 5px rgba(103, 232, 249, 0.85));
+    }
+  }
+
+  @keyframes travel-ai-robot-typing-left {
+    0%,
+    100% {
+      transform: translateY(0) rotate(0deg);
+    }
+    50% {
+      transform: translateY(1.8px) rotate(-4deg);
+    }
+  }
+
+  @keyframes travel-ai-robot-typing-right {
+    0%,
+    100% {
+      transform: translateY(1.6px) rotate(4deg);
+    }
+    50% {
+      transform: translateY(0) rotate(0deg);
+    }
+  }
+
+  @keyframes travel-ai-robot-success-bounce {
+    0%,
+    100% {
+      transform: translateY(0) scale(1);
+    }
+    42% {
+      transform: translateY(-3px) scale(1.04);
+    }
+    70% {
+      transform: translateY(1px) scale(0.99);
+    }
+  }
+
+  @keyframes travel-ai-robot-error-tilt {
+    0%,
+    100% {
+      transform: rotate(0deg);
+    }
+    45% {
+      transform: rotate(-4deg);
+    }
+  }
+
+  @keyframes travel-ai-thinking-dot-step {
+    0%,
+    100% {
+      opacity: 0.2;
+      transform: translateY(0);
+    }
+    50% {
+      opacity: 0.95;
+      transform: translateY(-1px);
+    }
+  }
+
+  @keyframes travel-ai-unread-glance {
+    0%,
+    100% {
+      transform: translate(var(--eye-x, 0px), var(--eye-y, 0px));
+    }
+    35%,
+    64% {
+      transform: translate(calc(var(--eye-x, 0px) - 3px), calc(var(--eye-y, 0px) - 2px));
+    }
+  }
+
+  @keyframes travel-ai-sparkle-twinkle {
+    0%,
+    100% {
+      opacity: 0;
+      transform: scale(0.7) rotate(-10deg);
+    }
+    45% {
+      opacity: 0.95;
+      transform: scale(1) rotate(8deg);
+    }
+  }
+
+  @keyframes travel-ai-portal-ring {
+    0% {
+      opacity: 0.42;
+      transform: scale(0.86);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1.75);
+    }
+  }
+
+  .travel-ai-motion-panel {
+    transform-origin: bottom right;
+    will-change: clip-path, opacity, transform;
+  }
+
+  .travel-ai-border-sweep {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    padding: 1px;
+    pointer-events: none;
+    background: linear-gradient(115deg, transparent 16%, rgba(96, 165, 250, 0.78) 38%, rgba(167, 139, 250, 0.86) 52%, transparent 76%);
+    border-radius: inherit;
+    opacity: 0;
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+  }
+
+  .travel-ai-motion-panel .travel-ai-border-sweep {
+    animation: travel-ai-border-sweep 640ms ease-out both;
+  }
+
+  .travel-ai-pull-beam {
+    position: absolute;
+    right: 2.75rem;
+    bottom: -1.1rem;
+    z-index: 25;
+    width: 6.25rem;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.72), rgba(167, 139, 250, 0.72), transparent);
+    filter: drop-shadow(0 0 10px rgba(34, 211, 238, 0.72));
+    opacity: 0;
+    transform: rotate(-18deg);
+  }
+
+  .travel-ai-motion-panel .travel-ai-pull-beam {
+    animation: travel-ai-border-sweep 520ms 40ms ease-out both;
+  }
+
+  .travel-ai-header-robot::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 1.35rem;
+    height: 0.15rem;
+    content: "";
+    pointer-events: none;
+    background: rgba(15, 23, 42, 0.82);
+    border-radius: 999px;
+    opacity: 0;
+    transform: translate(-50%, -50%) scaleX(0.25);
+  }
+
+  .travel-ai-panel-state--closing .travel-ai-header-robot::after {
+    animation: travel-ai-header-blink 180ms ease-out both;
+  }
+
+  .travel-ai-launcher {
+    position: fixed;
+    will-change: transform;
+  }
+
+  .travel-ai-launcher::after {
+    position: absolute;
+    inset: -0.45rem;
+    content: "";
+    pointer-events: none;
+    border: 1px solid rgba(125, 211, 252, 0.72);
+    border-radius: 999px;
+    opacity: 0;
+    box-shadow:
+      0 0 22px rgba(34, 211, 238, 0.38),
+      inset 0 0 18px rgba(168, 85, 247, 0.18);
+  }
+
+  .travel-ai-launcher--portal::after {
+    animation: travel-ai-portal-ring 680ms ease-out both;
+  }
+
+  .travel-ai-launcher--compress {
+    transform: scale(0.9);
+  }
+
+  .travel-ai-launcher-robot-wrap {
+    transition: opacity 140ms ease, transform 140ms ease;
+  }
+
+  .travel-ai-launcher-robot {
+    --eye-x: 0px;
+    --eye-y: 0px;
+    --robot-tilt: 0deg;
+    transform-origin: center;
+    animation: travel-ai-robot-idle 5200ms ease-in-out infinite;
+    will-change: transform;
+  }
+
+  .travel-ai-launcher-robot--paused,
+  .travel-ai-launcher-robot--paused .travel-ai-launcher-eye-group,
+  .travel-ai-launcher-robot--paused .travel-ai-launcher-eye {
+    animation-play-state: paused;
+  }
+
+  .travel-ai-launcher-eye-group {
+    transform: translate(var(--eye-x, 0px), var(--eye-y, 0px));
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: travel-ai-eye-wander 8200ms ease-in-out infinite;
+    transition: transform 140ms ease-out;
+    will-change: transform;
+  }
+
+  .travel-ai-launcher-eye {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: travel-ai-eye-blink 6200ms ease-in-out infinite;
+  }
+
+  .travel-ai-launcher:hover {
+    box-shadow:
+      0 24px 52px rgba(30, 64, 175, 0.48),
+      0 0 28px rgba(34, 211, 238, 0.32);
+  }
+
+  .travel-ai-launcher:hover .travel-ai-launcher-robot {
+    animation-play-state: paused;
+    transform: translateY(-1px) rotate(var(--robot-tilt, 0deg));
+  }
+
+  .travel-ai-launcher:hover .travel-ai-launcher-eye-group {
+    animation: none;
+  }
+
+  .travel-ai-launcher-robot--pressed {
+    animation: travel-ai-robot-press 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .travel-ai-launcher-robot--portal {
+    animation: none;
+    transform: rotate(-3deg) scale(0.98);
+  }
+
+  .travel-ai-launcher-robot--portal .travel-ai-launcher-eye-group {
+    animation: none;
+    transform: translate(3px, -2px);
+  }
+
+  .travel-ai-launcher-robot--portal .travel-ai-launcher-eye {
+    opacity: 1;
+    filter: drop-shadow(0 0 5px rgba(103, 232, 249, 0.9));
+  }
+
+  .travel-ai-launcher-robot--thinking .travel-ai-launcher-eye {
+    animation: travel-ai-thinking-eye 900ms ease-in-out infinite;
+  }
+
+  .travel-ai-robot-mouth,
+  .travel-ai-robot-keyboard,
+  .travel-ai-robot-hand,
+  .travel-ai-robot-status-effects {
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+
+  .travel-ai-robot-mouth--success,
+  .travel-ai-robot-mouth--error,
+  .travel-ai-robot-keyboard,
+  .travel-ai-robot-hand,
+  .travel-ai-robot-success-dot,
+  .travel-ai-robot-error-mark,
+  .travel-ai-robot-thinking-dot {
+    opacity: 0;
+  }
+
+  .travel-ai-launcher-robot--thinking .travel-ai-robot-keyboard,
+  .travel-ai-launcher-robot--thinking .travel-ai-robot-hand,
+  .travel-ai-launcher-robot--thinking .travel-ai-robot-thinking-dot {
+    opacity: 1;
+  }
+
+  .travel-ai-launcher-robot--thinking .travel-ai-launcher-eye-group {
+    animation: none;
+    transform: translate(var(--eye-x, 0px), calc(var(--eye-y, 0px) + 2px));
+  }
+
+  .travel-ai-launcher-robot--thinking .travel-ai-robot-left-hand {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: travel-ai-robot-typing-left 620ms ease-in-out infinite;
+  }
+
+  .travel-ai-launcher-robot--thinking .travel-ai-robot-right-hand {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: travel-ai-robot-typing-right 620ms ease-in-out infinite;
+  }
+
+  .travel-ai-launcher-robot--thinking .travel-ai-robot-thinking-dot-1 {
+    animation: travel-ai-thinking-dot-step 760ms ease-in-out infinite;
+  }
+
+  .travel-ai-launcher-robot--thinking .travel-ai-robot-thinking-dot-2 {
+    animation: travel-ai-thinking-dot-step 760ms 120ms ease-in-out infinite;
+  }
+
+  .travel-ai-launcher-robot--thinking .travel-ai-robot-thinking-dot-3 {
+    animation: travel-ai-thinking-dot-step 760ms 240ms ease-in-out infinite;
+  }
+
+  .travel-ai-launcher-robot--success {
+    animation: travel-ai-robot-success-bounce 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .travel-ai-launcher-robot--success .travel-ai-launcher-eye {
+    opacity: 1;
+    filter: drop-shadow(0 0 5px rgba(103, 232, 249, 0.95));
+    transform: scaleY(0.72);
+  }
+
+  .travel-ai-launcher-robot--success .travel-ai-robot-mouth--idle,
+  .travel-ai-launcher-robot--success .travel-ai-robot-mouth--error {
+    opacity: 0;
+  }
+
+  .travel-ai-launcher-robot--success .travel-ai-robot-mouth--success,
+  .travel-ai-launcher-robot--success .travel-ai-robot-success-dot {
+    opacity: 1;
+  }
+
+  .travel-ai-launcher-robot--error {
+    animation: travel-ai-robot-error-tilt 360ms ease-out both;
+  }
+
+  .travel-ai-launcher-robot--error .travel-ai-launcher-eye-group {
+    animation: none;
+    transform: translate(var(--eye-x, 0px), calc(var(--eye-y, 0px) + 2px));
+  }
+
+  .travel-ai-launcher-robot--error .travel-ai-launcher-eye {
+    fill: #fca5a5;
+    opacity: 0.88;
+  }
+
+  .travel-ai-launcher-robot--error .travel-ai-robot-mouth--idle,
+  .travel-ai-launcher-robot--error .travel-ai-robot-mouth--success {
+    opacity: 0;
+  }
+
+  .travel-ai-launcher-robot--error .travel-ai-robot-mouth--error,
+  .travel-ai-launcher-robot--error .travel-ai-robot-error-mark {
+    opacity: 1;
+  }
+
+  .travel-ai-launcher-robot--unread .travel-ai-launcher-eye-group {
+    animation: travel-ai-unread-glance 1100ms ease-out 1;
+  }
+
+  .travel-ai-launcher-sparkle {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .travel-ai-launcher:hover .travel-ai-launcher-sparkle-one {
+    animation: travel-ai-sparkle-twinkle 820ms ease-out both;
+  }
+
+  .travel-ai-launcher:hover .travel-ai-launcher-sparkle-two {
+    animation: travel-ai-sparkle-twinkle 920ms 90ms ease-out both;
+  }
+
+  .detail-enter,
+  .motion-gallery-item,
+  .motion-stagger-item {
+    animation: detail-fade-up 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .detail-enter-delay-1 {
+    animation-delay: 70ms;
+  }
+
+  .detail-enter-delay-2 {
+    animation-delay: 140ms;
+  }
+
+  .motion-card-hover {
+    transition:
+      transform 200ms ease,
+      border-color 200ms ease,
+      box-shadow 200ms ease;
+  }
+
+  .motion-tab-button {
+    position: relative;
+  }
+
+  .motion-tab-button::after {
+    position: absolute;
+    right: 0.85rem;
+    bottom: 0.35rem;
+    left: 0.85rem;
+    height: 2px;
+    content: "";
+    background: linear-gradient(90deg, #2563eb, #06b6d4);
+    border-radius: 999px;
+    opacity: 0;
+    transform: scaleX(0.4);
+    transform-origin: center;
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+
+  .motion-tab-button.is-active::after {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+
+  .motion-photo-tile {
+    transition:
+      background-color 180ms ease,
+      transform 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  .motion-price-highlight {
+    animation: price-highlight 1100ms ease both;
+  }
+
+  .motion-book-emphasis {
+    animation: book-emphasis 860ms ease both;
+  }
+
+  .motion-ai-button {
+    background-size: 180% 100%;
+  }
+
+  .motion-ai-sparkle {
+    transition: transform 180ms ease, color 180ms ease;
+  }
+
+  .motion-map-marker::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: -1;
+    width: 4.5rem;
+    height: 4.5rem;
+    content: "";
+    background: #2563eb;
+    border-radius: 999px;
+    animation: marker-pulse 2200ms ease-in-out infinite;
+  }
+
+  .motion-map-tooltip,
+  .policy-expand-panel,
+  .motion-mobile-booking-bar,
+  .motion-upload-preview {
+    animation: detail-fade-up 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .motion-rating-bar {
+    transform-origin: left center;
+    animation: rating-fill 850ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .motion-star-reveal {
+    animation: star-pop 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .motion-helpful-button {
+    transition: color 180ms ease, transform 180ms ease, background-color 180ms ease;
+  }
+
+  .overview-layout-container {
+    container-type: inline-size;
+  }
+
+  .overview-story {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem;
+    min-width: 0;
+    align-items: stretch;
+  }
+
+  .overview-story-image {
+    position: relative;
+    min-width: 0;
+    min-height: 260px;
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+    border-radius: 20px;
+  }
+
+  .overview-compact-location,
+  .overview-spotlight-rating,
+  .overview-quick-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    min-width: 0;
+  }
+
+  .overview-spotlight-rating {
+    gap: 0;
+  }
+
+  .overview-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    align-items: stretch;
+    min-width: 0;
+  }
+
+  @container (min-width: 430px) {
+    .overview-row {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @container (min-width: 720px) {
+    .overview-row,
+    .overview-quick-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @container (min-width: 760px) {
+    .overview-story {
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.5fr);
+      gap: 1.75rem;
+    }
+
+    .overview-story-image {
+      height: 100%;
+      min-height: 320px;
+      aspect-ratio: auto;
+    }
+
+    .overview-compact-location {
+      grid-template-columns: 150px minmax(0, 1fr);
+    }
+  }
+
+  @container (min-width: 900px) {
+    .overview-spotlight-rating {
+      grid-template-columns: 142px minmax(0, 1fr);
+      align-items: stretch;
+    }
+  }
+
+  @container (min-width: 960px) {
+    .overview-row {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @container (min-width: 1080px) {
+    .overview-quick-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .motion-card-hover:hover {
+      border-color: rgba(59, 130, 246, 0.34);
+      box-shadow: 0 16px 40px rgba(15, 23, 42, 0.09);
+      transform: translateY(-2px);
+    }
+
+    .motion-photo-tile:hover {
+      background-color: rgba(219, 234, 254, 0.96);
+      box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.16);
+      transform: scale(1.01);
+    }
+
+    .motion-ai-button:hover .motion-ai-sparkle {
+      color: #2563eb;
+      transform: rotate(12deg) scale(1.08);
+    }
+
+    .motion-amenity-card:hover img {
+      transform: scale(1.035);
+    }
+
+    .motion-helpful-button:hover {
+      transform: translateY(-1px);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .motion-fade-up,
     .motion-fade-in,
-    .image-reveal {
+    .image-reveal,
+    .detail-enter,
+    .motion-gallery-item,
+    .motion-stagger-item,
+    .motion-price-highlight,
+    .motion-book-emphasis,
+    .motion-map-marker::after,
+    .motion-map-tooltip,
+    .policy-expand-panel,
+    .motion-mobile-booking-bar,
+    .motion-upload-preview,
+    .motion-rating-bar,
+    .motion-star-reveal,
+    .travel-ai-motion-panel .travel-ai-border-sweep,
+    .travel-ai-panel-state--closing .travel-ai-header-robot::after,
+    .travel-ai-launcher-robot,
+    .travel-ai-launcher-eye-group,
+    .travel-ai-launcher-eye,
+    .travel-ai-launcher-robot--pressed,
+    .travel-ai-launcher-robot--thinking .travel-ai-launcher-eye,
+    .travel-ai-launcher-robot--thinking .travel-ai-robot-left-hand,
+    .travel-ai-launcher-robot--thinking .travel-ai-robot-right-hand,
+    .travel-ai-launcher-robot--thinking .travel-ai-robot-thinking-dot,
+    .travel-ai-launcher-robot--success,
+    .travel-ai-launcher-robot--error,
+    .travel-ai-launcher-robot--unread .travel-ai-launcher-eye-group,
+    .travel-ai-launcher:hover .travel-ai-launcher-sparkle-one,
+    .travel-ai-launcher:hover .travel-ai-launcher-sparkle-two,
+    .travel-ai-launcher--portal::after,
+    .travel-ai-pull-beam {
       animation: none;
+    }
+
+    .motion-card-hover,
+    .motion-tab-button::after,
+    .motion-photo-tile,
+    .motion-ai-sparkle,
+    .motion-helpful-button,
+    .travel-ai-launcher {
+      transition: none;
+    }
+
+    .travel-ai-motion-panel,
+    .travel-ai-launcher,
+    .travel-ai-launcher-robot,
+    .travel-ai-launcher-eye-group {
+      opacity: 1;
+      transform: none;
+    }
+
+    .travel-ai-launcher-robot--thinking .travel-ai-robot-keyboard,
+    .travel-ai-launcher-robot--thinking .travel-ai-robot-hand,
+    .travel-ai-launcher-robot--thinking .travel-ai-robot-thinking-dot,
+    .travel-ai-launcher-robot--success .travel-ai-robot-mouth--success,
+    .travel-ai-launcher-robot--success .travel-ai-robot-success-dot,
+    .travel-ai-launcher-robot--error .travel-ai-robot-mouth--error,
+    .travel-ai-launcher-robot--error .travel-ai-robot-error-mark {
+      opacity: 1;
+    }
+
+    .travel-ai-motion-panel {
+      transition: opacity 80ms ease;
     }
   }
 }

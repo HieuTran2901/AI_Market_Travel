@@ -1,23 +1,32 @@
 import React from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
   BriefcaseBusiness,
   CalendarCheck,
   Car,
   ChevronDown,
+  ChevronUp,
+  Compass,
   CreditCard,
+  ArrowRight,
+  Bike as BikeIcon,
+  Coffee as CoffeeIcon,
   Gift,
   Globe2,
+  Grid2X2,
   Heart,
   HelpCircle,
   Headphones,
+  Home as HomeIcon,
   Hotel,
   Lock,
   LogOut,
+  Map,
   Menu,
+  Plane,
   Search,
   Settings,
   ShieldCheck,
@@ -26,6 +35,7 @@ import {
   Star,
   Ticket,
   Utensils,
+  Users as UsersIcon,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -38,17 +48,137 @@ type HeaderLink = {
   to: string;
   icon?: React.ElementType;
   badge?: "Hot" | "New";
+  menuKey?: CategoryMenuKey;
+};
+
+type CategoryMenuKey =
+  | "explore"
+  | "stays"
+  | "tours"
+  | "experiences"
+  | "restaurants"
+  | "vehicles"
+  | "deals";
+
+type HeaderDropdown = "explore" | "deals" | "ai-planner" | "categories" | null;
+
+type MegaMenuItem = {
+  label: string;
+  to: string;
+  icon: React.ElementType;
+  badge?: "Hot" | "New";
+  description?: string;
+  accent?: "blue" | "green" | "orange" | "purple" | "rose" | "slate";
+};
+
+type MegaMenuSection = {
+  key: CategoryMenuKey | "more";
+  label: string;
+  items: MegaMenuItem[];
 };
 
 const primaryNav: HeaderLink[] = [
-  { label: "Explore", to: "/search", icon: Search },
-  { label: "Stays", to: "/search?category=HOTEL", icon: Hotel },
-  { label: "Tours", to: "/search?category=TOUR", icon: Ticket },
-  { label: "Experiences", to: "/search?category=EXPERIENCE", icon: Star },
-  { label: "Restaurants", to: "/search?category=RESTAURANT", icon: Utensils },
-  { label: "Vehicles", to: "/search?category=VEHICLE", icon: Car },
-  { label: "Deals", to: "/search?sort=deals", icon: Gift, badge: "Hot" },
+  { label: "Explore", to: "/search", icon: Grid2X2, menuKey: "explore" },
+  { label: "Stays", to: "/search?category=HOTEL", icon: Hotel, menuKey: "stays" },
+  { label: "Tours", to: "/search?category=TOUR", icon: Ticket, menuKey: "tours" },
+  { label: "Experiences", to: "/search?category=EXPERIENCE", icon: Star, menuKey: "experiences" },
+  { label: "Restaurants", to: "/search?category=RESTAURANT", icon: Utensils, menuKey: "restaurants" },
+  { label: "Vehicles", to: "/search?category=VEHICLE", icon: Car, menuKey: "vehicles" },
+  { label: "Deals", to: "/search?sort=deals", icon: Gift, badge: "Hot", menuKey: "deals" },
   { label: "AI Planner", to: "/ai/planner", icon: Sparkles, badge: "New" },
+];
+
+const megaMenuSections: MegaMenuSection[] = [
+  {
+    key: "stays",
+    label: "Stays",
+    items: [
+      { label: "Hotels", to: "/search?category=HOTEL", icon: Hotel, description: "Comfort & convenience", accent: "purple" },
+      { label: "Villas", to: "/search?category=HOTEL&keyword=villa", icon: HomeIcon, description: "Private luxury stays", accent: "purple" },
+      { label: "Resorts", to: "/search?category=HOTEL&keyword=resort", icon: UsersIcon, description: "Relax & unwind", accent: "purple" },
+      { label: "Apartments", to: "/search?category=HOTEL&keyword=apartment", icon: Grid2X2, description: "Feel at home anywhere", accent: "purple" },
+    ],
+  },
+  {
+    key: "tours",
+    label: "Tours & Activities",
+    items: [
+      { label: "City Tours", to: "/search?category=TOUR&keyword=city", icon: Map, description: "Explore cities like a local", accent: "green" },
+      { label: "Adventure Tours", to: "/search?category=TOUR&keyword=adventure", icon: Compass, description: "Thrill-seeking experiences", accent: "green" },
+      { label: "Day Trips", to: "/search?category=TOUR&keyword=day", icon: ShieldCheck, description: "Perfect short getaways", accent: "green" },
+      { label: "Activities", to: "/search?category=TOUR&keyword=activity", icon: BikeIcon, description: "Fun for everyone", accent: "green" },
+    ],
+  },
+  {
+    key: "experiences",
+    label: "Experiences",
+    items: [
+      { label: "Things to Do", to: "/search?category=EXPERIENCE", icon: Star, description: "Top attractions & sights", accent: "orange" },
+      { label: "Outdoor Adventures", to: "/search?category=EXPERIENCE&keyword=outdoor", icon: Compass, description: "Nature, hiking & more", accent: "orange" },
+      { label: "Local Experiences", to: "/search?category=EXPERIENCE&keyword=local", icon: ShieldCheck, description: "Culture, heritage & more", accent: "orange" },
+      { label: "Entertainment", to: "/search?category=EXPERIENCE&keyword=entertainment", icon: Gift, description: "Shows, events & more", accent: "orange" },
+    ],
+  },
+  {
+    key: "restaurants",
+    label: "Restaurants",
+    items: [
+      { label: "Fine Dining", to: "/search?category=RESTAURANT&keyword=fine", icon: Star, description: "Premium dining places", accent: "rose" },
+      { label: "Local Cuisine", to: "/search?category=RESTAURANT&keyword=local", icon: Utensils, description: "Authentic local flavors", accent: "rose" },
+      { label: "Cafes", to: "/search?category=RESTAURANT&keyword=cafe", icon: CoffeeIcon, description: "Cozy cafes & coffee", accent: "rose" },
+      { label: "Bars & Nightlife", to: "/search?category=RESTAURANT&keyword=bar", icon: Gift, description: "Pubs, bars & clubs", accent: "rose" },
+    ],
+  },
+  {
+    key: "vehicles",
+    label: "Vehicles",
+    items: [
+      { label: "Car Rentals", to: "/search?category=VEHICLE", icon: Car, description: "Rent a car anywhere", accent: "blue" },
+      { label: "Airport Transfers", to: "/search?category=VEHICLE&keyword=airport", icon: Plane, description: "On-time airport pickup", accent: "blue" },
+      { label: "Private Drivers", to: "/search?category=VEHICLE&keyword=driver", icon: UsersIcon, description: "Ride with professionals", accent: "blue" },
+      { label: "Bikes & Scooters", to: "/search?category=VEHICLE&keyword=bike", icon: BikeIcon, description: "Two-wheel exploration", accent: "blue" },
+    ],
+  },
+  {
+    key: "more",
+    label: "More",
+    items: [
+      { label: "Travel Guides", to: "/search?sort=newest", icon: Map, description: "Expert tips & advice", accent: "purple" },
+      { label: "Best Time to Travel", to: "/search?sort=recommended", icon: CalendarCheck, description: "Seasonal insights", accent: "blue" },
+      { label: "Travel Inspiration", to: "/search?sort=rating_desc", icon: Sparkles, description: "Ideas for your next trip", accent: "blue" },
+      { label: "View all categories", to: "/search", icon: Grid2X2, description: "Browse the marketplace", accent: "blue" },
+    ],
+  },
+];
+
+const secondaryNavItems: HeaderLink[] = [
+  { label: "Explore", to: "/search", icon: Grid2X2, menuKey: "explore" },
+  { label: "Deals", to: "/search?sort=deals", icon: Gift, badge: "Hot", menuKey: "deals" },
+  { label: "AI Planner", to: "/ai/planner", icon: Sparkles, badge: "New" },
+  { label: "All categories", to: "/search", icon: Compass },
+];
+
+const dealsMenuItems: MegaMenuItem[] = [
+  { label: "Maldives Escape", to: "/search?sort=deals&keyword=maldives", icon: Hotel, description: "Up to 40% off", badge: "Hot" },
+  { label: "Bali Adventure", to: "/search?sort=deals&keyword=bali", icon: Compass, description: "Up to 30% off" },
+  { label: "Dubai Getaway", to: "/search?sort=deals&keyword=dubai", icon: Plane, description: "Up to 25% off", badge: "Hot" },
+  { label: "Phuket Paradise", to: "/search?sort=deals&keyword=phuket", icon: Globe2, description: "Up to 35% off" },
+];
+
+const aiPlannerMenuItems: MegaMenuItem[] = [
+  { label: "Build a trip", to: "/ai/planner", icon: CalendarCheck, description: "Create your perfect itinerary" },
+  { label: "Smart recommendations", to: "/ai/planner", icon: Sparkles, description: "Personalized just for you" },
+  { label: "Budget planner", to: "/ai/planner", icon: CreditCard, description: "Plan trips that fit your budget" },
+  { label: "Itinerary generator", to: "/ai/planner", icon: Map, description: "Instant day-by-day plans" },
+];
+
+const allCategoryItems: MegaMenuItem[] = [
+  { label: "Stays", to: "/search?category=HOTEL", icon: Hotel, accent: "purple" },
+  { label: "Tours & Activities", to: "/search?category=TOUR", icon: Map, accent: "green" },
+  { label: "Experiences", to: "/search?category=EXPERIENCE", icon: Star, accent: "orange" },
+  { label: "Restaurants", to: "/search?category=RESTAURANT", icon: Utensils, accent: "rose" },
+  { label: "Vehicles", to: "/search?category=VEHICLE", icon: Car, accent: "blue" },
+  { label: "More", to: "/search", icon: Compass, accent: "slate" },
 ];
 
 const tabletNav: HeaderLink[] = [
@@ -68,14 +198,27 @@ const moreNav: HeaderLink[] = [
 
 export const SiteHeader: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
 
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [moreOpen, setMoreOpen] = React.useState(false);
   const [userOpen, setUserOpen] = React.useState(false);
+  const [activeDropdown, setActiveDropdown] =
+    React.useState<HeaderDropdown>(null);
+  const [openCategory, setOpenCategory] =
+    React.useState<CategoryMenuKey | null>(null);
+  const [isSecondaryNavCollapsed, setIsSecondaryNavCollapsed] =
+    React.useState(() =>
+      typeof window === "undefined"
+        ? false
+        : window.sessionStorage.getItem("ai-travel-secondary-nav-collapsed") ===
+          "true",
+    );
   const [scrolled, setScrolled] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
   const [cartCount, setCartCount] = React.useState(0);
+  const secondaryNavRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
     setMounted(true);
@@ -91,19 +234,47 @@ export const SiteHeader: React.FC = () => {
   }, []);
 
   React.useEffect(() => {
-    if (!userOpen && !mobileOpen) return;
+    if (!userOpen && !mobileOpen && !openCategory && !activeDropdown) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setUserOpen(false);
         setMobileOpen(false);
+        setOpenCategory(null);
+        setActiveDropdown(null);
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
 
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [userOpen, mobileOpen]);
+  }, [userOpen, mobileOpen, openCategory, activeDropdown]);
+
+  React.useEffect(() => {
+    if (!activeDropdown) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (secondaryNavRef.current?.contains(target)) return;
+      setActiveDropdown(null);
+    };
+
+    window.addEventListener("pointerdown", onPointerDown);
+
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [activeDropdown]);
+
+  React.useEffect(() => {
+    setOpenCategory(null);
+    setActiveDropdown(null);
+  }, [location.pathname, location.search]);
+
+  React.useEffect(() => {
+    window.sessionStorage.setItem(
+      "ai-travel-secondary-nav-collapsed",
+      String(isSecondaryNavCollapsed),
+    );
+  }, [isSecondaryNavCollapsed]);
 
   React.useEffect(() => {
     if (!mobileOpen && !userOpen) {
@@ -253,6 +424,8 @@ export const SiteHeader: React.FC = () => {
     setMobileOpen(false);
     setMoreOpen(false);
     setUserOpen(false);
+    setOpenCategory(null);
+    setActiveDropdown(null);
     navigate(path);
   };
 
@@ -274,9 +447,12 @@ export const SiteHeader: React.FC = () => {
       to={item.to}
       className={({ isActive }) =>
         cn(
-          "group relative inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-3 text-sm font-bold text-slate-700 transition-all duration-200 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500",
-          compact ? "flex-col gap-1 px-2 text-xs" : "rounded-full px-4",
-          isActive && "text-blue-700",
+          "group relative inline-flex min-h-11 items-center justify-center gap-2 rounded-full text-sm font-semibold text-slate-200 transition-all duration-200 ease-out hover:bg-white/[0.055] hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-400",
+          compact ? "flex-col gap-1 px-2 text-xs" : "px-5 py-3",
+          item.label === "Deals" && "text-rose-300 hover:bg-rose-400/10 hover:text-rose-200",
+          item.label === "AI Planner" && "hover:bg-violet-400/10",
+          isActive &&
+            "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-[0_6px_20px_rgba(37,99,235,0.30)] hover:from-blue-500 hover:to-blue-500",
         )
       }
     >
@@ -287,8 +463,10 @@ export const SiteHeader: React.FC = () => {
               className={cn(
                 "h-4 w-4",
                 isActive
-                  ? "text-blue-600"
-                  : "text-slate-700 group-hover:text-blue-600",
+                  ? "text-white"
+                  : item.label === "Deals"
+                    ? "text-rose-300 group-hover:text-rose-200"
+                    : "text-slate-200 group-hover:text-white",
               )}
             />
           )}
@@ -300,8 +478,8 @@ export const SiteHeader: React.FC = () => {
               className={cn(
                 "absolute -top-2 right-1 rounded-full px-1.5 py-0.5 text-[10px] font-black leading-none",
                 item.badge === "Hot"
-                  ? "bg-red-500 text-white"
-                  : "bg-violet-100 text-violet-700",
+                  ? "bg-gradient-to-r from-red-500 to-rose-500 text-white"
+                  : "bg-gradient-to-r from-violet-500 to-purple-500 text-white",
               )}
             >
               {item.badge}
@@ -310,8 +488,8 @@ export const SiteHeader: React.FC = () => {
 
           <span
             className={cn(
-              "absolute bottom-0 h-0.5 rounded-full bg-blue-600 transition-all duration-200",
-              isActive ? "w-10" : "w-0 group-hover:w-8",
+              "absolute -bottom-1 h-1 rounded-full bg-blue-300/80 transition-all duration-200",
+              isActive ? "w-1" : "w-0",
             )}
           />
         </>
@@ -333,17 +511,416 @@ export const SiteHeader: React.FC = () => {
     <button
       type="button"
       onClick={onClick}
-      className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-blue-50 hover:text-blue-700 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.035] text-slate-100 shadow-sm transition-all duration-200 ease-out hover:scale-[1.03] hover:border-blue-300/30 hover:bg-white/[0.10] hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-400"
       aria-label={label}
     >
       <Icon className="h-5 w-5" />
 
       {badge && (
-        <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-black text-white shadow-sm">
+        <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-500 px-1 text-[11px] font-bold text-white shadow-sm ring-2 ring-[#082752]">
           {badge}
         </span>
       )}
     </button>
+  );
+
+  const isCategoryActive = (item: HeaderLink) => {
+    if (item.label === "AI Planner") {
+      return location.pathname.startsWith("/ai/planner");
+    }
+
+    if (item.label === "Explore") {
+      const params = new URLSearchParams(location.search);
+      return (
+        location.pathname === "/search" &&
+        !params.get("category") &&
+        params.get("sort") !== "deals"
+      );
+    }
+
+    if (item.label === "Deals") {
+      return (
+        location.pathname === "/search" &&
+        new URLSearchParams(location.search).get("sort") === "deals"
+      );
+    }
+
+    const category = item.to.match(/category=([^&]+)/)?.[1];
+    return (
+      Boolean(category) &&
+      location.pathname === "/search" &&
+      new URLSearchParams(location.search).get("category") === category
+    );
+  };
+
+  const getAccentClasses = (
+    accent: MegaMenuItem["accent"] = "blue",
+  ) => {
+    switch (accent) {
+      case "green":
+        return "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100";
+      case "orange":
+        return "bg-orange-50 text-orange-500 group-hover:bg-orange-100";
+      case "purple":
+        return "bg-violet-50 text-violet-600 group-hover:bg-violet-100";
+      case "rose":
+        return "bg-rose-50 text-rose-500 group-hover:bg-rose-100";
+      case "slate":
+        return "bg-slate-100 text-slate-600 group-hover:bg-slate-200";
+      default:
+        return "bg-blue-50 text-blue-600 group-hover:bg-blue-100";
+    }
+  };
+
+  const SecondaryNavItem = ({
+    item,
+    dropdown,
+  }: {
+    item: HeaderLink;
+    dropdown: Exclude<HeaderDropdown, null>;
+  }) => {
+    const Icon = item.icon;
+    const isOpen = activeDropdown === dropdown;
+    const isActive = isCategoryActive(item) || isOpen;
+
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setActiveDropdown((current) =>
+            current === dropdown ? null : dropdown,
+          );
+        }}
+        className={cn(
+          "group relative inline-flex h-12 shrink-0 items-center gap-2.5 rounded-[18px] border border-slate-200/80 bg-white/95 px-4 text-sm font-semibold text-slate-800 shadow-[0_6px_18px_rgba(15,23,42,0.055)] transition-all duration-200 hover:border-blue-100 hover:bg-blue-50/70 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 xl:px-5",
+          isActive &&
+            "border-blue-200 bg-blue-50 text-blue-600 shadow-[0_8px_22px_rgba(59,130,246,0.12)]",
+          item.label === "Deals" &&
+            !isActive &&
+            "text-rose-500 hover:bg-rose-50 hover:text-rose-600",
+          item.label === "AI Planner" &&
+            !isActive &&
+            "hover:bg-violet-50 hover:text-violet-600",
+        )}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+      >
+        {Icon && (
+          <Icon
+            className={cn(
+              "h-[18px] w-[18px]",
+              isActive
+                ? "text-blue-600"
+                : item.label === "Deals"
+                  ? "text-rose-500"
+                  : "text-slate-800 group-hover:text-blue-600",
+            )}
+          />
+        )}
+
+        <span>{item.label}</span>
+
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 text-slate-500 transition-transform duration-200 group-hover:text-blue-500",
+            item.label === "Deals" && "text-rose-400",
+            isOpen && "rotate-180 text-blue-500",
+          )}
+        />
+
+        {item.badge && (
+          <span
+            className={cn(
+              "absolute -top-3 right-4 rounded-full px-2 py-0.5 text-[10px] font-bold leading-none text-white",
+              item.badge === "Hot"
+                ? "bg-gradient-to-r from-red-500 to-rose-500"
+                : "bg-gradient-to-r from-violet-500 to-purple-500",
+            )}
+          >
+            {item.badge}
+          </span>
+        )}
+      </button>
+    );
+  };
+
+  const ExploreMegaMenu = () => (
+    <AnimatePresence>
+      {activeDropdown === "explore" && (
+        <>
+          <motion.button
+            type="button"
+            aria-label="Close category menu"
+            className="fixed inset-x-0 bottom-0 top-[142px] z-30 hidden cursor-default bg-slate-950/[0.08] backdrop-blur-[1px] md:block"
+            onClick={() => setActiveDropdown(null)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+          />
+
+          <motion.div
+            className="absolute left-0 right-0 top-full z-50 hidden pt-1 md:block"
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+          >
+            <div className="mx-auto w-[min(94vw,1480px)] overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/[0.98] shadow-[0_24px_70px_rgba(15,23,42,0.15)] backdrop-blur-xl">
+              <div className="grid grid-cols-2 gap-y-7 px-5 py-8 lg:grid-cols-3 xl:grid-cols-6">
+                {megaMenuSections.map((section, sectionIndex) => (
+                  <div
+                    key={section.key}
+                    className={cn(
+                      "px-5 xl:px-6",
+                      sectionIndex < megaMenuSections.length - 1 &&
+                        "xl:border-r xl:border-slate-200/70",
+                    )}
+                  >
+                    <p className="mb-4 text-xs font-bold uppercase tracking-wide text-blue-600">
+                      {section.label}
+                    </p>
+
+                    <div className="space-y-1">
+                      {section.items.map((item) => {
+                        const ItemIcon = item.icon;
+
+                        return (
+                          <button
+                            key={item.label}
+                            type="button"
+                            onClick={() => goTo(item.to)}
+                            className="group flex w-full items-center gap-3 rounded-xl py-2 text-left transition-colors hover:bg-blue-50/60 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
+                          >
+                            <span
+                              className={cn(
+                                "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors",
+                                getAccentClasses(item.accent),
+                              )}
+                            >
+                              <ItemIcon className="h-4 w-4" />
+                            </span>
+
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-bold text-slate-800 group-hover:text-blue-600">
+                                {item.label}
+                              </span>
+                              {item.description && (
+                                <span className="mt-0.5 block truncate text-xs font-medium text-slate-500">
+                                  {item.description}
+                                </span>
+                              )}
+                            </span>
+
+                            {item.badge && (
+                              <span
+                                className={cn(
+                                  "rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white",
+                                  item.badge === "Hot"
+                                    ? "bg-gradient-to-r from-red-500 to-rose-500"
+                                    : "bg-gradient-to-r from-violet-500 to-purple-500",
+                                )}
+                              >
+                                {item.badge}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mx-5 mb-5 flex items-center gap-4 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 via-indigo-50/70 to-sky-50 px-6 py-5">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-blue-600 shadow-sm">
+                  <Sparkles className="h-5 w-5" />
+                </span>
+
+                <span className="min-w-0 flex-1">
+                  <span className="block text-base font-bold text-slate-900">
+                    Plan smarter with AI
+                  </span>
+                  <span className="mt-1 block text-sm font-medium text-slate-600">
+                    Get personalized recommendations and build your perfect
+                    trip in seconds.
+                  </span>
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => goTo("/ai/planner")}
+                  className="inline-flex h-12 shrink-0 items-center gap-2 rounded-xl border border-blue-100 bg-white px-5 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-600 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
+                >
+                  Try AI Planner
+                  <ChevronDown className="-rotate-90 h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+
+  const CompactDropdown = ({
+    dropdown,
+    children,
+    className,
+  }: {
+    dropdown: Exclude<HeaderDropdown, null>;
+    children: React.ReactNode;
+    className?: string;
+  }) => (
+    <AnimatePresence>
+      {activeDropdown === dropdown && (
+        <div className="absolute left-1/2 top-[calc(100%+12px)] z-50 -translate-x-1/2">
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className={cn(
+              "relative w-[min(92vw,320px)] rounded-[20px] border border-slate-200/80 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.16)]",
+              className,
+            )}
+          >
+            <span className="absolute left-1/2 top-0 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rotate-45 border-l border-t border-slate-200/80 bg-white" />
+            {children}
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+
+  const DealsDropdown = () => (
+    <>
+      <p className="mb-3 text-xs font-black uppercase tracking-wide text-slate-900">
+        Today's top deals <span aria-hidden>🔥</span>
+      </p>
+      <div className="space-y-2">
+        {dealsMenuItems.map((item, index) => (
+          <button
+            key={item.label}
+            type="button"
+            onClick={() => goTo(item.to)}
+            className="group flex w-full items-center gap-3 rounded-2xl p-2 text-left transition-colors hover:bg-blue-50"
+          >
+            <img
+              src={`/demo-images/${["hotel", "experience", "tour", "restaurant"][index]}.svg`}
+              alt=""
+              className="h-12 w-12 shrink-0 rounded-xl object-cover"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-bold text-slate-900 group-hover:text-blue-600">
+                {item.label}
+              </span>
+              <span className="mt-0.5 block truncate text-xs font-semibold text-blue-600">
+                {item.description}
+              </span>
+            </span>
+            <span
+              className={cn(
+                "rounded-full px-2 py-1 text-[10px] font-bold",
+                item.badge === "Hot"
+                  ? "bg-rose-50 text-rose-600"
+                  : "bg-amber-50 text-amber-600",
+              )}
+            >
+              {item.badge ?? "Limited"}
+            </span>
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={() => goTo("/search?sort=deals")}
+        className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-full border border-blue-100 text-sm font-bold text-blue-600 transition-colors hover:bg-blue-600 hover:text-white"
+      >
+        View all deals
+        <ArrowRight className="h-4 w-4" />
+      </button>
+    </>
+  );
+
+  const AiPlannerDropdown = () => (
+    <>
+      <p className="mb-3 text-xs font-black uppercase tracking-wide text-slate-900">
+        Plan smarter with AI <Sparkles className="ml-1 inline h-3 w-3 text-blue-600" />
+      </p>
+      <div className="space-y-2">
+        {aiPlannerMenuItems.map((item) => {
+          const ItemIcon = item.icon;
+          return (
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => goTo(item.to)}
+              className="group flex w-full items-center gap-3 rounded-2xl p-2 text-left transition-colors hover:bg-violet-50"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 group-hover:bg-blue-100">
+                <ItemIcon className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-bold text-slate-900 group-hover:text-blue-600">
+                  {item.label}
+                </span>
+                <span className="mt-0.5 block truncate text-xs font-medium text-slate-500">
+                  {item.description}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        onClick={() => goTo("/ai/planner")}
+        className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-full border border-blue-100 text-sm font-bold text-blue-600 transition-colors hover:bg-blue-600 hover:text-white"
+      >
+        Open AI Planner
+        <ArrowRight className="h-4 w-4" />
+      </button>
+    </>
+  );
+
+  const AllCategoriesDropdown = () => (
+    <>
+      <p className="mb-4 text-xs font-black uppercase tracking-wide text-slate-900">
+        Browse categories
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        {allCategoryItems.map((item) => {
+          const ItemIcon = item.icon;
+          return (
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => goTo(item.to)}
+              className="group flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-2xl border border-slate-100 bg-white text-center text-xs font-bold text-slate-800 transition-colors hover:border-blue-100 hover:bg-blue-50"
+            >
+              <span
+                className={cn(
+                  "flex h-9 w-9 items-center justify-center rounded-xl",
+                  getAccentClasses(item.accent),
+                )}
+              >
+                <ItemIcon className="h-4 w-4" />
+              </span>
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        onClick={() => goTo("/search")}
+        className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-full border border-blue-100 text-sm font-bold text-blue-600 transition-colors hover:bg-blue-600 hover:text-white"
+      >
+        View all categories
+        <ArrowRight className="h-4 w-4" />
+      </button>
+    </>
   );
 
   const AccountHeader = ({ compact = false }: { compact?: boolean }) => (
@@ -659,17 +1236,63 @@ export const SiteHeader: React.FC = () => {
 
         <div className="grid flex-1 grid-cols-1 gap-3 overflow-y-auto p-4 min-[420px]:grid-cols-2 min-[420px]:gap-4">
           <div className="space-y-1">
-            {primaryNav.slice(0, 7).map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                onClick={() => goTo(item.to)}
-                className="flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 text-left text-sm font-bold text-slate-800 hover:bg-blue-50 hover:text-blue-700"
-              >
-                {item.icon && <item.icon className="h-4 w-4" />}
-                {item.label}
-              </button>
-            ))}
+            {primaryNav.slice(0, 7).map((item) => {
+              const section = megaMenuSections.find(
+                (menuSection) => menuSection.key === item.menuKey,
+              );
+              const expanded = Boolean(
+                item.menuKey && openCategory === item.menuKey,
+              );
+
+              return (
+                <div key={item.label}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextKey = item.menuKey;
+
+                      if (section && nextKey) {
+                        setOpenCategory((current) =>
+                          current === nextKey ? null : nextKey,
+                        );
+                        return;
+                      }
+
+                      goTo(item.to);
+                    }}
+                    className="flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 text-left text-sm font-bold text-slate-800 hover:bg-blue-50 hover:text-blue-700"
+                    aria-expanded={section ? expanded : undefined}
+                  >
+                    {item.icon && <item.icon className="h-4 w-4" />}
+                    <span className="flex-1">{item.label}</span>
+                    {section && (
+                      <ChevronDown
+                        className={cn(
+                          "h-4 w-4 text-slate-400 transition-transform",
+                          expanded && "rotate-180 text-blue-600",
+                        )}
+                      />
+                    )}
+                  </button>
+
+                  {section && expanded && (
+                    <div className="ml-4 mt-1 space-y-1 border-l border-blue-100 pl-3">
+                      {section.items.map((subItem) => (
+                        <button
+                          key={subItem.label}
+                          type="button"
+                          onClick={() => goTo(subItem.to)}
+                          className="flex min-h-10 w-full items-center gap-2 rounded-xl px-3 text-left text-xs font-bold text-slate-600 hover:bg-blue-50 hover:text-blue-700"
+                        >
+                          <subItem.icon className="h-3.5 w-3.5 text-blue-600" />
+                          {subItem.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <div className="space-y-1 border-t border-slate-100 pt-3 min-[420px]:border-l min-[420px]:border-t-0 min-[420px]:pl-4 min-[420px]:pt-0">
@@ -726,45 +1349,44 @@ export const SiteHeader: React.FC = () => {
 
   return (
     <>
-      <header
-        className={cn(
-          "sticky top-0 z-50 border-b transition-all duration-300",
-          scrolled
-            ? "border-slate-200/80 bg-white/92 shadow-xl shadow-slate-900/5 backdrop-blur-xl"
-            : "border-white/60 bg-white/80 shadow-sm shadow-slate-900/[0.03] backdrop-blur-xl",
-        )}
-      >
-        <div className="mx-auto max-w-[1440px] px-3 sm:px-5 lg:px-8">
-          <div className="hidden min-h-[76px] items-center gap-4 md:flex xl:min-h-[72px]">
+      <header className="sticky top-0 z-50 overflow-visible">
+        <div
+          className={cn(
+            "relative border-b border-white/[0.08] bg-[linear-gradient(105deg,#061a36_0%,#082b55_52%,#0a4475_100%)] shadow-[0_8px_26px_rgba(15,23,42,0.14)] transition-all duration-300 before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_55%_-20%,rgba(59,130,246,0.14),transparent_45%)]",
+            scrolled ? "backdrop-blur-xl" : "backdrop-blur-md",
+          )}
+        >
+        <div className="relative mx-auto max-w-[1640px] px-3 sm:px-5 lg:px-6 xl:px-8">
+          <div className="hidden min-h-[78px] items-center gap-4 md:flex">
             <button
               type="button"
               onClick={() => goTo("/")}
-              className="group flex shrink-0 rounded-full pr-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className="group flex w-[190px] shrink-0 rounded-full pr-2 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-[#082b58] xl:w-[220px]"
               aria-label="Go to AI Marketplace Traveler homepage"
             >
               <img
                 src="/brand/ai-marketplace-traveler-logo.png"
                 alt="AI Marketplace Traveler"
-                className="h-11 w-auto max-w-[180px] object-contain transition-transform group-hover:scale-[1.02] xl:h-12 xl:max-w-[200px]"
+                className="h-11 w-auto max-w-[178px] object-contain brightness-0 invert transition-transform group-hover:scale-[1.02] xl:h-12 xl:max-w-[205px]"
               />
             </button>
 
             <button
               type="button"
               onClick={() => goTo("/search")}
-              className="flex h-11 min-w-0 max-w-[480px] flex-1 items-center gap-3 rounded-full border border-slate-200 bg-white px-5 text-left text-sm font-semibold text-slate-500 shadow-lg shadow-slate-900/5 transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:text-blue-700 hover:shadow-blue-100/60 focus:outline-none focus:ring-2 focus:ring-blue-500 xl:max-w-[540px]"
+              className="flex h-12 min-w-0 max-w-[650px] flex-1 items-center gap-3 rounded-full border border-white/[0.12] bg-white/[0.06] px-5 text-left text-sm font-medium text-slate-300 shadow-sm backdrop-blur-md transition-all hover:bg-white/[0.09] focus-within:border-blue-400/60 focus-within:bg-white/[0.10] focus-within:shadow-[0_0_0_4px_rgba(59,130,246,0.10)] focus:outline-none focus:ring-2 focus:ring-blue-400 xl:max-w-[720px]"
             >
-              <Search className="h-5 w-5 shrink-0 text-slate-500" />
+              <Search className="h-5 w-5 shrink-0 text-slate-300" />
               <span className="truncate">
                 Search destinations, hotels, tours...
               </span>
-              <span className="ml-auto rounded-lg border border-slate-200 px-2 py-1 text-xs font-black text-slate-400">
+              <span className="ml-auto rounded-lg border border-white/10 bg-white/[0.05] px-2 py-1 text-xs font-black text-slate-300">
                 ⌘ K
               </span>
             </button>
 
             <nav
-              className="hidden flex-1 justify-center lg:flex xl:hidden"
+              className="hidden"
               aria-label="Tablet navigation"
             >
               <div className="grid grid-cols-6 gap-1">
@@ -776,7 +1398,7 @@ export const SiteHeader: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setMoreOpen((open) => !open)}
-                    className="relative inline-flex min-h-11 flex-col items-center justify-center gap-1 rounded-2xl px-2 text-xs font-bold text-slate-700 transition-all hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="relative inline-flex min-h-11 flex-col items-center justify-center gap-1 rounded-2xl px-2 text-xs font-bold text-slate-200 transition-all hover:bg-white/[0.08] hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-400"
                   >
                     <ChevronDown className="h-4 w-4" />
                     More
@@ -806,9 +1428,10 @@ export const SiteHeader: React.FC = () => {
             <div className="ml-auto flex shrink-0 items-center gap-2">
               <Button
                 variant="outline"
-                className="hidden h-10 rounded-full border-blue-200 bg-blue-50 px-4 text-sm font-black text-blue-700 hover:bg-blue-100 xl:inline-flex"
+                className="hidden h-11 rounded-full border-0 bg-gradient-to-r from-blue-600 to-blue-500 px-5 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(37,99,235,0.28)] transition-all duration-200 hover:-translate-y-0.5 hover:from-blue-500 hover:to-cyan-500 hover:text-white xl:inline-flex"
                 onClick={() => goTo("/register")}
               >
+                <BriefcaseBusiness className="mr-2 h-4 w-4" />
                 Become a Provider
               </Button>
 
@@ -831,17 +1454,17 @@ export const SiteHeader: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setUserOpen((open) => !open)}
-                    className="flex h-11 items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-3 text-sm font-black text-slate-800 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex h-11 items-center gap-2 rounded-full border border-white/[0.10] bg-white/[0.035] py-1 pl-1 pr-3 text-sm font-semibold text-slate-100 shadow-sm transition-all duration-200 hover:bg-white/[0.08] hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-400"
                     aria-expanded={userOpen}
                     aria-haspopup="menu"
                   >
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-xs font-black text-white">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-xs font-black text-white shadow-sm shadow-blue-500/20">
                       {initials}
                     </span>
                     <span className="hidden max-w-28 truncate xl:inline">
                       {displayName}
                     </span>
-                    <ChevronDown className="h-4 w-4 text-slate-400" />
+                    <ChevronDown className="h-4 w-4 text-slate-300" />
                   </button>
 
                   <AnimatePresence>
@@ -852,14 +1475,14 @@ export const SiteHeader: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
-                    className="h-11 rounded-full bg-white px-4 font-black"
+                    className="h-11 rounded-full border-white/15 bg-white/[0.04] px-4 font-semibold text-slate-100 hover:bg-white/[0.10] hover:text-white"
                     onClick={() => goTo("/login")}
                   >
                     Log In
                   </Button>
 
                   <Button
-                    className="h-11 rounded-full bg-blue-600 px-4 font-black text-white hover:bg-blue-700"
+                    className="h-11 rounded-full bg-gradient-to-r from-blue-600 to-blue-500 px-4 font-semibold text-white shadow-[0_8px_24px_rgba(37,99,235,0.24)] hover:from-blue-500 hover:to-cyan-500"
                     onClick={() => goTo("/register")}
                   >
                     Sign Up
@@ -869,23 +1492,12 @@ export const SiteHeader: React.FC = () => {
             </div>
           </div>
 
-          <nav
-            className="hidden h-12 items-center justify-center border-t border-slate-100 xl:flex"
-            aria-label="Marketplace navigation"
-          >
-            <div className="flex items-stretch gap-6">
-              {primaryNav.map((item) => (
-                <NavItem key={item.label} item={item} />
-              ))}
-            </div>
-          </nav>
-
           <div className="md:hidden">
             <div className="grid h-16 grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-2">
               <button
                 type="button"
                 onClick={() => setMobileOpen(true)}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-800"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-100 transition-colors hover:bg-white/[0.08] focus:outline-none focus:ring-2 focus:ring-blue-400"
                 aria-label="Open navigation"
               >
                 <Menu className="h-6 w-6" />
@@ -900,7 +1512,7 @@ export const SiteHeader: React.FC = () => {
                 <img
                   src="/brand/ai-marketplace-traveler-logo.png"
                   alt="AI Marketplace Traveler"
-                  className="h-9 w-auto max-w-[120px] object-contain min-[390px]:max-w-[150px]"
+                  className="h-9 w-auto max-w-[120px] object-contain brightness-0 invert min-[390px]:max-w-[150px]"
                 />
               </button>
 
@@ -914,7 +1526,7 @@ export const SiteHeader: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => goTo("/wishlist")}
-                  className="relative hidden h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:text-blue-700 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-[390px]:flex"
+                  className="relative hidden h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.035] text-slate-100 shadow-sm transition-all hover:scale-[1.03] hover:border-blue-300/30 hover:bg-white/[0.10] hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-400 min-[390px]:flex"
                   aria-label="Wishlist"
                 >
                   <Heart className="h-5 w-5" />
@@ -929,11 +1541,11 @@ export const SiteHeader: React.FC = () => {
 
                 <button
                   type="button"
-                  className="relative hidden h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:text-blue-700 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-[390px]:flex"
+                  className="relative hidden h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.035] text-slate-100 shadow-sm transition-all hover:scale-[1.03] hover:border-blue-300/30 hover:bg-white/[0.10] hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-400 min-[390px]:flex"
                   aria-label="Notifications"
                 >
                   <Bell className="h-5 w-5" />
-                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white">
+                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-black text-white ring-2 ring-[#082752]">
                     3
                   </span>
                 </button>
@@ -942,7 +1554,7 @@ export const SiteHeader: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setUserOpen(true)}
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-black text-white shadow-sm shadow-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-black text-white shadow-sm shadow-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-400"
                     aria-label="Open account menu"
                   >
                     {initials}
@@ -954,18 +1566,150 @@ export const SiteHeader: React.FC = () => {
             <button
               type="button"
               onClick={() => goTo("/search")}
-              className="mb-3 flex h-12 w-full items-center gap-3 rounded-full border border-slate-200 bg-white px-4 text-left text-sm font-semibold text-slate-500 shadow-sm"
+              className="mb-3 flex h-12 w-full items-center gap-3 rounded-full border border-white/[0.12] bg-white/[0.06] px-4 text-left text-sm font-semibold text-slate-300 shadow-sm backdrop-blur-md"
             >
-              <Search className="h-5 w-5 text-slate-500" />
+              <Search className="h-5 w-5 text-slate-300" />
               <span className="min-w-0 flex-1 truncate">
                 Search destinations, hotels, tours...
               </span>
-              <span className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-black text-slate-400">
+              <span className="rounded-lg border border-white/10 bg-white/[0.05] px-2 py-1 text-xs font-black text-slate-300">
                 ⌘ K
               </span>
             </button>
           </div>
         </div>
+        </div>
+
+        <motion.div
+          ref={secondaryNavRef}
+          initial={false}
+          animate={
+            isSecondaryNavCollapsed
+              ? {
+                  height: 0,
+                  opacity: 0,
+                  marginBottom: 0,
+                  borderBottomWidth: 0,
+                  transitionEnd: {
+                    overflow: "hidden",
+                    pointerEvents: "none",
+                    visibility: "hidden",
+                  },
+                }
+              : {
+                  height: "auto",
+                  opacity: 1,
+                  marginBottom: 0,
+                  borderBottomWidth: 1,
+                  overflow: "visible",
+                  pointerEvents: "auto",
+                  visibility: "visible",
+                }
+          }
+          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          className="relative hidden min-h-0 border-b border-slate-200/70 bg-white/95 shadow-[0_6px_18px_rgba(15,23,42,0.045)] backdrop-blur-xl md:block"
+        >
+          <motion.div
+            initial={false}
+            animate={
+              isSecondaryNavCollapsed
+                ? { y: -10, opacity: 0, paddingTop: 0, paddingBottom: 0 }
+                : { y: 0, opacity: 1, paddingTop: 12, paddingBottom: 12 }
+            }
+            transition={{ duration: 0.26, ease: "easeOut" }}
+            className="mx-auto flex max-w-[1640px] items-center justify-center gap-4 px-3 sm:px-5 lg:px-6 xl:px-8"
+          >
+                <nav
+                  className="flex min-w-0 flex-wrap items-center justify-center gap-4 overflow-visible px-1"
+                  aria-label="Marketplace shortcuts"
+                >
+                  <div className="relative shrink-0">
+                    <SecondaryNavItem
+                      item={secondaryNavItems[0]}
+                      dropdown="explore"
+                    />
+                  </div>
+
+                  <span className="h-8 w-px shrink-0 bg-slate-200/80" />
+
+                  <div className="relative shrink-0 overflow-visible">
+                    <SecondaryNavItem
+                      item={secondaryNavItems[1]}
+                      dropdown="deals"
+                    />
+                    <CompactDropdown dropdown="deals">
+                      <DealsDropdown />
+                    </CompactDropdown>
+                  </div>
+
+                  <div className="relative shrink-0 overflow-visible">
+                    <SecondaryNavItem
+                      item={secondaryNavItems[2]}
+                      dropdown="ai-planner"
+                    />
+                    <CompactDropdown dropdown="ai-planner">
+                      <AiPlannerDropdown />
+                    </CompactDropdown>
+                  </div>
+
+                  <span className="h-8 w-px shrink-0 bg-slate-200/80" />
+
+                  <div className="relative shrink-0 overflow-visible">
+                    <SecondaryNavItem
+                      item={secondaryNavItems[3]}
+                      dropdown="categories"
+                    />
+                    <CompactDropdown
+                      dropdown="categories"
+                      className="w-[min(92vw,300px)]"
+                    >
+                      <AllCategoriesDropdown />
+                    </CompactDropdown>
+                  </div>
+                </nav>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveDropdown(null);
+                    setIsSecondaryNavCollapsed(true);
+                  }}
+                  className="ml-auto hidden items-center gap-2 rounded-full text-xs font-semibold text-slate-600 transition-colors hover:text-blue-600 lg:flex"
+                  aria-label="Collapse travel navigation"
+                >
+                  Collapse
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm">
+                    <ChevronUp className="h-4 w-4" />
+                  </span>
+                </button>
+          </motion.div>
+          {!isSecondaryNavCollapsed && <ExploreMegaMenu />}
+        </motion.div>
+
+        <AnimatePresence initial={false}>
+          {isSecondaryNavCollapsed && (
+            <motion.div
+              key="secondary-nav-collapsed-control"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="absolute right-6 top-full z-50 hidden justify-center md:flex lg:right-10 xl:right-14"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveDropdown(null);
+                  setIsSecondaryNavCollapsed(false);
+                }}
+                className="group flex h-7 w-14 items-center justify-center rounded-b-2xl border border-t-0 border-white/15 bg-slate-950/75 text-white/80 shadow-md backdrop-blur-md transition-all duration-300 hover:h-8 hover:bg-slate-900/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
+                aria-label="Expand travel navigation"
+              >
+                <ChevronDown className="h-4 w-4 transition-transform duration-300 group-hover:translate-y-0.5" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </header>
 
       {mounted &&

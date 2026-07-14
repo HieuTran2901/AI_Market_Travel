@@ -4,7 +4,7 @@ import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import { ScrollToTop } from "./routes/ScrollToTop";
 import { PublicLayout } from "./components/layout/PublicLayout";
-import { MarketplaceHome } from "./pages/public/MarketplaceHome";
+import { MarketplaceHomeRedesign } from "./pages/public/MarketplaceHomeRedesign";
 import { SearchPage } from "./pages/public/SearchPage";
 import { ListingDetail } from "./pages/public/ListingDetail";
 import Login from "./pages/auth/Login";
@@ -14,19 +14,31 @@ import { ProviderLayout } from "./components/layout/ProviderLayout";
 import { ProviderOverview } from "./pages/provider/ProviderOverview";
 import { MyListings } from "./pages/provider/MyListings";
 import { ProviderProfile } from "./pages/provider/ProviderProfile";
-import { CreateListingPage } from "./pages/provider/wizard";
+import { CreateListingPage, EditListingPage } from "./pages/provider/wizard";
 import { ProviderSettlementsPage } from "./pages/provider/ProviderSettlementsPage";
+import { ProviderBookingsPage } from "./pages/provider/ProviderBookingsPage";
+import { ProviderReviewsPage } from "./pages/provider/ProviderReviewsPage";
+import { ProviderMessagesPage } from "./pages/provider/ProviderMessagesPage";
+import { ProviderAnalyticsPage } from "./pages/provider/ProviderAnalyticsPage";
+import { ProviderSettingsPage } from "./pages/provider/ProviderSettingsPage";
 
 import { CheckoutPage } from "./pages/customer/CheckoutPage";
 import { CartPage } from "./pages/customer/CartPage";
-import { PaymentHistoryPage, PaymentDetailPage } from "./pages/customer/PaymentPages";
-import { RefundRequestPage, RefundDetailPage } from "./pages/customer/RefundPages";
+import {
+  PaymentHistoryPage,
+  PaymentDetailPage,
+} from "./pages/customer/PaymentPages";
+import {
+  RefundRequestPage,
+  RefundDetailPage,
+} from "./pages/customer/RefundPages";
 import Profile from "./pages/customer/Profile";
 
 import { TripPlannerPage } from "./pages/public/ai/TripPlannerPage";
 import { RecommendationsPage } from "./pages/public/ai/RecommendationsPage";
 import { AiAssistantPage } from "./pages/public/ai/AiAssistantPage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
+import { TravelAiChat } from "./components/ai/TravelAiChat";
 
 const queryClient = new QueryClient();
 
@@ -38,11 +50,14 @@ const App = () => {
           <ScrollToTop />
           <Routes>
             <Route path="/" element={<PublicLayout />}>
-              <Route index element={<MarketplaceHome />} />
+              <Route index element={<MarketplaceHomeRedesign />} />
               <Route path="search" element={<SearchPage />} />
               <Route path="listings/:slug" element={<ListingDetail />} />
               <Route path="ai/planner" element={<TripPlannerPage />} />
-              <Route path="ai/recommendations" element={<RecommendationsPage />} />
+              <Route
+                path="ai/recommendations"
+                element={<RecommendationsPage />}
+              />
               <Route path="ai/assistant" element={<AiAssistantPage />} />
             </Route>
 
@@ -55,23 +70,39 @@ const App = () => {
 
             <Route element={<ProtectedRoute />}>
               <Route path="/provider" element={<ProviderLayout />}>
-                <Route index element={<Navigate to="/provider/dashboard" replace />} />
+                <Route
+                  index
+                  element={<Navigate to="/provider/dashboard" replace />}
+                />
                 <Route path="dashboard" element={<ProviderOverview />} />
                 <Route path="listings" element={<MyListings />} />
                 <Route path="listings/new" element={<CreateListingPage />} />
-                <Route path="settlements" element={<ProviderSettlementsPage />} />
+                <Route path="listings/:id/edit" element={<EditListingPage />} />
+                <Route path="bookings" element={<ProviderBookingsPage />} />
+                <Route
+                  path="settlements"
+                  element={<ProviderSettlementsPage />}
+                />
+                <Route path="reviews" element={<ProviderReviewsPage />} />
+                <Route path="messages" element={<ProviderMessagesPage />} />
+                <Route path="analytics" element={<ProviderAnalyticsPage />} />
                 <Route path="profile" element={<ProviderProfile />} />
+                <Route path="settings" element={<ProviderSettingsPage />} />
               </Route>
 
               <Route path="/checkout" element={<CheckoutPage />} />
               <Route path="/cart" element={<CartPage />} />
               <Route path="/profile" element={<Profile />} />
-              <Route path="/payments/history" element={<PaymentHistoryPage />} />
+              <Route
+                path="/payments/history"
+                element={<PaymentHistoryPage />}
+              />
               <Route path="/payments/:id" element={<PaymentDetailPage />} />
               <Route path="/refunds/request" element={<RefundRequestPage />} />
               <Route path="/refunds/:id" element={<RefundDetailPage />} />
             </Route>
           </Routes>
+          <TravelAiChat />
         </BrowserRouter>
       </AuthProvider>
     </QueryClientProvider>

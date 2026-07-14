@@ -7,6 +7,8 @@ export interface RegisterRequest {
   email: string;
   password?: string;
   fullName: string;
+  firstName?: string;
+  lastName?: string;
   phoneNumber?: string;
   isProvider: boolean;
   businessType?: string;
