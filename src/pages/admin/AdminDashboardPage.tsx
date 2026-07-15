@@ -32,9 +32,19 @@ import {
   X,
 } from 'lucide-react';
 import { listingService } from '@/services/listingService';
+import { adminDashboardService } from '@/services/adminDashboardService';
 import { useAuth } from '@/context/AuthContext';
+import { AdminSidebarCollapseButton } from '@/components/admin/AdminSidebarCollapseButton';
+import { AdminSidebarSectionLabel, AdminSidebarText } from '@/components/admin/AdminSidebarAnimatedText';
+import { useAdminSidebarCollapse } from '@/components/admin/useAdminSidebarCollapse';
 import { StateBlock } from '@/components/ui/StateBlock';
 import { ListingResponse } from '@/types/listing';
+import {
+  AdminDashboardBookingsOverview,
+  AdminDashboardRecentBooking,
+  AdminDashboardSystemHealth,
+  AdminDashboardUserGrowth,
+} from '@/types/adminDashboard';
 import { ThemeMenu, ThemeToggle } from '@/components/theme/ThemeControls';
 import { useTheme } from '@/context/ThemeContext';
 
@@ -49,9 +59,9 @@ type MetricTone = 'blue' | 'emerald' | 'amber' | 'violet' | 'slate';
 
 const adminNavItems: NavItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/admin/dashboard', group: 'main' },
-  { label: 'Users', icon: Users, group: 'management' },
-  { label: 'Providers', icon: HeartHandshake, group: 'management' },
-  { label: 'Listings', icon: Store, group: 'management' },
+  { label: 'Users', icon: Users, to: '/admin/users', group: 'management' },
+  { label: 'Providers', icon: HeartHandshake, to: '/admin/providers', group: 'management' },
+  { label: 'Listings', icon: Store, to: '/admin/listings', group: 'management' },
   { label: 'Bookings', icon: CalendarCheck, group: 'management' },
   { label: 'Reviews', icon: Star, group: 'management' },
   { label: 'Payments', icon: CreditCard, group: 'operations' },
@@ -101,6 +111,23 @@ function money(value: number, currency = 'VND') {
   }).format(value);
 }
 
+function count(value: number) {
+  return new Intl.NumberFormat('en-US').format(value);
+}
+
+function formatDateTime(value?: string) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
 function formatCategory(category: string) {
   return category.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, char => char.toUpperCase());
 }
@@ -113,15 +140,47 @@ function initials(name?: string) {
 export const AdminDashboardPage: React.FC = () => {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [profileOpen, setProfileOpen] = React.useState(false);
+  const { collapsed: sidebarCollapsed, compact: sidebarCompact, labelsHidden: sidebarLabelsHidden, transitioning: sidebarTransitioning, toggle: toggleSidebarCollapsed } = useAdminSidebarCollapse();
   const profileRef = React.useRef<HTMLDivElement | null>(null);
   const prefersReducedMotion = useReducedMotion();
   const { user, logout } = useAuth();
   const { resolvedTheme } = useTheme();
   const navigate = useNavigate();
 
-  const { data, isLoading } = useQuery({
+  const overviewQuery = useQuery({
+    queryKey: ['admin-dashboard', 'overview'],
+    queryFn: () => adminDashboardService.getOverview(),
+    staleTime: 60_000,
+  });
+
+  const bookingsOverviewQuery = useQuery({
+    queryKey: ['admin-dashboard', 'bookings-overview', '30d'],
+    queryFn: () => adminDashboardService.getBookingsOverview('30d'),
+    staleTime: 60_000,
+  });
+
+  const userGrowthQuery = useQuery({
+    queryKey: ['admin-dashboard', 'user-growth', '30d'],
+    queryFn: () => adminDashboardService.getUserGrowth('30d'),
+    staleTime: 60_000,
+  });
+
+  const systemHealthQuery = useQuery({
+    queryKey: ['admin-dashboard', 'system-health'],
+    queryFn: () => adminDashboardService.getSystemHealth(),
+    staleTime: 30_000,
+  });
+
+  const recentBookingsQuery = useQuery({
+    queryKey: ['admin-dashboard', 'recent-bookings', 5],
+    queryFn: () => adminDashboardService.getRecentBookings(5),
+    staleTime: 30_000,
+  });
+
+  const topListingsQuery = useQuery({
     queryKey: ['admin-dashboard-active-listings'],
     queryFn: () => listingService.searchListings({ status: 'ACTIVE', page: 0, size: 8 }),
+    staleTime: 60_000,
   });
 
   React.useEffect(() => {
@@ -151,10 +210,11 @@ export const AdminDashboardPage: React.FC = () => {
     };
   }, [profileOpen]);
 
-  const listings = data?.data?.content || [];
-  const totalActiveListings = data?.data?.totalElements ?? listings.length;
+  const overview = overviewQuery.data?.data;
+  const listings = topListingsQuery.data?.data?.content || [];
+  const totalActiveListings = overview?.activeListings ?? topListingsQuery.data?.data?.totalElements ?? listings.length;
   const catalogValue = listings.reduce((sum, listing) => sum + (listing.basePrice || 0), 0);
-  const currency = listings[0]?.currency || 'VND';
+  const currency = overview?.currency || listings[0]?.currency || 'VND';
   const topListings = [...listings]
     .sort((a, b) => (b.averageRating || 0) - (a.averageRating || 0))
     .slice(0, 5);
@@ -169,7 +229,7 @@ export const AdminDashboardPage: React.FC = () => {
 
   return (
     <div className={`admin-theme ${resolvedTheme === 'dark' ? 'dark' : ''}`}>
-      <div className="flex min-h-screen bg-[#f7f9fc] text-slate-950 transition-colors duration-200 dark:bg-[#07111f] dark:text-slate-50">
+      <div className="flex min-h-dvh min-w-0 overflow-x-hidden bg-[#f7f9fc] text-slate-950 transition-colors duration-200 dark:bg-[#07111f] dark:text-slate-50">
       {drawerOpen && (
         <button
           type="button"
@@ -179,11 +239,11 @@ export const AdminDashboardPage: React.FC = () => {
         />
       )}
 
-      <AdminSidebar onLogout={handleLogout} drawerOpen={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      <AdminSidebar onLogout={handleLogout} drawerOpen={drawerOpen} collapsed={sidebarCompact} labelsHidden={sidebarLabelsHidden} toggleDisabled={sidebarTransitioning} toggleCollapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} onClose={() => setDrawerOpen(false)} />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className={`flex min-w-0 flex-1 flex-col transition-[padding] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${sidebarCompact ? 'xl:pl-[80px]' : 'xl:pl-[240px]'}`}>
         <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl transition-colors duration-200 dark:border-slate-800 dark:bg-[#081321]/92">
-          <div className="flex h-20 items-center justify-between gap-3 px-4 md:px-6 2xl:px-8">
+          <div className="mx-auto flex h-20 w-full max-w-[1600px] min-w-0 items-center justify-between gap-5 px-4 md:px-6 2xl:px-8">
             <div className="flex min-w-0 items-center gap-3">
               <button
                 type="button"
@@ -199,17 +259,17 @@ export const AdminDashboardPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex min-w-0 items-center gap-2 md:gap-3">
-              <button className="hidden h-11 min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-left text-sm font-semibold text-slate-500 dark:text-slate-400 shadow-sm transition hover:border-blue-100 dark:border-slate-700/70 dark:bg-slate-900/80 dark:text-slate-400 dark:hover:border-blue-400/40 md:flex lg:w-80">
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-2 md:gap-3">
+              <button className="hidden h-11 w-full max-w-[430px] min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-left text-sm font-semibold text-slate-500 shadow-sm transition hover:border-blue-100 dark:border-slate-700/70 dark:bg-slate-900/80 dark:text-slate-400 dark:hover:border-blue-400/40 md:flex">
                 <Search className="h-4 w-4 shrink-0" />
                 <span className="truncate">Search anything...</span>
-                <span className="ml-auto rounded-lg bg-slate-100 px-2 py-1 text-xs font-black text-slate-400 dark:bg-slate-800 dark:text-slate-500">⌘K</span>
+                <span className="ml-auto shrink-0 rounded-lg bg-slate-100 px-2 py-1 text-xs font-black text-slate-400 dark:bg-slate-800 dark:text-slate-500">⌘K</span>
               </button>
               <IconButton icon={Search} label="Search" className="md:hidden" />
               <IconButton icon={Bell} label="Notifications" badge="!" />
               <IconButton icon={MessageSquare} label="Messages" />
               <ThemeToggle />
-              <div ref={profileRef} className="relative">
+              <div ref={profileRef} className="relative shrink-0">
                 <button
                   type="button"
                   aria-haspopup="menu"
@@ -256,7 +316,7 @@ export const AdminDashboardPage: React.FC = () => {
         </header>
 
         <main className="min-w-0 flex-1 px-4 py-5 md:px-6 md:py-6 2xl:px-8">
-          <MotionDiv className="mx-auto w-full max-w-none space-y-6" {...animationProps}>
+          <MotionDiv className="mx-auto w-full max-w-[1600px] min-w-0 space-y-5" {...animationProps}>
             <MotionDiv variants={itemVariants} transition={{ duration: 0.42 }} className="flex flex-col gap-4 rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/80 md:flex-row md:items-center md:justify-between xl:border-0 xl:bg-transparent xl:p-0 xl:shadow-none xl:dark:bg-transparent">
               <div>
                 <h2 className="text-2xl font-black tracking-tight text-slate-950 dark:text-slate-50 xl:text-3xl">Welcome back, {adminName}! <span aria-hidden="true">👋</span></h2>
@@ -269,33 +329,26 @@ export const AdminDashboardPage: React.FC = () => {
               </button>
             </MotionDiv>
 
-            <MotionDiv variants={containerVariants} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-              <KpiCard title="Total Users" value="Unavailable" helper="No admin users API" icon={Users} tone="blue" />
-              <KpiCard title="Active Listings" value={isLoading ? '...' : totalActiveListings.toLocaleString()} helper="From public listings API" icon={Store} tone="emerald" />
-              <KpiCard title="Total Bookings" value="Unavailable" helper="No admin bookings API" icon={CalendarCheck} tone="amber" />
-              <KpiCard title="Total Revenue" value="Unavailable" helper="No admin revenue API" icon={CreditCard} tone="violet" />
-              <KpiCard title="Total Providers" value="Unavailable" helper="No admin providers API" icon={ShieldCheck} tone="blue" className="sm:col-span-2 lg:col-span-1" />
+            <MotionDiv variants={containerVariants} className="grid min-w-0 gap-4 [grid-template-columns:repeat(auto-fit,minmax(210px,1fr))]">
+              <KpiCard title="Total Users" value={overviewQuery.isLoading ? '...' : overview ? count(overview.totalUsers) : '-'} helper={overviewQuery.isError ? 'Unable to load users' : 'All marketplace accounts'} icon={Users} tone="blue" />
+              <KpiCard title="Active Listings" value={overviewQuery.isLoading ? '...' : count(totalActiveListings)} helper={overviewQuery.isError ? 'Unable to load listings' : 'Listings currently live'} icon={Store} tone="emerald" />
+              <KpiCard title="Total Bookings" value={overviewQuery.isLoading ? '...' : overview ? count(overview.totalBookings) : '-'} helper={overviewQuery.isError ? 'Unable to load bookings' : 'All recorded bookings'} icon={CalendarCheck} tone="amber" />
+              <KpiCard title="Total Revenue" value={overviewQuery.isLoading ? '...' : overview ? money(Number(overview.totalRevenue || 0), currency) : '-'} helper={overviewQuery.isError ? 'Unable to load revenue' : 'Completed settlement platform fees'} icon={CreditCard} tone="violet" />
+              <KpiCard title="Total Providers" value={overviewQuery.isLoading ? '...' : overview ? count(overview.totalProviders) : '-'} helper={overviewQuery.isError ? 'Unable to load providers' : 'Registered provider profiles'} icon={ShieldCheck} tone="blue" />
             </MotionDiv>
 
-            <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
-              <div className="min-w-0 space-y-6">
-                <div className="grid min-w-0 gap-6 lg:grid-cols-2">
-                  <ChartPlaceholder title="Bookings Overview" description="No admin booking time-series endpoint is exposed." icon={CalendarCheck} />
-                  <ChartPlaceholder title="User Growth" description="No admin user-growth endpoint is exposed." icon={Users} />
-                </div>
+            <div className="grid min-w-0 grid-cols-1 gap-5 min-[1280px]:grid-cols-2 min-[1440px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(300px,0.72fr)]">
+              <BookingsOverviewCard data={bookingsOverviewQuery.data?.data} loading={bookingsOverviewQuery.isLoading} error={bookingsOverviewQuery.isError} onRetry={() => bookingsOverviewQuery.refetch()} />
+              <UserGrowthCard data={userGrowthQuery.data?.data} loading={userGrowthQuery.isLoading} error={userGrowthQuery.isError} onRetry={() => userGrowthQuery.refetch()} />
+              <QuickActionsPanel />
+            </div>
 
-                <SystemHealthPanel />
+            <SystemHealthPanel data={systemHealthQuery.data?.data} loading={systemHealthQuery.isLoading} error={systemHealthQuery.isError} onRetry={() => systemHealthQuery.refetch()} />
 
-                <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-                  <RecentBookingsPanel />
-                  <TopListingsPanel listings={topListings} loading={isLoading} />
-                </div>
-              </div>
-
-              <aside className="min-w-0 space-y-6">
-                <QuickActionsPanel />
-                <AdminDataNotice catalogValue={catalogValue} currency={currency} activeListings={totalActiveListings} />
-              </aside>
+            <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.75fr)_minmax(300px,0.65fr)]">
+              <RecentBookingsPanel bookings={recentBookingsQuery.data?.data || []} loading={recentBookingsQuery.isLoading} error={recentBookingsQuery.isError} onRetry={() => recentBookingsQuery.refetch()} />
+              <TopListingsPanel listings={topListings} loading={topListingsQuery.isLoading} />
+              <AdminDataNotice catalogValue={catalogValue} currency={currency} activeListings={totalActiveListings} generatedAt={overview?.generatedAt} />
             </div>
           </MotionDiv>
         </main>
@@ -307,10 +360,20 @@ export const AdminDashboardPage: React.FC = () => {
 
 const AdminSidebar = ({
   drawerOpen,
+  collapsed,
+  labelsHidden,
+  toggleDisabled,
+  toggleCollapsed,
+  onToggleCollapsed,
   onClose,
   onLogout,
 }: {
   drawerOpen: boolean;
+  collapsed: boolean;
+  labelsHidden: boolean;
+  toggleDisabled: boolean;
+  toggleCollapsed: boolean;
+  onToggleCollapsed: () => void;
   onClose: () => void;
   onLogout: () => void;
 }) => {
@@ -318,22 +381,23 @@ const AdminSidebar = ({
 
   return (
     <aside className={`
-      fixed inset-y-0 left-0 z-50 flex w-[260px] transform flex-col border-r border-slate-200/80 bg-white shadow-2xl shadow-slate-200/70 dark:border-slate-800 dark:bg-[#081321] dark:shadow-slate-950/40 transition-transform duration-300 ease-out xl:sticky xl:top-0 xl:translate-x-0 xl:shadow-none
-      ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}
+      fixed inset-y-0 left-0 z-50 flex h-screen shrink-0 transform flex-col border-r border-slate-200/80 bg-white shadow-2xl shadow-slate-200/70 [height:100dvh] dark:border-slate-800 dark:bg-[#081321] dark:shadow-slate-950/40 transition-[width,transform] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] xl:z-40 xl:translate-x-0 xl:shadow-none ${collapsed ? 'xl:w-[80px]' : 'xl:w-[240px]'}
+      ${drawerOpen ? 'w-[240px] translate-x-0' : 'w-[240px] -translate-x-full'}
     `}>
-      <div className="flex h-20 items-center justify-between px-5">
-        <Link to="/" className="flex items-center gap-3" onClick={onClose}>
-          <img src="/brand/ai-marketplace-traveler-logo.png" alt="AI Marketplace Traveler" className="h-12 w-auto object-contain" />
+      <AdminSidebarCollapseButton collapsed={toggleCollapsed} disabled={toggleDisabled} onToggle={onToggleCollapsed} />
+      <div className={`flex h-20 shrink-0 items-center justify-between transition-[padding] duration-200 ${collapsed ? 'xl:px-3' : 'px-5'}`}>
+        <Link to="/" className="flex min-w-0 items-center gap-3" onClick={onClose}>
+          <img src="/brand/ai-marketplace-traveler-logo.png" alt="AI Marketplace Traveler" className={`h-12 w-auto object-contain transition-all duration-200 ${collapsed ? 'xl:max-w-[48px]' : ''}`} />
         </Link>
         <button type="button" className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 xl:hidden" onClick={onClose} aria-label="Close admin navigation">
           <X className="h-5 w-5" />
         </button>
       </div>
 
-      <nav className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+      <nav className={`min-h-0 flex-1 overflow-y-auto overscroll-contain py-3 pb-5 transition-[padding] duration-200 [scrollbar-width:thin] [scrollbar-color:rgba(148,163,184,0.45)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[scrollbar-color:rgba(71,85,105,0.7)_transparent] dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 ${collapsed ? 'xl:px-3' : 'px-4'}`}>
         {groupedNav.map(group => (
           <div key={group.label || 'main'} className="mb-5">
-            {group.label && <p className="mb-2 px-3 text-xs font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{group.label}</p>}
+            {group.label && <AdminSidebarSectionLabel hidden={labelsHidden}>{group.label}</AdminSidebarSectionLabel>}
             <div className="space-y-1">
               {group.items.map(item => {
                 const Icon = item.icon;
@@ -343,14 +407,15 @@ const AdminSidebar = ({
                     <Link
                       key={item.label}
                       to={item.to}
+                      title={collapsed ? item.label : undefined}
                       onClick={onClose}
-                      className={`group flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      className={`group flex items-center rounded-2xl text-sm font-bold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 ${collapsed ? 'xl:mx-auto xl:h-12 xl:w-12 xl:justify-center xl:p-0' : 'gap-3 px-4 py-3'} ${
                         active ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-slate-100'
                       }`}
                     >
                       <Icon className="h-5 w-5 shrink-0 transition-transform duration-200 group-hover:scale-105" />
-                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                      <ChevronRight className="h-4 w-4 opacity-60" />
+                      <AdminSidebarText hidden={labelsHidden}>{item.label}</AdminSidebarText>
+                      <ChevronRight className={`h-4 w-4 shrink-0 transition-[opacity,max-width] duration-200 ${labelsHidden ? 'max-w-0 opacity-0' : 'max-w-4 opacity-60'}`} />
                     </Link>
                   );
                 }
@@ -359,11 +424,11 @@ const AdminSidebar = ({
                     key={item.label}
                     type="button"
                     disabled
-                    title="No admin route is currently wired for this feature."
-                    className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-bold text-slate-400 opacity-75 dark:text-slate-600"
+                    title={collapsed ? item.label : 'No admin route is currently wired for this feature.'}
+                    className={`flex items-center rounded-2xl text-left text-sm font-bold text-slate-400 opacity-75 dark:text-slate-600 ${collapsed ? 'xl:mx-auto xl:h-12 xl:w-12 xl:justify-center xl:p-0' : 'w-full gap-3 px-4 py-3'}`}
                   >
                     <Icon className="h-5 w-5 shrink-0" />
-                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    <AdminSidebarText hidden={labelsHidden}>{item.label}</AdminSidebarText>
                   </button>
                 );
               })}
@@ -372,21 +437,23 @@ const AdminSidebar = ({
         ))}
       </nav>
 
-      <div className="space-y-3 p-4">
+      <div className={`shrink-0 space-y-3 border-t border-slate-200/80 bg-white p-4 transition-[padding] duration-200 dark:border-slate-800 dark:bg-[#081321] ${collapsed ? 'xl:px-3' : ''}`}>
         <Link
           to="/"
+          title={collapsed ? 'View Site' : undefined}
           onClick={onClose}
-          className="flex h-12 items-center justify-between rounded-2xl border border-blue-100 bg-blue-50 px-4 text-sm font-black text-blue-700 transition hover:bg-blue-100 dark:border-blue-400/20 dark:bg-blue-500/15 dark:text-blue-200 dark:hover:bg-blue-500/20"
+          className={`flex h-12 items-center justify-between rounded-2xl border border-blue-100 bg-blue-50 px-4 text-sm font-black text-blue-700 transition hover:bg-blue-100 dark:border-blue-400/20 dark:bg-blue-500/15 dark:text-blue-200 dark:hover:bg-blue-500/20 ${collapsed ? 'xl:justify-center xl:px-0' : ''}`}
         >
-          View Site <ExternalLink className="h-4 w-4" />
+          <AdminSidebarText hidden={labelsHidden} className="font-black">View Site</AdminSidebarText> <ExternalLink className="h-4 w-4 shrink-0" />
         </Link>
         <button
           type="button"
+          title={collapsed ? 'Sign out' : undefined}
           onClick={onLogout}
-          className="flex h-12 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-red-600 transition hover:border-red-100 hover:bg-red-50 dark:border-slate-700/70 dark:bg-slate-900/70 dark:text-red-400 dark:hover:border-red-400/30 dark:hover:bg-red-500/10"
+          className={`flex h-12 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-red-600 transition hover:border-red-100 hover:bg-red-50 dark:border-slate-700/70 dark:bg-slate-900/70 dark:text-red-400 dark:hover:border-red-400/30 dark:hover:bg-red-500/10 ${collapsed ? 'xl:justify-center xl:px-0' : ''}`}
         >
           <LogOut className="h-5 w-5" />
-          Sign out
+          <AdminSidebarText hidden={labelsHidden} className="font-black">Sign out</AdminSidebarText>
         </button>
       </div>
     </aside>
@@ -425,76 +492,215 @@ const KpiCard = ({
   className?: string;
 }) => {
   const styles = toneStyles[tone];
+  const isUnavailable = value === 'Unavailable';
+  const displayValue = isUnavailable ? '-' : value;
   return (
-    <MotionDiv variants={itemVariants} transition={{ duration: 0.42 }} className={`min-w-0 rounded-[20px] border border-slate-200/80 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/70 dark:border-slate-700/60 dark:bg-slate-900/80 dark:hover:shadow-slate-950/40 ${className}`}>
-      <div className="flex min-w-0 items-center gap-4">
-        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ring-1 ${styles.icon}`}>
+    <MotionDiv variants={itemVariants} transition={{ duration: 0.42 }} className={`flex min-h-[150px] min-w-0 items-start gap-4 rounded-[22px] border border-slate-200/80 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/70 dark:border-slate-700/60 dark:bg-slate-900/80 dark:hover:shadow-slate-950/40 ${className}`}>
+      <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ring-1 ${styles.icon}`}>
           <Icon className="h-6 w-6" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{title}</p>
-          <p className="mt-1 break-words text-2xl font-black tracking-tight text-slate-950 dark:text-slate-50 xl:text-3xl">{value}</p>
-        </div>
       </div>
-      <p className={`mt-4 text-xs font-black ${styles.text}`}>{helper}</p>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[15px] font-bold text-slate-500 dark:text-slate-400">{title}</p>
+        <p className="mt-1 truncate whitespace-nowrap text-[28px] font-black leading-tight tracking-tight text-slate-950 dark:text-slate-50 xl:text-[32px]">{displayValue}</p>
+        <p className={`mt-4 line-clamp-2 text-xs font-black leading-5 ${styles.text}`}>{helper}</p>
+      </div>
     </MotionDiv>
   );
 };
 
-const ChartPlaceholder = ({ title, description, icon: Icon }: { title: string; description: string; icon: React.ElementType }) => (
-  <MotionDiv variants={itemVariants} transition={{ duration: 0.42 }} className="min-w-0 rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/80 xl:p-6">
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <h2 className="text-xl font-black tracking-tight text-slate-950 dark:text-slate-50">{title}</h2>
-        <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">Responsive chart area</p>
-      </div>
-      <button className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-500 dark:border-slate-700/70 dark:bg-slate-950/60 dark:text-slate-400">Current</button>
-    </div>
-    <div className="mt-5 flex min-h-[260px] flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-slate-50/80 p-6 text-center dark:border-slate-700/70 dark:bg-slate-950/40">
-      <Icon className="h-10 w-10 text-blue-500" />
-      <h3 className="mt-3 text-base font-black text-slate-950 dark:text-slate-50">No chart data endpoint</h3>
-      <p className="mt-2 max-w-md text-sm font-semibold leading-6 text-slate-500 dark:text-slate-400">{description}</p>
-    </div>
-  </MotionDiv>
-);
+const DashboardChartCard = ({
+  title,
+  subtitle,
+  metric,
+  change,
+  points,
+  valueKey,
+  loading,
+  error,
+  onRetry,
+  icon: Icon,
+}: {
+  title: string;
+  subtitle: string;
+  metric: string;
+  change: number;
+  points: Array<Record<string, string | number>>;
+  valueKey: string;
+  loading: boolean;
+  error: boolean;
+  onRetry: () => void;
+  icon: React.ElementType;
+}) => {
+  const values = points.map(point => Number(point[valueKey] || 0));
+  const hasData = values.some(value => value > 0);
+  const max = Math.max(...values, 1);
+  const width = 520;
+  const height = 180;
+  const path = values.map((value, index) => {
+    const x = values.length <= 1 ? 0 : (index / (values.length - 1)) * width;
+    const y = height - (value / max) * (height - 20) - 10;
+    return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+  }).join(' ');
 
-const SystemHealthPanel = () => (
-  <MotionDiv variants={itemVariants} transition={{ duration: 0.42 }} className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/80 xl:p-6">
-    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-      <div>
-        <h2 className="text-xl font-black tracking-tight text-slate-950 dark:text-slate-50">System Health</h2>
-        <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">No live health endpoint is exposed in the frontend.</p>
-      </div>
-      <span className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-700 ring-1 ring-amber-100 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-400/20">
-        <AlertTriangle className="h-4 w-4" />
-        Monitoring unavailable
-      </span>
-    </div>
-    <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-      {['API Services', 'Database', 'Storage', 'Email Service', 'Payment Gateway'].map(item => (
-        <div key={item} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700/60 dark:bg-slate-950/40">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-slate-400" />
-            <p className="text-sm font-black text-slate-800 dark:text-slate-200">{item}</p>
-          </div>
-          <p className="mt-2 text-xs font-bold text-slate-500 dark:text-slate-400">No live status</p>
+  return (
+    <MotionDiv variants={itemVariants} transition={{ duration: 0.42 }} className="min-w-0 rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/80">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="text-xl font-black tracking-tight text-slate-950 dark:text-slate-50">{title}</h2>
+          <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">{subtitle}</p>
         </div>
-      ))}
-    </div>
-  </MotionDiv>
+        <span className="shrink-0 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-500 dark:border-slate-700/70 dark:bg-slate-950/60 dark:text-slate-400">Last 30 days</span>
+      </div>
+      <div className="mt-4 flex items-end justify-between gap-4">
+        <p className="text-3xl font-black text-slate-950 dark:text-slate-50">{metric}</p>
+        <p className={`text-sm font-black ${change >= 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-red-600 dark:text-red-300'}`}>
+          {change >= 0 ? '+' : ''}{change.toFixed(1)}%
+        </p>
+      </div>
+      <div className="mt-5 flex min-h-[230px] items-center justify-center rounded-[20px] border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700/70 dark:bg-slate-950/40">
+        {loading ? (
+          <StateBlock variant="loading" title="Loading chart" description="Fetching dashboard series." className="border-0 bg-transparent shadow-none" />
+        ) : error ? (
+          <StateBlock title="Chart unavailable" description="This section could not be loaded." className="border-0 bg-transparent shadow-none" actionLabel="Retry" onAction={onRetry} />
+        ) : hasData ? (
+          <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${title} line chart`} className="h-full min-h-[180px] w-full overflow-visible">
+            <defs>
+              <linearGradient id={`${title.replace(/\s+/g, '-')}-gradient`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#2563eb" stopOpacity="0.22" />
+                <stop offset="100%" stopColor="#2563eb" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path d={`${path} L ${width} ${height} L 0 ${height} Z`} fill={`url(#${title.replace(/\s+/g, '-')}-gradient)`} />
+            <path d={path} fill="none" stroke="#2563eb" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ) : (
+          <div className="text-center">
+            <Icon className="mx-auto h-10 w-10 text-blue-500" />
+            <h3 className="mt-3 text-base font-black text-slate-950 dark:text-slate-50">No activity yet</h3>
+            <p className="mx-auto mt-2 max-w-md text-sm font-semibold leading-6 text-slate-500 dark:text-slate-400">This chart will populate automatically when matching marketplace records exist.</p>
+          </div>
+        )}
+      </div>
+    </MotionDiv>
+  );
+};
+
+const BookingsOverviewCard = ({ data, loading, error, onRetry }: { data?: AdminDashboardBookingsOverview; loading: boolean; error: boolean; onRetry: () => void }) => (
+  <DashboardChartCard
+    title="Bookings Overview"
+    subtitle="Real booking records grouped by creation date"
+    metric={data ? count(data.total) : '-'}
+    change={data?.changePercentage ?? 0}
+    points={data?.points || []}
+    valueKey="count"
+    loading={loading}
+    error={error}
+    onRetry={onRetry}
+    icon={CalendarCheck}
+  />
 );
 
-const RecentBookingsPanel = () => (
+const UserGrowthCard = ({ data, loading, error, onRetry }: { data?: AdminDashboardUserGrowth; loading: boolean; error: boolean; onRetry: () => void }) => (
+  <DashboardChartCard
+    title="User Growth"
+    subtitle="Cumulative user accounts from real signups"
+    metric={data ? count(data.totalUsers) : '-'}
+    change={data?.changePercentage ?? 0}
+    points={data?.points || []}
+    valueKey="cumulativeUsers"
+    loading={loading}
+    error={error}
+    onRetry={onRetry}
+    icon={Users}
+  />
+);
+
+const SystemHealthPanel = ({ data, loading, error, onRetry }: { data?: AdminDashboardSystemHealth; loading: boolean; error: boolean; onRetry: () => void }) => {
+  const items = [
+    { label: 'API Services', value: data?.api },
+    { label: 'Database', value: data?.database },
+    { label: 'Storage', value: data?.storage },
+    { label: 'Background Jobs', value: data?.jobs },
+  ];
+  const allKnownUp = items.every(item => item.value === 'UP');
+  const hasUnknown = items.some(item => !item.value || item.value === 'UNKNOWN');
+
+  return (
+    <MotionDiv variants={itemVariants} transition={{ duration: 0.42 }} className="rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/80">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-xl font-black tracking-tight text-slate-950 dark:text-slate-50">System Health</h2>
+          <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
+            {data?.lastCheckedAt ? `Last checked ${formatDateTime(data.lastCheckedAt)}` : 'Dashboard-safe service status'}
+          </p>
+        </div>
+        <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-black ring-1 ${
+          error
+            ? 'bg-red-50 text-red-700 ring-red-100 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-400/20'
+            : allKnownUp
+              ? 'bg-emerald-50 text-emerald-700 ring-emerald-100 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-400/20'
+              : 'bg-amber-50 text-amber-700 ring-amber-100 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-400/20'
+        }`}>
+          {error || hasUnknown ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+          {error ? 'Health unavailable' : hasUnknown ? 'Partially monitored' : 'Operational'}
+        </span>
+      </div>
+      {loading ? (
+        <StateBlock variant="loading" title="Loading health" description="Checking dashboard-safe service status." className="mt-4 border-0 bg-slate-50 shadow-none dark:bg-slate-950/40" />
+      ) : error ? (
+        <StateBlock variant="error" title="Health unavailable" description="System health could not be loaded." actionLabel="Retry" onAction={onRetry} className="mt-4 border-0 bg-slate-50 shadow-none dark:bg-slate-950/40" />
+      ) : (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {items.map(item => (
+            <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700/60 dark:bg-slate-950/40">
+              <div className="flex items-center gap-2">
+                {item.value === 'UP' ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <AlertTriangle className="h-4 w-4 text-amber-500" />}
+                <p className="text-sm font-black text-slate-800 dark:text-slate-200">{item.label}</p>
+              </div>
+              <p className="mt-2 text-xs font-bold text-slate-500 dark:text-slate-400">{item.value || 'UNKNOWN'}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </MotionDiv>
+  );
+};
+
+const RecentBookingsPanel = ({ bookings, loading, error, onRetry }: { bookings: AdminDashboardRecentBooking[]; loading: boolean; error: boolean; onRetry: () => void }) => (
   <MotionDiv variants={itemVariants} transition={{ duration: 0.42 }} className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/80 xl:p-6">
     <div className="flex items-center justify-between gap-4">
       <h2 className="text-xl font-black tracking-tight text-slate-950 dark:text-slate-50">Recent Bookings</h2>
-      <span className="text-sm font-black text-slate-400">No route</span>
+      <span className="text-sm font-black text-slate-400">Live feed</span>
     </div>
-    <StateBlock
-      title="No admin bookings feed"
-      description="The current frontend exposes checkout and customer booking-related review eligibility, but no admin booking list API. No fake bookings are shown."
-      className="mt-5 border-dashed bg-slate-50 shadow-none dark:border-slate-700 dark:bg-slate-950/40"
-    />
+    {loading ? (
+      <StateBlock variant="loading" title="Loading bookings" description="Fetching recent booking activity." className="mt-5 border-0 bg-slate-50 shadow-none dark:bg-slate-950/40" />
+    ) : error ? (
+      <StateBlock variant="error" title="Bookings unavailable" description="Recent bookings could not be loaded." actionLabel="Retry" onAction={onRetry} className="mt-5 border-0 bg-slate-50 shadow-none dark:bg-slate-950/40" />
+    ) : bookings.length > 0 ? (
+      <div className="mt-5 space-y-3">
+        {bookings.map(booking => (
+          <div key={booking.id} className="flex min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700/60 dark:bg-slate-950/40">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 ring-1 ring-amber-100 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-400/20">
+              <CalendarCheck className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-black text-slate-950 dark:text-slate-50">{booking.listingTitle}</p>
+              <p className="truncate text-xs font-semibold text-slate-500 dark:text-slate-400">{booking.customerName} · {booking.bookingNumber}</p>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-xs font-black text-slate-700 dark:text-slate-200">{money(Number(booking.total || 0), booking.currency || 'VND')}</p>
+              <p className="mt-0.5 text-[11px] font-bold uppercase text-slate-400">{booking.status}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    ) : (
+      <StateBlock
+        title="No bookings yet"
+        description="Recent bookings will appear here when customers start placing marketplace orders."
+        className="mt-5 border-dashed bg-slate-50 shadow-none dark:border-slate-700 dark:bg-slate-950/40"
+      />
+    )}
   </MotionDiv>
 );
 
@@ -528,7 +734,7 @@ const TopListingRow = ({ listing, rank }: { listing: ListingResponse; rank: numb
     )}
     <div className="min-w-0 flex-1">
       <p className="line-clamp-1 text-sm font-black text-slate-950 dark:text-slate-50">{listing.title}</p>
-      <p className="mt-0.5 text-xs font-semibold text-slate-500 dark:text-slate-400">{money(listing.basePrice, listing.currency)} · {formatCategory(listing.category)}</p>
+      <p className="mt-0.5 text-xs font-semibold text-slate-500 dark:text-slate-400">{money(listing.basePrice, listing.currency)} / {formatCategory(listing.category)}</p>
     </div>
     <span className="hidden shrink-0 items-center gap-1 text-sm font-black text-slate-800 dark:text-slate-200 sm:inline-flex">
       <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
@@ -540,16 +746,16 @@ const TopListingRow = ({ listing, rank }: { listing: ListingResponse; rank: numb
 const QuickActionsPanel = () => {
   const actions = [
     { label: 'Add New Listing', icon: Store, to: '/provider/listings/new', available: true },
-    { label: 'Verify Provider', icon: ShieldCheck, available: false },
+    { label: 'Verify Provider', icon: ShieldCheck, to: '/admin/providers', available: true },
     { label: 'View Reports', icon: FileBarChart, available: false },
-    { label: 'Manage Users', icon: Users, available: false },
+    { label: 'Manage Users', icon: Users, to: '/admin/users', available: true },
     { label: 'System Settings', icon: Settings, available: false },
   ];
 
   return (
-    <MotionDiv variants={itemVariants} transition={{ duration: 0.42 }} className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/80 xl:p-6">
+    <MotionDiv variants={itemVariants} transition={{ duration: 0.42 }} className="rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/80 min-[1280px]:col-span-2 min-[1440px]:col-span-1">
       <h2 className="text-xl font-black tracking-tight text-slate-950 dark:text-slate-50">Quick Actions</h2>
-      <div className="mt-5 grid gap-3 min-[420px]:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+      <div className="mt-5 space-y-3">
         {actions.map(action => <QuickAction key={action.label} {...action} />)}
       </div>
     </MotionDiv>
@@ -562,35 +768,36 @@ const QuickAction = ({ label, icon: Icon, to, available }: { label: string; icon
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 ring-1 ring-blue-100 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-400/20">
         <Icon className="h-5 w-5" />
       </span>
-      <span className="min-w-0 flex-1 text-sm font-black text-slate-800 dark:text-slate-200">{label}</span>
+      <span className="min-w-0 flex-1 truncate text-sm font-black text-slate-800 dark:text-slate-200">{label}</span>
       <ChevronRight className="h-4 w-4 text-slate-400" />
     </>
   );
 
   if (available && to) {
-    return <Link to={to} className="flex min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 transition hover:border-blue-100 hover:bg-blue-50/40 dark:border-slate-700/60 dark:bg-slate-950/40 dark:hover:border-blue-400/30 dark:hover:bg-blue-500/10">{content}</Link>;
+    return <Link to={to} className="flex min-h-[58px] min-w-0 items-center gap-3 rounded-[16px] border border-slate-200 bg-white px-4 py-3 transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-sm dark:border-slate-700/60 dark:bg-slate-950/40 dark:hover:border-blue-400/30 dark:hover:bg-blue-500/10">{content}</Link>;
   }
 
   return (
-    <button type="button" disabled title="No admin route/API is currently wired for this action." className="flex min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 opacity-70 dark:border-slate-700/60 dark:bg-slate-950/40">
+    <button type="button" disabled title="No admin route/API is currently wired for this action." className="flex min-h-[58px] min-w-0 items-center gap-3 rounded-[16px] border border-slate-200 bg-slate-50 px-4 py-3 opacity-70 dark:border-slate-700/60 dark:bg-slate-950/40">
       {content}
     </button>
   );
 };
 
-const AdminDataNotice = ({ catalogValue, currency, activeListings }: { catalogValue: number; currency: string; activeListings: number }) => (
+const AdminDataNotice = ({ catalogValue, currency, activeListings, generatedAt }: { catalogValue: number; currency: string; activeListings: number; generatedAt?: string }) => (
   <MotionDiv variants={itemVariants} transition={{ duration: 0.42 }} className="overflow-hidden rounded-[28px] border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-cyan-50 p-5 shadow-sm dark:border-blue-400/20 dark:from-blue-500/15 dark:via-slate-900 dark:to-cyan-500/10">
     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/25">
       <Sparkles className="h-6 w-6" />
     </div>
-    <h3 className="mt-4 text-base font-black text-slate-950 dark:text-slate-50">Admin data scope</h3>
+    <h3 className="mt-4 text-base font-black text-slate-950 dark:text-slate-50">Dashboard data scope</h3>
     <p className="mt-2 text-sm font-semibold leading-6 text-slate-500 dark:text-slate-400">
-      This dashboard uses real active listing data. Admin users, bookings, revenue, reports, audit logs, and system health require dedicated APIs before they can show production values.
+      KPI cards, booking trends, user growth, recent bookings, and safe health checks are loaded from admin-only aggregate APIs.
     </p>
     <div className="mt-4 rounded-2xl bg-white/80 p-4 ring-1 ring-blue-100 dark:bg-slate-950/50 dark:ring-blue-400/20">
-      <p className="text-xs font-black uppercase tracking-wide text-slate-400 dark:text-slate-500">Current catalog sample</p>
+      <p className="text-xs font-black uppercase tracking-wide text-slate-400 dark:text-slate-500">Top listings sample</p>
       <p className="mt-1 text-sm font-black text-slate-950 dark:text-slate-50">{activeListings.toLocaleString()} active listings</p>
       <p className="text-sm font-black text-blue-700 dark:text-blue-300">{money(catalogValue, currency)} loaded page value</p>
+      {generatedAt && <p className="mt-2 text-xs font-bold text-slate-500 dark:text-slate-400">Overview generated {formatDateTime(generatedAt)}</p>}
     </div>
   </MotionDiv>
 );

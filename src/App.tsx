@@ -38,6 +38,9 @@ import { TripPlannerPage } from "./pages/public/ai/TripPlannerPage";
 import { RecommendationsPage } from "./pages/public/ai/RecommendationsPage";
 import { AiAssistantPage } from "./pages/public/ai/AiAssistantPage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
+import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
+import { AdminProvidersPage } from "./pages/admin/AdminProvidersPage";
+import { AdminListingsPage } from "./pages/admin/AdminListingsPage";
 import { TravelAiChat } from "./components/ai/TravelAiChat";
 
 const queryClient = new QueryClient();
@@ -66,6 +69,9 @@ const App = () => {
 
             <Route element={<ProtectedRoute allowedRoles={["ROLE_ADMIN"]} />}>
               <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+              <Route path="/admin/users" element={<AdminUsersPage />} />
+              <Route path="/admin/providers" element={<AdminProvidersPage />} />
+              <Route path="/admin/listings" element={<AdminListingsPage />} />
             </Route>
 
             <Route element={<ProtectedRoute />}>

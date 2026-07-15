@@ -7,26 +7,58 @@ import {
   AlertCircle,
   ArrowRight,
   CalendarCheck,
+  CalendarDays,
   ChevronDown,
   Eye,
   EyeOff,
+  FileText,
   Globe2,
+  Headphones,
   Loader2,
   Lock,
   Mail,
+  MessageCircle,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
   User,
+  X,
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { Variants } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
+import bannedAccountIllustration from "@/assets/auth/banned-account-boy.png";
 
 type AuthMode = "login" | "register";
 type TransitionPhase = "idle" | "expanding" | "cinematic" | "revealing";
 
 type AuthPageProps = {
   initialMode: AuthMode;
+};
+
+type AuthApiError = {
+  errorCode?: string;
+  message?: string;
+  status?: number;
+  details?: {
+    email?: unknown;
+    reasonCode?: unknown;
+    reasonLabel?: unknown;
+    reason?: unknown;
+    bannedAt?: unknown;
+    bannedByDisplayName?: unknown;
+  };
+};
+
+type BannedAccountDialogState = {
+  open: boolean;
+  message: string;
+  email: string;
+  reason: string;
+  reasonCode?: string;
+  reasonLabel?: string;
+  bannedAt?: string;
+  bannedByDisplayName?: string;
 };
 
 const loginSchema = z.object({
@@ -62,6 +94,61 @@ const cinematicEase = [0.76, 0, 0.24, 1] as const;
 const panelTransition = {
   duration: 1.1,
   ease: cinematicEase,
+};
+
+const getAuthErrorMessage = (error: AuthApiError, fallback: string) => {
+  switch (error.errorCode) {
+    case "INVALID_CREDENTIALS":
+      return "Email or password is incorrect.";
+    case "ACCOUNT_LOCKED":
+      return error.message || "Your account is temporarily locked.";
+    case "ACCOUNT_INACTIVE":
+      return (
+        error.message ||
+        "Your account is currently inactive. Please contact support for assistance."
+      );
+    case "ACCOUNT_EXPIRED":
+      return error.message || "Your account has expired.";
+    case "CREDENTIALS_EXPIRED":
+      return error.message || "Your credentials have expired.";
+    default:
+      return error.message || fallback;
+  }
+};
+
+const getStringDetail = (value: unknown) =>
+  typeof value === "string" && value.trim() ? value.trim() : undefined;
+
+const fallbackBanReason =
+  "Your account was restricted for violating platform policies.";
+
+const BAN_REASON_LABELS: Record<string, string> = {
+  SPAM_ABUSE: "Spam or abuse",
+  FRAUD_SUSPICIOUS_ACTIVITY: "Fraud or suspicious activity",
+  POLICY_VIOLATION: "Policy violation",
+  PAYMENT_ABUSE: "Payment abuse",
+  SECURITY_RISK: "Security risk",
+  DUPLICATE_ACCOUNT: "Duplicate account",
+  OTHER: "Other",
+};
+
+const getBanReasonLabel = (reasonCode?: string, reasonLabel?: string) => {
+  if (reasonLabel?.trim()) return reasonLabel.trim();
+  if (reasonCode && BAN_REASON_LABELS[reasonCode]) return BAN_REASON_LABELS[reasonCode];
+  return "Account restriction";
+};
+
+const formatBannedDate = (value?: string) => {
+  if (!value) return "Not available";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not available";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 };
 
 const formVariants: Variants = {
@@ -1019,6 +1106,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
   const [isLoginSubmitting, setIsLoginSubmitting] = React.useState(false);
   const [isRegisterSubmitting, setIsRegisterSubmitting] = React.useState(false);
+  const [bannedAccountDialog, setBannedAccountDialog] =
+    React.useState<BannedAccountDialogState | null>(null);
 
   React.useEffect(() => {
     if (pendingRouteModeRef.current) {
@@ -1047,6 +1136,19 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
       );
     };
   }, []);
+
+  React.useEffect(() => {
+    if (!bannedAccountDialog?.open) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setBannedAccountDialog(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [bannedAccountDialog?.open]);
 
   const justExpired = searchParams.get("expired") === "true";
   const redirectTo = searchParams.get("redirect");
@@ -1154,15 +1256,33 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
 
   const onLoginSubmit = async (data: LoginFormData) => {
     setLoginError(null);
+    setBannedAccountDialog(null);
     setIsLoginSubmitting(true);
     try {
       await login({ email: data.email, password: data.password });
       navigate(safeRedirectTo, { replace: true });
     } catch (err: unknown) {
-      const error = err as { message?: string };
-      setLoginError(
-        error?.message || "Invalid email or password. Please try again.",
-      );
+      const error = err as AuthApiError;
+      if (error?.errorCode === "ACCOUNT_BANNED") {
+        const reason = getStringDetail(error.details?.reason) || fallbackBanReason;
+        const reasonCode = getStringDetail(error.details?.reasonCode);
+        const reasonLabel = getStringDetail(error.details?.reasonLabel);
+        setBannedAccountDialog({
+          open: true,
+          message:
+            error.message ||
+            "Your account has been banned. Please contact support for assistance.",
+          email: getStringDetail(error.details?.email) || data.email,
+          reason,
+          reasonCode,
+          reasonLabel: getBanReasonLabel(reasonCode, reasonLabel),
+          bannedAt: getStringDetail(error.details?.bannedAt),
+          bannedByDisplayName: getStringDetail(error.details?.bannedByDisplayName),
+        });
+        setLoginError(null);
+        return;
+      }
+      setLoginError(getAuthErrorMessage(error, "Invalid email or password. Please try again."));
     } finally {
       setIsLoginSubmitting(false);
     }
@@ -1233,6 +1353,30 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
             (transitionPhase === "cinematic" || transitionPhase === "revealing")
           }
         />
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {bannedAccountDialog?.open && (
+          <BannedAccountDialog
+            state={bannedAccountDialog}
+            reducedMotion={Boolean(prefersReduced)}
+            onClose={() => {
+              setBannedAccountDialog(null);
+              loginForm.setValue("password", "");
+              requestAnimationFrame(() => loginForm.setFocus("password"));
+            }}
+            onContactSupport={() =>
+              navigate("/search", {
+                state: {
+                  supportContext: {
+                    email: bannedAccountDialog.email,
+                    errorCode: "ACCOUNT_BANNED",
+                  },
+                },
+              })
+            }
+          />
+        )}
       </AnimatePresence>
 
       <motion.section
@@ -1669,5 +1813,209 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
     </main>
   );
 };
+
+const BannedAccountDialog = ({
+  state,
+  reducedMotion,
+  onClose,
+  onContactSupport,
+}: {
+  state: BannedAccountDialogState;
+  reducedMotion: boolean;
+  onClose: () => void;
+  onContactSupport: () => void;
+}) => {
+  const contentTransition = reducedMotion
+    ? { duration: 0.01 }
+    : { duration: 0.22, ease: smoothEase };
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-md"
+      role="presentation"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={reducedMotion ? { duration: 0.08 } : { duration: 0.22 }}
+    >
+      <motion.section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="banned-account-title"
+        aria-describedby="banned-account-description"
+        className="relative flex w-[min(1100px,calc(100vw-40px))] max-h-[calc(100dvh-32px)] flex-col overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl shadow-slate-950/25"
+        initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.97, y: 12 }}
+        animate={reducedMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+        exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.97, y: 12 }}
+        transition={contentTransition}
+      >
+        <button
+          type="button"
+          aria-label="Close account restriction dialog"
+          onClick={onClose}
+          className="absolute right-5 top-5 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-500 shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        >
+          <X className="h-5 w-5" />
+        </button>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-7 sm:px-7 lg:px-10 lg:pb-6 lg:pt-8">
+          <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_390px]">
+            <BannedAccountHero reducedMotion={reducedMotion} />
+            <BannedAccountIllustration reducedMotion={reducedMotion} />
+          </div>
+
+          <BannedAccountDetails
+            email={state.email}
+            reasonLabel={getBanReasonLabel(state.reasonCode, state.reasonLabel)}
+            reason={state.reason || fallbackBanReason}
+            bannedAt={state.bannedAt}
+            bannedByDisplayName={state.bannedByDisplayName}
+          />
+
+          <BannedNextSteps />
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-14 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 transition hover:border-blue-200 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              Back to sign in
+            </button>
+            <button
+              type="button"
+              onClick={onContactSupport}
+              className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 text-sm font-black text-white shadow-lg shadow-blue-500/25 transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              <Headphones className="h-4 w-4" />
+              Contact support
+            </button>
+          </div>
+
+          <div className="mt-5 flex items-center justify-center gap-2 text-center text-sm font-semibold text-slate-500">
+            <ShieldCheck className="h-4 w-4 shrink-0 text-slate-400" />
+            <span>For your security, access to this account has been restricted.</span>
+          </div>
+        </div>
+      </motion.section>
+    </motion.div>
+  );
+};
+
+const BannedAccountHero = ({ reducedMotion }: { reducedMotion: boolean }) => (
+  <motion.div
+    className="min-w-0 pr-10 md:pr-0"
+    initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+    animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+    transition={{ duration: reducedMotion ? 0.01 : 0.22, ease: smoothEase }}
+  >
+    <div className="flex flex-wrap items-center gap-4">
+      <span className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-50 text-rose-600 ring-1 ring-rose-100 sm:h-20 sm:w-20">
+        <ShieldAlert className="h-9 w-9 sm:h-11 sm:w-11" />
+      </span>
+      <span className="rounded-full bg-rose-50 px-5 py-2 text-sm font-black text-rose-600 ring-1 ring-rose-100">
+        Account Banned
+      </span>
+    </div>
+    <h2 id="banned-account-title" className="mt-5 max-w-xl text-[30px] font-black leading-tight tracking-tight text-slate-950 sm:text-[38px] lg:text-[44px]">
+      Your account has been banned
+    </h2>
+    <p id="banned-account-description" className="mt-3 max-w-md text-base font-semibold leading-7 text-slate-500 sm:text-lg">
+      You can no longer access this account or use AI Marketplace Traveler.
+    </p>
+  </motion.div>
+);
+
+const BannedAccountIllustration = ({ reducedMotion }: { reducedMotion: boolean }) => (
+  <motion.div
+    className="mx-auto flex h-[170px] w-full max-w-[300px] items-center justify-center overflow-hidden sm:h-[230px] sm:max-w-[340px] lg:h-[280px] lg:max-w-[390px]"
+    initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 8 }}
+    animate={reducedMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+    transition={{ duration: reducedMotion ? 0.01 : 0.24, delay: reducedMotion ? 0 : 0.04, ease: smoothEase }}
+  >
+    <img
+      src={bannedAccountIllustration}
+      alt="Sad traveler sitting beside a suitcase after account restriction"
+      className="h-full w-full object-contain object-center"
+      loading="eager"
+      draggable={false}
+    />
+  </motion.div>
+);
+
+const BannedAccountDetails = ({
+  email,
+  reasonLabel,
+  reason,
+  bannedAt,
+  bannedByDisplayName,
+}: {
+  email: string;
+  reasonLabel: string;
+  reason: string;
+  bannedAt?: string;
+  bannedByDisplayName?: string;
+}) => (
+  <motion.div
+    className={`mt-6 grid overflow-hidden rounded-[18px] border border-slate-200 bg-white ${
+      bannedByDisplayName
+        ? "lg:grid-cols-[1.35fr_0.9fr_1.25fr_0.9fr_0.85fr]"
+        : "lg:grid-cols-[1.35fr_0.9fr_1.35fr_0.9fr]"
+    }`}
+    initial={{ opacity: 0, y: 8 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.22, delay: 0.1, ease: smoothEase }}
+  >
+    <BannedInfoItem icon={User} label="Account" value={email} />
+    <BannedInfoItem icon={AlertCircle} label="Reason" value={reasonLabel || "Account restriction"} tone="rose" />
+    <BannedInfoItem icon={FileText} label="Details" value={reason || fallbackBanReason} />
+    <BannedInfoItem icon={CalendarDays} label="Banned on" value={formatBannedDate(bannedAt)} />
+    {bannedByDisplayName && (
+      <BannedInfoItem icon={ShieldCheck} label="Banned by" value={bannedByDisplayName} />
+    )}
+  </motion.div>
+);
+
+const BannedInfoItem = ({
+  icon: Icon,
+  label,
+  value,
+  tone = "blue",
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  tone?: "blue" | "rose";
+}) => (
+  <div className="min-w-0 border-b border-slate-100 px-4 py-3.5 last:border-b-0 sm:px-5 sm:py-4 lg:border-b-0 lg:border-r lg:last:border-r-0">
+    <div className="flex items-center gap-2.5">
+      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${tone === "rose" ? "bg-rose-50 text-rose-600" : "bg-blue-50 text-blue-600"}`}>
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="text-sm font-black text-slate-500">{label}</span>
+    </div>
+    <p className={`mt-3 min-w-0 text-sm font-black leading-6 ${tone === "rose" ? "text-rose-600" : "text-slate-950"}`}>
+      {value}
+    </p>
+  </div>
+);
+
+const BannedNextSteps = () => (
+  <motion.div
+    className="mt-6 rounded-[18px] border border-blue-100 bg-blue-50/35 px-5 py-4 sm:px-6 sm:py-5"
+    initial={{ opacity: 0, y: 8 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.22, delay: 0.18, ease: smoothEase }}
+  >
+    <div>
+      <h3 className="text-lg font-black text-slate-950">What you can do</h3>
+      <ul className="mt-4 grid gap-4 text-sm font-semibold leading-relaxed text-slate-600 md:grid-cols-3 md:gap-5">
+        <li className="flex items-start gap-3"><MessageCircle className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />Contact our support team for more information.</li>
+        <li className="flex items-start gap-3"><Headphones className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />Submit an appeal if you believe this was a mistake.</li>
+        <li className="flex items-start gap-3"><CalendarCheck className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />Our team will review your case and respond when possible.</li>
+      </ul>
+    </div>
+  </motion.div>
+);
 
 export default AuthPage;

@@ -169,17 +169,11 @@ export const Step1BasicInfo: React.FC = () => {
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="overviewImageUrl">Overview Image URL</Label>
-            <div className="relative">
-              <Link className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input id="overviewImageUrl" className="pl-9" placeholder="Optional image used in About this stay" {...register('overviewImageUrl')} />
-            </div>
+            <IconInput icon={Link} id="overviewImageUrl" placeholder="Optional image used in About this stay" registration={register('overviewImageUrl')} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="neighborhoodSummary">Neighborhood Summary</Label>
-            <div className="relative">
-              <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input id="neighborhoodSummary" className="pl-9" placeholder="A cozy part of central Da Lat" {...register('neighborhoodSummary')} />
-            </div>
+            <IconInput icon={MapPin} id="neighborhoodSummary" placeholder="A cozy part of central Da Lat" registration={register('neighborhoodSummary')} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="guestVibeTags">Guest Vibe Tags</Label>
@@ -245,39 +239,59 @@ const TagChipEditor = ({ tags, placeholder, onRemove, onAdd }: {
 }) => {
   const [draft, setDraft] = React.useState('');
   return (
-    <div className="flex min-h-12 flex-wrap items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100">
-      <Tag className="h-4 w-4 text-slate-400" />
-      {tags.slice(0, 5).map((tag) => (
-        <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-700 ring-1 ring-slate-200">
-          {tag}
-          <button type="button" onClick={() => onRemove(tag)} className="text-slate-400 hover:text-slate-700">
-            <X className="h-3 w-3" />
-          </button>
-        </span>
-      ))}
-      <input
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ',') {
-            event.preventDefault();
-            onAdd(draft);
-            setDraft('');
-          }
-        }}
-        placeholder={tags.length ? '' : placeholder}
-        className="h-7 min-w-[160px] flex-1 border-0 bg-transparent p-0 text-sm shadow-none outline-none focus:ring-0"
-      />
+    <div className="relative flex min-h-14 items-center rounded-xl border border-slate-300 bg-white shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100">
+      <Tag className="pointer-events-none absolute left-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-slate-400" />
+      <div className="flex min-h-14 min-w-0 flex-1 flex-wrap items-center gap-2 py-2 pl-12 pr-4">
+        {tags.slice(0, 5).map((tag) => (
+          <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-700 ring-1 ring-slate-200">
+            {tag}
+            <button type="button" onClick={() => onRemove(tag)} className="text-slate-400 hover:text-slate-700">
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+        <input
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ',') {
+              event.preventDefault();
+              onAdd(draft);
+              setDraft('');
+            }
+          }}
+          placeholder={tags.length ? '' : placeholder}
+          className="h-7 min-w-[160px] flex-1 border-0 bg-transparent p-0 text-sm leading-normal shadow-none outline-none placeholder:text-slate-400 focus:ring-0"
+        />
+      </div>
     </div>
   );
 };
+
+const IconInput = ({ icon: Icon, registration, className = '', ...props }: React.InputHTMLAttributes<HTMLInputElement> & {
+  icon: React.ElementType;
+  registration: UseFormRegisterReturn;
+}) => (
+  <div className="relative">
+    <Icon aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 z-10 h-[18px] w-[18px] -translate-y-1/2 text-slate-400" />
+    <input
+      className={`h-14 w-full rounded-xl border border-slate-300 bg-white py-2 pr-4 pl-12 text-sm leading-normal text-slate-950 shadow-sm transition-colors transition-shadow duration-200 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+      {...props}
+      {...registration}
+    />
+  </div>
+);
 
 const IconTextarea = ({ icon: Icon, registration, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
   icon: React.ElementType;
   registration: UseFormRegisterReturn;
 }) => (
   <div className="relative">
-    <Icon className="pointer-events-none absolute left-3 top-4 h-4 w-4 text-slate-400" />
-    <Textarea className="pl-9" {...props} {...registration} />
+    <Icon aria-hidden="true" className="pointer-events-none absolute left-4 top-[18px] z-10 h-5 w-5 text-slate-400" />
+    <textarea
+      className="min-h-[110px] w-full resize-y rounded-xl border border-slate-300 bg-white pt-4 pr-4 pb-4 pl-12 text-sm leading-6 text-slate-950 shadow-sm transition-colors transition-shadow duration-200 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+      {...props}
+      {...registration}
+    />
   </div>
 );
