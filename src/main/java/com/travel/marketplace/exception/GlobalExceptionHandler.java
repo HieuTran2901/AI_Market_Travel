@@ -6,7 +6,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AccountExpiredException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.CredentialsExpiredException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -43,13 +47,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException ex) {
         log.warn("Business exception: {}", ex.getMessage());
-        HttpStatus status = ex.getErrorCode() == ErrorCode.RESOURCE_NOT_FOUND
-                ? HttpStatus.NOT_FOUND
-                : HttpStatus.BAD_REQUEST;
-        ApiResponse<Void> response = ApiResponse.error(
-                ex.getErrorCode().getCode(),
-                ex.getMessage()
-        );
+        HttpStatus status = ex.getStatus() != null
+                ? ex.getStatus()
+                : ex.getErrorCode() == ErrorCode.RESOURCE_NOT_FOUND
+                        ? HttpStatus.NOT_FOUND
+                        : HttpStatus.BAD_REQUEST;
+        ApiResponse<Void> response = ex.getDetails() != null && !ex.getDetails().isEmpty()
+                ? ApiResponse.errorWithDetails(
+                        ex.getErrorCode().getCode(),
+                        ex.getMessage(),
+                        ex.getDetails()
+                )
+                : ApiResponse.error(
+                        ex.getErrorCode().getCode(),
+                        ex.getMessage()
+                );
         return ResponseEntity.status(status).body(response);
     }
 
@@ -79,6 +91,46 @@ public class GlobalExceptionHandler {
                 "Invalid email or password"
         );
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    @ExceptionHandler(DisabledException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDisabledAccount(DisabledException ex) {
+        log.warn("Disabled account authentication failure: {}", ex.getMessage());
+        ApiResponse<Void> response = ApiResponse.error(
+                ErrorCode.ACCOUNT_INACTIVE.getCode(),
+                "Your account is currently inactive. Please contact support for assistance."
+        );
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+    }
+
+    @ExceptionHandler(LockedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleLockedAccount(LockedException ex) {
+        log.warn("Locked account authentication failure: {}", ex.getMessage());
+        ApiResponse<Void> response = ApiResponse.error(
+                ErrorCode.ACCOUNT_LOCKED.getCode(),
+                "Your account is temporarily locked."
+        );
+        return ResponseEntity.status(HttpStatus.LOCKED).body(response);
+    }
+
+    @ExceptionHandler(AccountExpiredException.class)
+    public ResponseEntity<ApiResponse<Void>> handleExpiredAccount(AccountExpiredException ex) {
+        log.warn("Expired account authentication failure: {}", ex.getMessage());
+        ApiResponse<Void> response = ApiResponse.error(
+                ErrorCode.ACCOUNT_EXPIRED.getCode(),
+                "Your account has expired."
+        );
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+    }
+
+    @ExceptionHandler(CredentialsExpiredException.class)
+    public ResponseEntity<ApiResponse<Void>> handleExpiredCredentials(CredentialsExpiredException ex) {
+        log.warn("Expired credentials authentication failure: {}", ex.getMessage());
+        ApiResponse<Void> response = ApiResponse.error(
+                ErrorCode.CREDENTIALS_EXPIRED.getCode(),
+                "Your credentials have expired."
+        );
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

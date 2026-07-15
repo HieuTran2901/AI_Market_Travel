@@ -68,4 +68,13 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             GROUP BY r.rating
             """)
     List<Object[]> ratingDistribution(@Param("listingId") Long listingId, @Param("status") ReviewStatus status);
+
+    @Query("""
+            select r.listing.provider.id, avg(r.rating), count(r.id)
+            from Review r
+            where r.listing.provider.id in :providerIds
+              and r.status = :status
+            group by r.listing.provider.id
+            """)
+    List<Object[]> ratingSummaryByProviderIds(@Param("providerIds") List<Long> providerIds, @Param("status") ReviewStatus status);
 }

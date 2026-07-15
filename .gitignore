@@ -1,1 +1,8 @@
 /src/main/java/com/travel/marketplace/modules/booking/dto/OrderResponse.java
+target
+uploads
+.env
+.env.*
+*.log
+.idea
+.vscode

@@ -1,6 +1,7 @@
 package com.travel.marketplace.modules.auth.service;
 
 import com.travel.marketplace.exception.BadRequestException;
+import com.travel.marketplace.exception.BusinessException;
 import com.travel.marketplace.exception.ErrorCode;
 import com.travel.marketplace.modules.auth.dto.LoginRequest;
 import com.travel.marketplace.modules.auth.dto.RegisterRequest;
@@ -18,7 +19,13 @@ import com.travel.marketplace.security.JwtTokenProvider;
 import com.travel.marketplace.security.UserPrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.AccountExpiredException;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.CredentialsExpiredException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -158,9 +165,43 @@ public class AuthService {
     }
 
     public TokenResponse login(LoginRequest request) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
-        );
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+            );
+        } catch (DisabledException ex) {
+            log.warn("Disabled account login attempt for {}", request.getEmail());
+            throw resolveDisabledAccountException(request.getEmail());
+        } catch (LockedException ex) {
+            log.warn("Locked account login attempt for {}", request.getEmail());
+            throw new BusinessException(
+                    ErrorCode.ACCOUNT_LOCKED,
+                    "Your account is temporarily locked.",
+                    HttpStatus.LOCKED
+            );
+        } catch (AccountExpiredException ex) {
+            log.warn("Expired account login attempt for {}", request.getEmail());
+            throw new BusinessException(
+                    ErrorCode.ACCOUNT_EXPIRED,
+                    "Your account has expired.",
+                    HttpStatus.FORBIDDEN
+            );
+        } catch (CredentialsExpiredException ex) {
+            log.warn("Expired credentials login attempt for {}", request.getEmail());
+            throw new BusinessException(
+                    ErrorCode.CREDENTIALS_EXPIRED,
+                    "Your credentials have expired.",
+                    HttpStatus.FORBIDDEN
+            );
+        } catch (BadCredentialsException ex) {
+            log.warn("Invalid login credentials for {}", request.getEmail());
+            throw new BusinessException(
+                    ErrorCode.INVALID_CREDENTIALS,
+                    "Email or password is incorrect.",
+                    HttpStatus.UNAUTHORIZED
+            );
+        }
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
@@ -193,6 +234,10 @@ public class AuthService {
         }
 
         UserPrincipal userPrincipal = (UserPrincipal) userDetailsService.loadUserByUsername(email);
+        if (!userPrincipal.isEnabled()) {
+            refreshTokenStore.remove(email);
+            throw resolveDisabledAccountException(email);
+        }
 
         String newAccessToken = tokenProvider.generateAccessToken(userPrincipal);
         String newRefreshToken = tokenProvider.generateRefreshToken(userPrincipal);
@@ -210,5 +255,79 @@ public class AuthService {
     public void logout(String email) {
         refreshTokenStore.remove(email);
         log.info("User logged out, refresh token revoked for: {}", email);
+    }
+
+    private BusinessException resolveDisabledAccountException(String email) {
+        return userRepository.findByEmail(email)
+                .map(user -> {
+                    if (user.getBannedAt() != null) {
+                        String reasonCode = normalizeBanReasonCode(user.getBanReasonCode());
+                        return new BusinessException(
+                                ErrorCode.ACCOUNT_BANNED,
+                                "Your account has been banned. Please contact support for assistance.",
+                                HttpStatus.FORBIDDEN,
+                                Map.of(
+                                        "email", user.getEmail(),
+                                        "reasonCode", reasonCode,
+                                        "reasonLabel", resolveBanReasonLabel(reasonCode),
+                                        "reason", user.getBanReason() != null && !user.getBanReason().isBlank()
+                                                ? user.getBanReason()
+                                                : "Your account was restricted for violating platform policies.",
+                                        "bannedAt", user.getBannedAt().toString()
+                                )
+                        );
+                    }
+                    if (!user.isActive()) {
+                        return new BusinessException(
+                                ErrorCode.ACCOUNT_INACTIVE,
+                                "Your account is currently inactive. Please contact support for assistance.",
+                                HttpStatus.FORBIDDEN
+                        );
+                    }
+                    return new BusinessException(
+                            ErrorCode.ACCOUNT_LOCKED,
+                            "Your account is temporarily locked.",
+                            HttpStatus.LOCKED
+                    );
+                })
+                .orElseGet(() -> new BusinessException(
+                        ErrorCode.INVALID_CREDENTIALS,
+                        "Email or password is incorrect.",
+                        HttpStatus.UNAUTHORIZED
+                ));
+    }
+
+    private String normalizeBanReasonCode(String value) {
+        if (value == null || value.isBlank()) {
+            return "POLICY_VIOLATION";
+        }
+        String normalized = value.trim()
+                .toUpperCase()
+                .replace("&", "AND")
+                .replaceAll("[^A-Z0-9]+", "_")
+                .replaceAll("^_+|_+$", "");
+        return switch (normalized) {
+            case "SPAM_OR_ABUSE", "SPAM_ABUSE" -> "SPAM_ABUSE";
+            case "FRAUD_OR_SUSPICIOUS_ACTIVITY", "FRAUD_SUSPICIOUS_ACTIVITY" -> "FRAUD_SUSPICIOUS_ACTIVITY";
+            case "POLICY_VIOLATION" -> "POLICY_VIOLATION";
+            case "PAYMENT_ABUSE" -> "PAYMENT_ABUSE";
+            case "SECURITY_RISK" -> "SECURITY_RISK";
+            case "DUPLICATE_ACCOUNT" -> "DUPLICATE_ACCOUNT";
+            case "OTHER" -> "OTHER";
+            default -> normalized;
+        };
+    }
+
+    private String resolveBanReasonLabel(String reasonCode) {
+        return switch (reasonCode) {
+            case "SPAM_ABUSE" -> "Spam or abuse";
+            case "FRAUD_SUSPICIOUS_ACTIVITY" -> "Fraud or suspicious activity";
+            case "POLICY_VIOLATION" -> "Policy violation";
+            case "PAYMENT_ABUSE" -> "Payment abuse";
+            case "SECURITY_RISK" -> "Security risk";
+            case "DUPLICATE_ACCOUNT" -> "Duplicate account";
+            case "OTHER" -> "Other";
+            default -> "Account restriction";
+        };
     }
 }

@@ -16,6 +16,7 @@ public class ApiResponse<T> {
     private T data;
     private String errorCode;
     private Map<String, String> errors;
+    private Map<String, Object> details;
     @Builder.Default
     private long timestamp = Instant.now().toEpochMilli();
 
@@ -49,6 +50,15 @@ public class ApiResponse<T> {
                 .errorCode(errorCode)
                 .message(message)
                 .errors(errors)
+                .build();
+    }
+
+    public static <T> ApiResponse<T> errorWithDetails(String errorCode, String message, Map<String, Object> details) {
+        return ApiResponse.<T>builder()
+                .success(false)
+                .errorCode(errorCode)
+                .message(message)
+                .details(details)
                 .build();
     }
 }

@@ -1,17 +1,24 @@
 package com.travel.marketplace.modules.provider.controller;
 
 import com.travel.marketplace.dto.ApiResponse;
+import com.travel.marketplace.modules.provider.dto.AdminProviderCategoryResponse;
+import com.travel.marketplace.modules.provider.dto.AdminProviderGrowthResponse;
+import com.travel.marketplace.modules.provider.dto.AdminProviderResponse;
+import com.travel.marketplace.modules.provider.dto.AdminProviderSearchRequest;
+import com.travel.marketplace.modules.provider.dto.AdminProviderStatisticsResponse;
 import com.travel.marketplace.modules.provider.dto.ProviderProfileResponse;
-import com.travel.marketplace.modules.provider.service.ProviderService;
+import com.travel.marketplace.modules.provider.service.AdminProviderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.Instant;
+import java.util.List;
 
 /**
  * Admin-only endpoints for managing provider applications and profiles.
@@ -24,18 +31,52 @@ import org.springframework.web.bind.annotation.*;
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminProviderController {
 
-    private final ProviderService providerService;
+    private final AdminProviderService providerService;
 
-    public AdminProviderController(ProviderService providerService) {
+    public AdminProviderController(AdminProviderService providerService) {
         this.providerService = providerService;
     }
 
     @GetMapping
-    @Operation(summary = "List all provider profiles (paginated)")
-    public ResponseEntity<ApiResponse<Page<ProviderProfileResponse>>> getAllProviders(
-            @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
+    @Operation(summary = "List provider profiles with filters and pagination")
+    public ResponseEntity<ApiResponse<Page<AdminProviderResponse>>> getAllProviders(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt,desc") String sort,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String verification,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant joinedFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant joinedTo
+    ) {
+        AdminProviderSearchRequest request = new AdminProviderSearchRequest(keyword, category, status, verification, joinedFrom, joinedTo);
+        Page<AdminProviderResponse> pageResult = providerService.getProviders(request, page, size, sort);
+        return ResponseEntity.ok(ApiResponse.success(pageResult));
+    }
 
-        Page<ProviderProfileResponse> page = providerService.getAllProviders(pageable);
+    @GetMapping("/statistics")
+    @Operation(summary = "Get provider statistics")
+    public ResponseEntity<ApiResponse<AdminProviderStatisticsResponse>> getStatistics() {
+        return ResponseEntity.ok(ApiResponse.success(providerService.getStatistics()));
+    }
+
+    @GetMapping("/growth")
+    @Operation(summary = "Get provider growth series")
+    public ResponseEntity<ApiResponse<AdminProviderGrowthResponse>> getGrowth(@RequestParam(defaultValue = "30d") String range) {
+        return ResponseEntity.ok(ApiResponse.success(providerService.getGrowth(range)));
+    }
+
+    @GetMapping("/categories")
+    @Operation(summary = "Get provider category distribution")
+    public ResponseEntity<ApiResponse<List<AdminProviderCategoryResponse>>> getCategories() {
+        return ResponseEntity.ok(ApiResponse.success(providerService.getCategoryDistribution()));
+    }
+
+    @GetMapping("/top-rated")
+    @Operation(summary = "Get top rated providers")
+    public ResponseEntity<ApiResponse<List<AdminProviderResponse>>> getTopRated(@RequestParam(defaultValue = "5") int limit) {
+        List<AdminProviderResponse> page = providerService.getTopRated(limit);
         return ResponseEntity.ok(ApiResponse.success(page));
     }
 
@@ -44,6 +85,13 @@ public class AdminProviderController {
     public ResponseEntity<ApiResponse<ProviderProfileResponse>> approveProvider(@PathVariable Long id) {
         ProviderProfileResponse response = providerService.approveProvider(id);
         return ResponseEntity.ok(ApiResponse.success("Provider approved successfully.", response));
+    }
+
+    @PatchMapping("/{id}/verify")
+    @Operation(summary = "Verify a provider application")
+    public ResponseEntity<ApiResponse<ProviderProfileResponse>> verifyProvider(@PathVariable Long id) {
+        ProviderProfileResponse response = providerService.approveProvider(id);
+        return ResponseEntity.ok(ApiResponse.success("Provider verified successfully.", response));
     }
 
     @PatchMapping("/{id}/reject")
@@ -64,5 +112,12 @@ public class AdminProviderController {
 
         ProviderProfileResponse response = providerService.suspendProvider(id, reason);
         return ResponseEntity.ok(ApiResponse.success("Provider suspended.", response));
+    }
+
+    @PatchMapping("/{id}/reactivate")
+    @Operation(summary = "Reactivate a suspended provider")
+    public ResponseEntity<ApiResponse<ProviderProfileResponse>> reactivateProvider(@PathVariable Long id) {
+        ProviderProfileResponse response = providerService.reactivateProvider(id);
+        return ResponseEntity.ok(ApiResponse.success("Provider reactivated.", response));
     }
 }

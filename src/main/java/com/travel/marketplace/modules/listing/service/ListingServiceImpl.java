@@ -4,6 +4,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.travel.marketplace.exception.BadRequestException;
 import com.travel.marketplace.exception.ErrorCode;
 import com.travel.marketplace.exception.ResourceNotFoundException;
+import com.travel.marketplace.modules.booking.repository.BookingRepository;
+import com.travel.marketplace.modules.listing.dto.AdminListingCategoryResponse;
+import com.travel.marketplace.modules.listing.dto.AdminListingPerformanceResponse;
+import com.travel.marketplace.modules.listing.dto.AdminListingResponse;
+import com.travel.marketplace.modules.listing.dto.AdminListingSearchRequest;
+import com.travel.marketplace.modules.listing.dto.AdminListingStatisticsResponse;
+import com.travel.marketplace.modules.listing.dto.AdminListingTopProviderResponse;
 import com.travel.marketplace.modules.listing.dto.CreateListingRequest;
 import com.travel.marketplace.modules.listing.dto.ListingMapper;
 import com.travel.marketplace.modules.listing.dto.ListingResponse;
@@ -18,23 +25,30 @@ import com.travel.marketplace.modules.user.entity.ProviderProfile;
 import com.travel.marketplace.modules.user.entity.User;
 import com.travel.marketplace.modules.user.repository.ProviderProfileRepository;
 import com.travel.marketplace.modules.user.repository.UserRepository;
+import org.springframework.data.domain.PageRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.text.Normalizer;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.regex.Pattern;
 
 @Service
@@ -51,8 +65,10 @@ public class ListingServiceImpl implements ListingService {
     private final ExperienceDetailRepository experienceDetailRepository;
     private final UserRepository userRepository;
     private final ProviderProfileRepository providerProfileRepository;
+    private final BookingRepository bookingRepository;
     private final ListingMapper listingMapper;
     private final ObjectMapper objectMapper;
+    private static final Set<String> ADMIN_SORT_ALLOWLIST = Set.of("id", "title", "category", "status", "city", "basePrice", "averageRating", "createdAt", "updatedAt");
 
     private static final Set<String> HOTEL_DETAIL_KEYS = new HashSet<>(Arrays.asList(
             "starRating", "totalRooms", "checkInTime", "checkOutTime",
@@ -85,6 +101,7 @@ public class ListingServiceImpl implements ListingService {
             ExperienceDetailRepository experienceDetailRepository,
             UserRepository userRepository,
             ProviderProfileRepository providerProfileRepository,
+            BookingRepository bookingRepository,
             ListingMapper listingMapper,
             ObjectMapper objectMapper
     ) {
@@ -97,6 +114,7 @@ public class ListingServiceImpl implements ListingService {
         this.experienceDetailRepository = experienceDetailRepository;
         this.userRepository = userRepository;
         this.providerProfileRepository = providerProfileRepository;
+        this.bookingRepository = bookingRepository;
         this.listingMapper = listingMapper;
         this.objectMapper = objectMapper;
     }
@@ -289,17 +307,186 @@ public class ListingServiceImpl implements ListingService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Page<AdminListingResponse> getAdminListings(AdminListingSearchRequest request, int page, int size, String sort) {
+        PageRequest pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100), resolveAdminSort(sort));
+        Page<Listing> listings = listingRepository.findAll(AdminListingSpecification.filterBy(request), pageable);
+        Map<Long, Long> bookingCounts = loadListingBookingCounts(listings.getContent().stream().map(Listing::getId).toList());
+        return listings.map(listing -> toAdminListingResponse(listing, bookingCounts.getOrDefault(listing.getId(), 0L)));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdminListingStatisticsResponse getAdminListingStatistics() {
+        long total = listingRepository.count();
+        List<AdminListingCategoryResponse> categories = getAdminListingCategoryDistribution(total);
+        return new AdminListingStatisticsResponse(
+                total,
+                listingRepository.countByStatus(ListingStatus.ACTIVE),
+                listingRepository.countByStatus(ListingStatus.PENDING_REVIEW),
+                listingRepository.countByStatus(ListingStatus.DRAFT),
+                listingRepository.countByStatus(ListingStatus.SUSPENDED),
+                listingRepository.countByStatus(ListingStatus.REJECTED),
+                categories
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdminListingPerformanceResponse getAdminListingPerformance(String range) {
+        String normalizedRange = "7d".equalsIgnoreCase(range) ? "7d" : "90d".equalsIgnoreCase(range) ? "90d" : "30d";
+        long totalViews = listingRepository.sumViewCount();
+        long totalBookings = bookingRepository.count();
+        return new AdminListingPerformanceResponse(normalizedRange, false, false, totalViews, totalBookings, Collections.emptyList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AdminListingTopProviderResponse> getAdminListingTopProviders(int limit) {
+        PageRequest pageable = PageRequest.of(0, Math.min(Math.max(limit, 1), 20));
+        return listingRepository.topProvidersByActiveListingCount(pageable).stream()
+                .map(row -> new AdminListingTopProviderResponse(
+                        (Long) row[0],
+                        (String) row[1],
+                        (String) row[2],
+                        (Long) row[3],
+                        row[4] != null ? BigDecimal.valueOf(((Number) row[4]).doubleValue()).setScale(1, RoundingMode.HALF_UP) : BigDecimal.ZERO
+                ))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AdminListingResponse> getRecentAdminListingSubmissions(int limit) {
+        PageRequest pageable = PageRequest.of(0, Math.min(Math.max(limit, 1), 20), Sort.by(Sort.Direction.DESC, "updatedAt"));
+        Page<Listing> listings = listingRepository.findAllByStatusIn(List.of(ListingStatus.PENDING_REVIEW, ListingStatus.DRAFT), pageable);
+        Map<Long, Long> bookingCounts = loadListingBookingCounts(listings.getContent().stream().map(Listing::getId).toList());
+        return listings.getContent().stream()
+                .map(listing -> toAdminListingResponse(listing, bookingCounts.getOrDefault(listing.getId(), 0L)))
+                .toList();
+    }
+
+    @Override
     @Transactional
     public ListingResponse adminChangeListingStatus(Long listingId, ListingStatus newStatus, String reason) {
         Listing listing = getListingByIdInternal(listingId);
+        validateAdminStatusTransition(listing.getStatus(), newStatus, reason);
         listing.setStatus(newStatus);
         if (newStatus == ListingStatus.REJECTED || newStatus == ListingStatus.SUSPENDED) {
-            listing.setRejectionReason(reason);
+            listing.setRejectionReason(reason != null ? reason.trim() : null);
         } else {
             listing.setRejectionReason(null);
         }
         listingRepository.save(listing);
         return getListingById(listingId);
+    }
+
+    private void validateAdminStatusTransition(ListingStatus currentStatus, ListingStatus newStatus, String reason) {
+        if (newStatus == null) {
+            throw new BadRequestException("Listing status is required.");
+        }
+
+        if (newStatus == ListingStatus.REJECTED && (reason == null || reason.isBlank())) {
+            throw new BadRequestException("Rejection reason is required.");
+        }
+
+        if (newStatus == ListingStatus.ACTIVE) {
+            if (currentStatus == ListingStatus.PENDING_REVIEW || currentStatus == ListingStatus.SUSPENDED || currentStatus == ListingStatus.INACTIVE) {
+                return;
+            }
+            throw new BadRequestException("Only pending, suspended, or inactive listings can be activated by admin.");
+        }
+
+        if (newStatus == ListingStatus.REJECTED) {
+            if (currentStatus == ListingStatus.PENDING_REVIEW) {
+                return;
+            }
+            throw new BadRequestException("Only pending listings can be rejected.");
+        }
+
+        if (newStatus == ListingStatus.SUSPENDED) {
+            if (currentStatus == ListingStatus.ACTIVE) {
+                return;
+            }
+            throw new BadRequestException("Only active listings can be suspended.");
+        }
+
+        throw new BadRequestException("Unsupported admin listing status transition from " + currentStatus + " to " + newStatus + ".");
+    }
+
+    private List<AdminListingCategoryResponse> getAdminListingCategoryDistribution(long totalListings) {
+        long safeTotal = Math.max(totalListings, 1L);
+        return listingRepository.countByCategory().stream()
+                .map(row -> {
+                    ListingCategory category = (ListingCategory) row[0];
+                    long count = (Long) row[1];
+                    BigDecimal percentage = BigDecimal.valueOf(count * 100.0 / safeTotal).setScale(1, RoundingMode.HALF_UP);
+                    return new AdminListingCategoryResponse(category != null ? category.name() : "OTHER", count, percentage);
+                })
+                .toList();
+    }
+
+    private Map<Long, Long> loadListingBookingCounts(List<Long> listingIds) {
+        if (listingIds.isEmpty()) {
+            return Map.of();
+        }
+        return bookingRepository.countBookingsByListingIds(listingIds).stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> (Long) row[1], Long::sum));
+    }
+
+    private AdminListingResponse toAdminListingResponse(Listing listing, long bookingCount) {
+        ProviderProfile provider = listing.getProvider();
+        boolean providerVerified = provider != null && VerificationStatus.APPROVED.equals(provider.getVerificationStatus());
+        return new AdminListingResponse(
+                listing.getId(),
+                listing.getTitle(),
+                listing.getSlug(),
+                listing.getCoverImageUrl(),
+                provider != null ? provider.getId() : null,
+                provider != null ? provider.getBusinessName() : null,
+                providerVerified,
+                listing.getCategory() != null ? listing.getCategory().name() : null,
+                listing.getStatus() != null ? listing.getStatus().name() : null,
+                listing.getCity(),
+                listing.getCountry(),
+                listing.getBasePrice(),
+                listing.getCurrency(),
+                resolvePriceUnit(listing.getCategory()),
+                listing.getAverageRating() != null ? listing.getAverageRating() : BigDecimal.ZERO,
+                listing.getReviewCount() != null ? listing.getReviewCount() : 0L,
+                bookingCount,
+                listing.getViewCount() != null ? listing.getViewCount() : 0L,
+                listing.getCreatedAt(),
+                listing.getUpdatedAt(),
+                listing.getStatus() == ListingStatus.PENDING_REVIEW ? listing.getUpdatedAt() : listing.getCreatedAt()
+        );
+    }
+
+    private Sort resolveAdminSort(String sort) {
+        String property = "updatedAt";
+        Sort.Direction direction = Sort.Direction.DESC;
+        if (sort != null && !sort.isBlank()) {
+            String[] parts = sort.split(",", 2);
+            if (parts.length > 0 && ADMIN_SORT_ALLOWLIST.contains(parts[0])) {
+                property = parts[0];
+            }
+            if (parts.length > 1 && "asc".equalsIgnoreCase(parts[1])) {
+                direction = Sort.Direction.ASC;
+            }
+        }
+        return Sort.by(direction, property);
+    }
+
+    private String resolvePriceUnit(ListingCategory category) {
+        if (category == null) {
+            return "booking";
+        }
+        return switch (category) {
+            case HOTEL -> "night";
+            case TOUR, EXPERIENCE -> "person";
+            case VEHICLE -> "day";
+            case RESTAURANT -> "booking";
+        };
     }
 
     // ── Private Helpers ──────────────────────────────────────────

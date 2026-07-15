@@ -42,6 +42,21 @@ public class User {
     @Builder.Default
     private boolean isActive = true;
 
+    @Column(name = "banned_at")
+    private Instant bannedAt;
+
+    @Column(name = "banned_by")
+    private Long bannedBy;
+
+    @Column(name = "ban_reason_code", length = 80)
+    private String banReasonCode;
+
+    @Column(name = "ban_reason", length = 1000)
+    private String banReason;
+
+    @Column(name = "previous_status", length = 30)
+    private String previousStatus;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
         name = "user_roles",
