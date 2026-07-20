@@ -37,6 +37,8 @@ import Profile from "./pages/customer/Profile";
 import { TripPlannerPage } from "./pages/public/ai/TripPlannerPage";
 import { RecommendationsPage } from "./pages/public/ai/RecommendationsPage";
 import { AiAssistantPage } from "./pages/public/ai/AiAssistantPage";
+import { AiCoinsPage } from "./pages/public/ai-coins/AiCoinsPage";
+import { MembershipPackagesPage } from "./pages/public/membership/MembershipPackagesPage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
 import { AdminProvidersPage } from "./pages/admin/AdminProvidersPage";
@@ -62,6 +64,8 @@ const App = () => {
                 element={<RecommendationsPage />}
               />
               <Route path="ai/assistant" element={<AiAssistantPage />} />
+              <Route path="ai-coins" element={<AiCoinsPage />} />
+              <Route path="membership" element={<MembershipPackagesPage />} />
             </Route>
 
             <Route path="/login" element={<Login />} />

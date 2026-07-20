@@ -1,0 +1,34 @@
+import React from "react";
+import { cn } from "@/lib/utils";
+import {
+  MembershipCoinSwitcher,
+  MembershipCoinTab,
+} from "./MembershipCoinSwitcher";
+
+type MembershipCoinTopLayoutProps = {
+  activeTab: MembershipCoinTab;
+  left: React.ReactNode;
+  controls?: React.ReactNode;
+  className?: string;
+};
+
+export const MembershipCoinTopLayout: React.FC<MembershipCoinTopLayoutProps> = ({
+  activeTab,
+  left,
+  controls,
+  className,
+}) => (
+  <section
+    className={cn(
+      "grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_430px] lg:gap-8",
+      className,
+    )}
+  >
+    <div className="min-w-0 self-start">{left}</div>
+
+    <div className="w-full max-w-[430px] self-start lg:justify-self-end">
+      <MembershipCoinSwitcher activeTab={activeTab} className="w-full" />
+      {controls ? <div className="mt-3 w-full">{controls}</div> : null}
+    </div>
+  </section>
+);
