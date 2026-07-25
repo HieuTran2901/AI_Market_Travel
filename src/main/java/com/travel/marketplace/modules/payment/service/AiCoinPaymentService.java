@@ -1,5 +1,8 @@
 package com.travel.marketplace.modules.payment.service;
 
+import com.travel.marketplace.exception.BusinessException;
+import com.travel.marketplace.exception.ErrorCode;
+
 import com.travel.marketplace.modules.payment.catalog.AiCoinPackageCatalog;
 import com.travel.marketplace.modules.payment.dto.AiCoinPaymentRequest;
 import com.travel.marketplace.modules.payment.dto.AiCoinPaymentResponse;
@@ -44,11 +47,11 @@ public class AiCoinPaymentService {
     @Transactional
     public AiCoinPaymentResponse createPayment(Long userId, AiCoinPaymentRequest request) {
         if (request.getPaymentMethod() != PaymentMethod.MOMO) {
-            throw new IllegalArgumentException("Only MOMO is currently supported for AI Coin purchases");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Only MOMO is currently supported for AI Coin purchases");
         }
 
         AiCoinPackageCatalog.PackageDef pkg = AiCoinPackageCatalog.getPackageById(request.getPackageId())
-                .orElseThrow(() -> new IllegalArgumentException("AI_COIN_PACKAGE_NOT_FOUND"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "AI_COIN_PACKAGE_NOT_FOUND"));
 
         // Check Idempotency
         Optional<AiCoinPurchase> existing = aiCoinPurchaseRepository.findByIdempotencyKeyAndUserId(request.getIdempotencyKey(), userId);
@@ -136,7 +139,7 @@ public class AiCoinPaymentService {
     @Transactional
     public void handlePaymentStatusUpdate(Long paymentId, PaymentStatus targetStatus) {
         Payment payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new IllegalArgumentException("Payment not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Payment not found"));
 
         if (payment.getStatus() == PaymentStatus.SUCCESS || payment.getStatus() == targetStatus) {
             return; // Already processed
@@ -146,7 +149,7 @@ public class AiCoinPaymentService {
         paymentRepository.save(payment);
 
         AiCoinPurchase purchase = aiCoinPurchaseRepository.findById(payment.getReferenceId())
-                .orElseThrow(() -> new IllegalArgumentException("AI Coin Purchase not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "AI Coin Purchase not found"));
 
         if (purchase.getStatus() == AiCoinPurchaseStatus.CREDITED) {
             return; // Already credited
@@ -154,7 +157,7 @@ public class AiCoinPaymentService {
 
         if (targetStatus == PaymentStatus.SUCCESS) {
             User user = userRepository.findById(purchase.getUserId())
-                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                    .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "User not found"));
             
             user.setAiCoinBalance(user.getAiCoinBalance() + purchase.getTotalCoins());
             userRepository.save(user);
@@ -171,14 +174,14 @@ public class AiCoinPaymentService {
     @Transactional(readOnly = true)
     public AiCoinPaymentStatusResponse getPaymentStatus(Long userId, Long paymentId) {
         Payment payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new IllegalArgumentException("Payment not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Payment not found"));
 
         if (payment.getPurpose() != PaymentPurpose.AI_COIN_PURCHASE) {
-            throw new IllegalArgumentException("Payment is not an AI Coin purchase");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Payment is not an AI Coin purchase");
         }
 
         AiCoinPurchase purchase = aiCoinPurchaseRepository.findById(payment.getReferenceId())
-                .orElseThrow(() -> new IllegalArgumentException("AI Coin Purchase not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "AI Coin Purchase not found"));
 
         if (!purchase.getUserId().equals(userId)) {
             throw new IllegalArgumentException("Payment does not belong to this user");
@@ -209,14 +212,14 @@ public class AiCoinPaymentService {
     @Transactional
     public AiCoinPaymentStatusResponse processMoMoReturn(Long userId, AiCoinMomoReturnRequest request) {
         Payment payment = paymentRepository.findById(request.getPaymentId())
-                .orElseThrow(() -> new IllegalArgumentException("Payment not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Payment not found"));
 
         if (payment.getPurpose() != PaymentPurpose.AI_COIN_PURCHASE) {
-            throw new IllegalArgumentException("Payment is not an AI Coin purchase");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Payment is not an AI Coin purchase");
         }
 
         AiCoinPurchase purchase = aiCoinPurchaseRepository.findById(payment.getReferenceId())
-                .orElseThrow(() -> new IllegalArgumentException("AI Coin Purchase not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "AI Coin Purchase not found"));
 
         if (!purchase.getUserId().equals(userId)) {
             throw new IllegalArgumentException("Payment does not belong to this user");
