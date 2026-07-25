@@ -4,6 +4,7 @@ import com.travel.marketplace.modules.booking.dto.*;
 import com.travel.marketplace.modules.booking.entity.*;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Component
@@ -33,7 +34,42 @@ public class BookingMapper {
                 .timeSlot(item.getTimeSlot())
                 .basePrice(item.getListing().getBasePrice())
                 .priceBreakdown(priceBreakdown)
+                .selectedExtras(toCartItemExtraResponses(item.getExtras()))
                 .build();
+    }
+
+    public List<CartItemExtraResponse> toCartItemExtraResponses(List<? extends Object> extras) {
+        if (extras == null) {
+            return List.of();
+        }
+
+        return extras.stream()
+                .map(extra -> {
+                    if (extra instanceof CartItemExtra cartExtra) {
+                        return CartItemExtraResponse.builder()
+                                .id(cartExtra.getId())
+                                .extraServiceId(cartExtra.getExtraService().getId())
+                                .name(cartExtra.getServiceNameSnapshot())
+                                .quantity(cartExtra.getQuantity())
+                                .unitPrice(cartExtra.getUnitPriceSnapshot())
+                                .lineTotal(cartExtra.getLineTotal())
+                                .currency(cartExtra.getCurrency())
+                                .pricingUnit(cartExtra.getPricingUnit())
+                                .build();
+                    }
+                    BookingExtraItem bookingExtra = (BookingExtraItem) extra;
+                    return CartItemExtraResponse.builder()
+                            .id(bookingExtra.getId())
+                            .extraServiceId(bookingExtra.getExtraService().getId())
+                            .name(bookingExtra.getServiceNameSnapshot())
+                            .quantity(bookingExtra.getQuantity())
+                            .unitPrice(bookingExtra.getUnitPriceSnapshot())
+                            .lineTotal(bookingExtra.getLineTotal())
+                            .currency(bookingExtra.getCurrency())
+                            .pricingUnit(bookingExtra.getPricingUnit())
+                            .build();
+                })
+                .collect(Collectors.toList());
     }
 
     public BookingGuestResponse toGuestResponse(BookingGuest guest) {
@@ -56,6 +92,7 @@ public class BookingMapper {
         PriceBreakdownDto breakdown = PriceBreakdownDto.builder()
                 .basePrice(booking.getBasePrice())
                 .subtotal(booking.getSubtotal())
+                .extrasAmount(sumBookingExtras(booking))
                 .serviceFee(booking.getServiceFee())
                 .tax(booking.getTax())
                 .discount(booking.getDiscount())
@@ -80,6 +117,7 @@ public class BookingMapper {
                 .timeSlot(booking.getTimeSlot())
                 .quantity(booking.getQuantity())
                 .priceBreakdown(breakdown)
+                .selectedExtras(toCartItemExtraResponses(booking.getExtras()))
                 .expiresAt(booking.getExpiresAt())
                 .guests(booking.getGuests() != null ? booking.getGuests().stream().map(this::toGuestResponse).collect(Collectors.toList()) : null)
                 .createdAt(booking.getCreatedAt())
@@ -93,6 +131,7 @@ public class BookingMapper {
         PriceBreakdownDto breakdown = PriceBreakdownDto.builder()
                 .basePrice(order.getSubtotal()) // Order level aggregates bookings subtotals as base
                 .subtotal(order.getSubtotal())
+                .extrasAmount(sumOrderExtras(order))
                 .serviceFee(order.getServiceFee())
                 .tax(order.getTax())
                 .discount(order.getDiscount())
@@ -109,5 +148,24 @@ public class BookingMapper {
                 .createdAt(order.getCreatedAt())
                 .updatedAt(order.getUpdatedAt())
                 .build();
+    }
+
+    private java.math.BigDecimal sumBookingExtras(Booking booking) {
+        if (booking.getExtras() == null) {
+            return java.math.BigDecimal.ZERO;
+        }
+        return booking.getExtras().stream()
+                .map(BookingExtraItem::getLineTotal)
+                .filter(java.util.Objects::nonNull)
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+    }
+
+    private java.math.BigDecimal sumOrderExtras(Order order) {
+        if (order.getBookings() == null) {
+            return java.math.BigDecimal.ZERO;
+        }
+        return order.getBookings().stream()
+                .map(this::sumBookingExtras)
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
     }
 }

@@ -1,6 +1,7 @@
 package com.travel.marketplace.modules.booking.controller;
 
 import com.travel.marketplace.dto.ApiResponse;
+import com.travel.marketplace.modules.booking.dto.CartExtrasRequest;
 import com.travel.marketplace.modules.booking.dto.CartItemRequest;
 import com.travel.marketplace.modules.booking.dto.CartResponse;
 import com.travel.marketplace.modules.booking.service.CartService;
@@ -39,6 +40,16 @@ public class CartController {
             @RequestBody CartItemRequest request) {
         CartResponse response = cartService.addItemToCart(userPrincipal.getId(), request);
         return ResponseEntity.ok(ApiResponse.success("Item added to cart successfully.", response));
+    }
+
+    @PostMapping("/items/{itemId}/extras")
+    @Operation(summary = "Merge optional extras into a cart item")
+    public ResponseEntity<ApiResponse<CartResponse>> mergeCartItemExtras(
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @PathVariable Long itemId,
+            @RequestBody CartExtrasRequest request) {
+        CartResponse response = cartService.mergeCartItemExtras(userPrincipal.getId(), itemId, request);
+        return ResponseEntity.ok(ApiResponse.success("Extras updated successfully.", response));
     }
 
     @DeleteMapping("/items/{itemId}")

@@ -27,6 +27,7 @@ public class BookingResponse {
     private String timeSlot;
     private Integer quantity;
     private PriceBreakdownDto priceBreakdown;
+    private List<CartItemExtraResponse> selectedExtras;
     private Instant expiresAt;
     private List<BookingGuestResponse> guests;
     private Instant createdAt;

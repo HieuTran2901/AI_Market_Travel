@@ -4,6 +4,7 @@ import com.travel.marketplace.modules.listing.dto.ListingSearchRequest;
 import com.travel.marketplace.modules.listing.entity.Listing;
 import com.travel.marketplace.modules.listing.enums.ListingCategory;
 import com.travel.marketplace.modules.listing.enums.ListingStatus;
+import com.travel.marketplace.modules.ai.shared.DestinationNormalizer;
 import org.springframework.data.jpa.domain.Specification;
 
 import jakarta.persistence.criteria.Predicate;
@@ -43,7 +44,13 @@ public class ListingSpecification {
             }
 
             if (request.getCity() != null && !request.getCity().isEmpty()) {
-                predicates.add(cb.equal(cb.lower(root.get("city")), request.getCity().toLowerCase()));
+                List<Predicate> cityPredicates = new ArrayList<>();
+                for (String alias : DestinationNormalizer.aliases(request.getCity())) {
+                    String normalizedAlias = alias.toLowerCase();
+                    cityPredicates.add(cb.equal(cb.lower(root.get("city")), normalizedAlias));
+                    cityPredicates.add(cb.like(cb.lower(root.get("city")), normalizedAlias + ",%"));
+                }
+                predicates.add(cb.or(cityPredicates.toArray(new Predicate[0])));
             }
 
             if (request.getLatitude() != null && request.getLongitude() != null) {

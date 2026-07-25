@@ -14,7 +14,7 @@ import java.util.Map;
  * Activated when: ai.provider=mock (the default)
  */
 @Service
-@ConditionalOnProperty(name = "ai.provider", havingValue = "mock", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "ai", name = "provider", havingValue = "mock", matchIfMissing = true)
 public class MockAiProvider implements AiProvider {
 
     private static final String MODEL_NAME = "mock-ai-v1";
@@ -59,8 +59,10 @@ public class MockAiProvider implements AiProvider {
 
     @Override
     public AiResponse complete(AiRequest request) {
-        String responseText = selectMockResponse(request.getPrompt());
-        int promptLen = request.getPrompt() != null ? request.getPrompt().length() / 4 : 0;
+        String responseText = request != null && request.isJsonResponse() && isTripPlanPrompt(request.getPrompt())
+                ? structuredTripPlanResponse()
+                : selectMockResponse(request != null ? request.getPrompt() : null);
+        int promptLen = request != null && request.getPrompt() != null ? request.getPrompt().length() / 4 : 0;
         int completionLen = responseText.length() / 4;
 
         return AiResponse.builder()
@@ -91,5 +93,91 @@ public class MockAiProvider implements AiProvider {
             return RESPONSE_TEMPLATES.get("trip_plan");
         }
         return RESPONSE_TEMPLATES.get("assistant");
+    }
+
+    private boolean isTripPlanPrompt(String prompt) {
+        if (prompt == null) {
+            return false;
+        }
+        String lower = prompt.toLowerCase();
+        return lower.contains("itinerary") || lower.contains("trip request") || lower.contains("trip plan");
+    }
+
+    private String structuredTripPlanResponse() {
+        return """
+                {
+                  "days": [
+                    {
+                      "dayNumber": 1,
+                      "theme": "Arrival and city discovery",
+                      "activities": [
+                        {
+                          "time": "09:00",
+                          "listingId": null,
+                          "listingName": "Arrival",
+                          "type": "TRANSPORT",
+                          "description": "Arrive, settle in, and get oriented around the destination.",
+                          "estimatedCost": 40
+                        },
+                        {
+                          "time": "14:00",
+                          "listingId": null,
+                          "listingName": "Local walk",
+                          "type": "FREE_TIME",
+                          "description": "Explore local streets, markets, and cafes at a comfortable pace.",
+                          "estimatedCost": 35
+                        }
+                      ]
+                    },
+                    {
+                      "dayNumber": 2,
+                      "theme": "Culture and signature experiences",
+                      "activities": [
+                        {
+                          "time": "09:00",
+                          "listingId": null,
+                          "listingName": "Cultural tour",
+                          "type": "TOUR",
+                          "description": "Spend the day visiting cultural highlights and local neighborhoods.",
+                          "estimatedCost": 120
+                        },
+                        {
+                          "time": "18:00",
+                          "listingId": null,
+                          "listingName": "Local dinner",
+                          "type": "RESTAURANT",
+                          "description": "Try a relaxed dinner focused on regional dishes.",
+                          "estimatedCost": 60
+                        }
+                      ]
+                    },
+                    {
+                      "dayNumber": 3,
+                      "theme": "Scenic excursion and departure",
+                      "activities": [
+                        {
+                          "time": "08:30",
+                          "listingId": null,
+                          "listingName": "Half-day excursion",
+                          "type": "EXPERIENCE",
+                          "description": "Enjoy a scenic morning activity before wrapping up the trip.",
+                          "estimatedCost": 95
+                        },
+                        {
+                          "time": "15:00",
+                          "listingId": null,
+                          "listingName": "Departure",
+                          "type": "TRANSPORT",
+                          "description": "Return transfer and departure buffer.",
+                          "estimatedCost": 40
+                        }
+                      ]
+                    }
+                  ],
+                  "totalEstimatedBudget": 390,
+                  "aiSummary": "A balanced three-day itinerary with arrival time, cultural highlights, local dining, and a scenic final morning.",
+                  "highlights": ["Easy arrival flow", "Local culture and food", "Scenic final-day experience"]
+                }
+                """;
     }
 }

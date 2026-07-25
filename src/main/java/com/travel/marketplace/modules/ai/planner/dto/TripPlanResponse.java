@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.util.List;
+import com.travel.marketplace.modules.listing.dto.ListingResponse;
 
 @Data
 @Builder
@@ -23,4 +24,5 @@ public class TripPlanResponse {
     private List<String> highlights;
     private boolean mockedAi;
     private String providerName;
+    private List<ListingResponse> marketplaceRecommendations;
 }

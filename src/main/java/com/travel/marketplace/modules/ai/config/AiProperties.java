@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "ai")
 public class AiProperties {
 
-    /** Active provider: mock | gemini | openai | anthropic */
+    /** Active provider: mock | gemini | openrouter | openai | anthropic */
     private String provider = "mock";
 
     private Gemini gemini = new Gemini();

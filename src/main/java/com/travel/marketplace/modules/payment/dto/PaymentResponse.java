@@ -17,10 +17,16 @@ import java.time.Instant;
 public class PaymentResponse {
     private Long id;
     private Long orderId;
+    private String orderNumber;
     private BigDecimal amount;
     private String currency;
     private PaymentStatus status;
     private PaymentMethod paymentMethod;
+    private String listingTitle;
+    private String listingCoverImageUrl;
+    private String listingCategory;
+    private String gatewayOrderId;
+    private String payUrl;
     private Instant expiresAt;
     private Instant createdAt;
     private Instant updatedAt;

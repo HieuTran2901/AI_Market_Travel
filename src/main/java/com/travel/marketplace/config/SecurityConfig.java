@@ -73,6 +73,8 @@ public class SecurityConfig {
                     "/api/v1/listings/{id}/reviews/summary",
                     "/api/v1/provider/{id}",
                     "/api/v1/availability/{listingId}",
+                    // MoMo calls this public endpoint; authenticity is verified using HMAC-SHA256.
+                    "/api/v1/payments/momo/ipn",
                     // Phase 2: Uploaded files served as static resources
                     "/uploads/**",
                     // Phase 5: AI endpoints (public for unauthenticated discovery)

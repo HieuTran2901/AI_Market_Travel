@@ -6,6 +6,7 @@ import com.travel.marketplace.modules.ai.provider.AiRequest;
 import com.travel.marketplace.modules.ai.provider.AiResponse;
 import com.travel.marketplace.modules.ai.recommendation.dto.RecommendationRequest;
 import com.travel.marketplace.modules.ai.recommendation.dto.RecommendationResponse;
+import com.travel.marketplace.modules.ai.shared.DestinationNormalizer;
 import com.travel.marketplace.modules.listing.dto.ListingResponse;
 import com.travel.marketplace.modules.listing.dto.ListingSearchRequest;
 import com.travel.marketplace.modules.listing.service.ListingService;
@@ -30,13 +31,16 @@ public class RecommendationServiceImpl implements RecommendationService {
 
     @Override
     public RecommendationResponse getRecommendations(RecommendationRequest request) {
+        String destinationLabel = request.getDestination() != null && !request.getDestination().isBlank()
+                ? DestinationNormalizer.canonicalize(request.getDestination())
+                : "your request";
         // 1. Fetch candidate listings from the marketplace
         List<ListingResponse> candidates = fetchCandidates(request);
 
         if (candidates.isEmpty()) {
             return RecommendationResponse.builder()
                     .recommendations(List.of())
-                    .aiSummary("No listings found matching your criteria for " + request.getDestination())
+                    .aiSummary("No active marketplace listings found matching " + destinationLabel)
                     .destination(request.getDestination())
                     .build();
         }
@@ -62,38 +66,77 @@ public class RecommendationServiceImpl implements RecommendationService {
         vars.put("listingContext", listingContext);
 
         String prompt = promptRegistry.render("recommendation", vars);
-        AiResponse aiResponse = aiProvider.complete(AiRequest.builder()
-                .prompt(prompt)
-                .maxTokens(1024)
-                .temperature(0.5)
-                .build());
+        AiResponse aiResponse;
+        try {
+            aiResponse = aiProvider.complete(AiRequest.builder()
+                    .prompt(prompt)
+                    .maxTokens(1024)
+                    .temperature(0.5)
+                    .build());
+        } catch (Exception ex) {
+            log.warn("Recommendation AI annotation failed; returning deterministic marketplace ranking", ex);
+            aiResponse = AiResponse.builder().text("").model("ranking-only").finishReason("fallback").mocked(true).build();
+        }
 
         // 5. Build ranked recommendations
         List<RecommendationResponse.RankedRecommendation> ranked = buildRankedResults(topCandidates, aiResponse.getText());
 
         return RecommendationResponse.builder()
                 .recommendations(ranked)
-                .aiSummary("Showing top " + ranked.size() + " recommendations for " + request.getDestination() + " powered by " + aiProvider.providerName())
-                .destination(request.getDestination())
+                .aiSummary("Showing top " + ranked.size() + " recommendations for " + destinationLabel + " powered by " + aiProvider.providerName())
+                .destination(destinationLabel)
                 .mockedAi(aiResponse.isMocked())
                 .build();
     }
 
     private List<ListingResponse> fetchCandidates(RecommendationRequest request) {
-        ListingSearchRequest searchRequest = new ListingSearchRequest();
-        searchRequest.setCity(request.getDestination());
-        searchRequest.setStatus("ACTIVE");
-        if (request.getBudgetPerPerson() != null) {
-            searchRequest.setMaxPrice(request.getBudgetPerPerson().multiply(BigDecimal.valueOf(1.2)));
-        }
-
         try {
-            Page<ListingResponse> page = listingService.searchListings(searchRequest, PageRequest.of(0, 30));
-            return new ArrayList<>(page.getContent());
+            List<String> categories = request.getCategories() == null || request.getCategories().isEmpty()
+                    ? List.of()
+                    : request.getCategories();
+            List<ListingResponse> results = new ArrayList<>();
+            if (categories.isEmpty()) {
+                results.addAll(fetchCategoryCandidates(request, null));
+            } else {
+                for (String category : categories) {
+                    results.addAll(fetchCategoryCandidates(request, category));
+                }
+            }
+            Set<Long> excluded = request.getSelectedListingIds() == null ? Set.of() : new HashSet<>(request.getSelectedListingIds());
+            List<ListingResponse> deduped = results.stream()
+                    .filter(listing -> listing.getId() != null && !excluded.contains(listing.getId()))
+                    .collect(Collectors.toMap(ListingResponse::getId, listing -> listing, (first, ignored) -> first, LinkedHashMap::new))
+                    .values()
+                    .stream()
+                    .toList();
+            log.info(
+                    "Recommendation marketplace retrieval rawDestination={} normalizedDestination={} categories={} budget={} activeStatusFilter=ACTIVE selectedExcluded={} candidateCount={}",
+                    request.getDestination(),
+                    DestinationNormalizer.canonicalize(request.getDestination()),
+                    categories,
+                    request.getBudgetPerPerson(),
+                    excluded,
+                    deduped.size()
+            );
+            return deduped;
         } catch (Exception e) {
             log.warn("Failed to fetch listings for recommendation", e);
             return List.of();
         }
+    }
+
+    private List<ListingResponse> fetchCategoryCandidates(RecommendationRequest request, String category) {
+        ListingSearchRequest searchRequest = new ListingSearchRequest();
+        searchRequest.setCity(DestinationNormalizer.canonicalize(request.getDestination()));
+        searchRequest.setStatus("ACTIVE");
+        if (category != null && !category.isBlank()) {
+            searchRequest.setCategory(category);
+        }
+        if (request.getBudgetPerPerson() != null) {
+            searchRequest.setMaxPrice(request.getBudgetPerPerson().multiply(BigDecimal.valueOf(1.2)));
+        }
+        Page<ListingResponse> page = listingService.searchListings(searchRequest, PageRequest.of(0, 30));
+        return new ArrayList<>(page.getContent());
     }
 
     private List<ScoredListing> scoreListings(List<ListingResponse> listings, RecommendationRequest request) {

@@ -15,6 +15,12 @@ import java.util.List;
 public class ItineraryDay {
     private int dayNumber;
     private String theme;
+    private String summary;
+    private int activityCount;
+    private BigDecimal estimatedDayCost;
+    private String primaryCategory;
+    private String coverImageUrl;
+    private List<String> highlights;
     private List<Activity> activities;
 
     @Data
@@ -30,5 +36,14 @@ public class ItineraryDay {
         private String type;
         private String description;
         private BigDecimal estimatedCost;
+        private String imageUrl;
+        private BigDecimal rating;
+        private Integer reviewCount;
+        private BigDecimal latitude;
+        private BigDecimal longitude;
+        private String providerName;
+        private String slug;
+        private String city;
+        private String address;
     }
 }

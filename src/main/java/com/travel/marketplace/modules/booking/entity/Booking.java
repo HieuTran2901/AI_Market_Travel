@@ -22,8 +22,8 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@ToString(exclude = {"order", "guests", "histories", "breakdowns"})
-@EqualsAndHashCode(exclude = {"order", "guests", "histories", "breakdowns"})
+@ToString(exclude = {"order", "guests", "histories", "breakdowns", "extras"})
+@EqualsAndHashCode(exclude = {"order", "guests", "histories", "breakdowns", "extras"})
 public class Booking {
 
     @Id
@@ -94,6 +94,10 @@ public class Booking {
     @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<BookingPriceBreakdown> breakdowns = new ArrayList<>();
+
+    @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<BookingExtraItem> extras = new ArrayList<>();
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

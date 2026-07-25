@@ -1,0 +1,15 @@
+ALTER TABLE payment_transactions
+    ADD COLUMN partner_code VARCHAR(30) NULL,
+    ADD COLUMN gateway_order_id VARCHAR(100) NULL,
+    ADD COLUMN gateway_request_id VARCHAR(100) NULL,
+    ADD COLUMN amount_vnd BIGINT NULL,
+    ADD COLUMN result_code INT NULL,
+    ADD COLUMN momo_trans_id BIGINT NULL,
+    ADD COLUMN pay_type VARCHAR(50) NULL,
+    ADD COLUMN response_message VARCHAR(500) NULL,
+    ADD COLUMN pay_url VARCHAR(2048) NULL,
+    ADD COLUMN updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    ADD COLUMN paid_at TIMESTAMP(6) NULL,
+    ADD CONSTRAINT uk_payment_transactions_momo_order UNIQUE (gateway_order_id),
+    ADD CONSTRAINT uk_payment_transactions_momo_request UNIQUE (gateway_request_id),
+    ADD CONSTRAINT uk_payment_transactions_momo_trans UNIQUE (momo_trans_id);

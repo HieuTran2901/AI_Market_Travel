@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 @Data
 @Builder
@@ -29,4 +30,5 @@ public class CartItemResponse {
     private String timeSlot;
     private BigDecimal basePrice;
     private PriceBreakdownDto priceBreakdown;
+    private List<CartItemExtraResponse> selectedExtras;
 }

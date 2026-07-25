@@ -50,25 +50,34 @@ public class PromptTemplateRegistry {
 
         register(createTemplate("trip_plan",
             """
-            You are an AI travel planner for a Vietnamese travel marketplace.
-            
             Trip request: {{naturalLanguageQuery}}
             Destination: {{destination}}
             Duration: {{durationDays}} days
             Budget: {{budget}} USD total
             Group size: {{groupSize}} people
             
-            Available marketplace listings (real data — prefer these over generic suggestions):
+            Marketplace listings. Prefer these when useful; otherwise use listingId null.
             {{listingContext}}
             
-            Generate a detailed day-by-day itinerary that:
-            1. References specific listings from the context above by name
-            2. Groups activities logically by location and time of day
-            3. Provides realistic time estimates
-            4. Includes an estimated budget breakdown
-            5. Suggests alternatives when a listing may be fully booked
-            
-            Format as structured JSON with: days (array of {dayNumber, theme, activities[{time, listingId?, listingName, type, description, estimatedCost}]}), totalEstimatedBudget, aiSummary.
+            Output contract:
+            root fields: days, totalEstimatedBudget, aiSummary, highlights.
+            day fields: dayNumber, theme, activities.
+            activity fields: time, listingId, listingName, type, description, estimatedCost.
+            Use the field name time only. Do not use startTime or endTime.
+            days must contain exactly {{durationDays}} objects.
+            activities must be arrays with at most {{maxActivitiesPerDay}} items per day.
+            description maximum {{maxDescriptionWords}} words.
+            theme maximum 8 words.
+            aiSummary maximum 60 words.
+            highlights maximum 5 short strings.
+            Use only these type values: HOTEL, RESTAURANT, TOUR, EXPERIENCE, FREE_TIME, TRANSPORT.
+            Use HH:mm for time.
+            Use null for listingId when an activity is not tied to a marketplace listing.
+            Use listing IDs only from the supplied marketplace listings.
+            Prefer real marketplace listings when available.
+            Use listingId null only when no suitable marketplace item exists.
+            Do not add a repeated hotel stay activity every day unless requested.
+            Do not invent listing IDs, prices, availability, ratings, provider names, or image URLs.
             """
         ));
 

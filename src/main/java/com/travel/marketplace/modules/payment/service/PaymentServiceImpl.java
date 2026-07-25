@@ -14,6 +14,7 @@ import com.travel.marketplace.modules.payment.dto.PaymentResponse;
 import com.travel.marketplace.modules.payment.dto.WebhookPayload;
 import com.travel.marketplace.modules.payment.entity.Payment;
 import com.travel.marketplace.modules.payment.entity.PaymentTransaction;
+import com.travel.marketplace.modules.payment.enums.PaymentMethod;
 import com.travel.marketplace.modules.payment.enums.PaymentStatus;
 import com.travel.marketplace.modules.payment.gateway.GatewayResponse;
 import com.travel.marketplace.modules.payment.gateway.PaymentGateway;
@@ -21,7 +22,10 @@ import com.travel.marketplace.modules.payment.gateway.PaymentGatewayFactory;
 import com.travel.marketplace.modules.payment.mapper.PaymentMapper;
 import com.travel.marketplace.modules.payment.repository.PaymentRepository;
 import com.travel.marketplace.modules.payment.repository.PaymentTransactionRepository;
+import com.travel.marketplace.modules.payment.repository.RefundRepository;
 import com.travel.marketplace.modules.payment.statemachine.PaymentStateMachine;
+import com.travel.marketplace.modules.payment.dto.PaymentDetailResponse;
+import com.travel.marketplace.modules.payment.entity.Refund;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +48,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final OrderRepository orderRepository;
     private final BookingRepository bookingRepository;
     private final PaymentTransactionRepository transactionRepository;
+    private final RefundRepository refundRepository;
     private final PaymentMapper paymentMapper;
     private final PaymentStateMachine stateMachine;
     private final PaymentGatewayFactory gatewayFactory;
@@ -53,16 +58,27 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional
-    public PaymentResponse createPayment(PaymentRequest request) {
+    public PaymentResponse createPayment(PaymentRequest request, Long userId) {
         if (request.getIdempotencyKey() != null) {
             Optional<Payment> existingPayment = paymentRepository.findByIdempotencyKey(request.getIdempotencyKey());
             if (existingPayment.isPresent()) {
-                return paymentMapper.toResponse(existingPayment.get());
+                authorize(existingPayment.get(), userId);
+                return toResponse(existingPayment.get());
             }
         }
 
         Order order = orderRepository.findById(request.getOrderId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Order not found"));
+        authorize(order, userId);
+
+        Optional<Payment> existingOrderPayment = paymentRepository.findByOrderId(order.getId());
+        if (existingOrderPayment.isPresent()) {
+            Payment existing = existingOrderPayment.get();
+            if (existing.getPaymentMethod() == request.getPaymentMethod() && !isTerminal(existing.getStatus())) {
+                return toResponse(existing);
+            }
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "A payment already exists for this order");
+        }
 
         Payment payment = Payment.builder()
                 .order(order)
@@ -80,10 +96,12 @@ public class PaymentServiceImpl implements PaymentService {
 
         PaymentGateway gateway = gatewayFactory.getGateway(payment.getPaymentMethod());
         GatewayResponse gatewayResponse = gateway.processPayment(payment);
-        recordGatewayTransaction(payment, "payment.create", gatewayResponse);
+        if (payment.getPaymentMethod() != PaymentMethod.MOMO) {
+            recordGatewayTransaction(payment, "payment.create", gatewayResponse);
+        }
         applyGatewayResult(payment, gatewayResponse);
 
-        return paymentMapper.toResponse(payment);
+        return toResponse(payment);
     }
 
     private String resolveOrderCurrency(Order order) {
@@ -97,10 +115,25 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional(readOnly = true)
-    public PaymentResponse getPayment(Long id) {
+    public PaymentDetailResponse getPayment(Long id, Long userId) {
         Payment payment = paymentRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Payment not found"));
-        return paymentMapper.toResponse(payment);
+        authorize(payment, userId);
+        
+        boolean isRefundable = payment.getStatus() == PaymentStatus.SUCCESS;
+        List<Refund> refunds = refundRepository.findByPaymentId(payment.getId());
+        Long existingRefundId = refunds.isEmpty() ? null : refunds.get(0).getId();
+        
+        return paymentMapper.toDetailResponse(payment, isRefundable, existingRefundId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaymentResponse getMomoPaymentByGatewayOrderId(String gatewayOrderId, Long userId) {
+        PaymentTransaction transaction = transactionRepository.findByGatewayOrderId(gatewayOrderId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "MoMo payment not found"));
+        authorize(transaction.getPayment(), userId);
+        return toResponse(transaction.getPayment(), transaction);
     }
 
     @Override
@@ -108,21 +141,30 @@ public class PaymentServiceImpl implements PaymentService {
     public List<PaymentResponse> getPaymentsForUser(Long userId) {
         return paymentRepository.findAllByOrderUserIdOrderByCreatedAtDesc(userId)
                 .stream()
-                .map(paymentMapper::toResponse)
+                .map(this::toResponse)
                 .toList();
     }
 
     @Override
     @Transactional
-    public PaymentResponse cancelPayment(Long id) {
+    public PaymentResponse cancelPayment(Long id, Long userId) {
         Payment payment = paymentRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Payment not found"));
+        authorize(payment, userId);
 
         stateMachine.transitionTo(payment, PaymentStatus.CANCELLED);
         closeOrderReservations(payment.getOrder(), OrderStatus.CANCELLED);
         payment = paymentRepository.save(payment);
         
-        return paymentMapper.toResponse(payment);
+        return toResponse(payment);
+    }
+
+    @Override
+    @Transactional
+    public void applyVerifiedGatewayStatus(Long paymentId, PaymentStatus status) {
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Payment not found"));
+        applyPaymentStatus(payment, status);
     }
 
     @Override
@@ -131,6 +173,12 @@ public class PaymentServiceImpl implements PaymentService {
         log.info("Received webhook: {}", payload);
 
         Payment payment = resolvePayment(payload);
+        if (payment.getPaymentMethod() == PaymentMethod.MOMO) {
+            throw new BusinessException(
+                    ErrorCode.BAD_REQUEST,
+                    "MoMo payments must be updated through the verified MoMo IPN endpoint"
+            );
+        }
         String transactionId = resolveWebhookTransactionId(payload);
 
         if (transactionRepository.existsByPaymentIdAndTransactionId(payment.getId(), transactionId)) {
@@ -147,6 +195,8 @@ public class PaymentServiceImpl implements PaymentService {
     private void applyGatewayResult(Payment payment, GatewayResponse gatewayResponse) {
         PaymentStatus targetStatus = switch (gatewayResponse.getGatewayStatus()) {
             case "SUCCESS" -> PaymentStatus.SUCCESS;
+            case "PENDING", "PROCESSING" -> PaymentStatus.PROCESSING;
+            case "CANCELLED" -> PaymentStatus.CANCELLED;
             case "EXPIRED", "TIMEOUT" -> PaymentStatus.EXPIRED;
             default -> gatewayResponse.isSuccess() ? PaymentStatus.SUCCESS : PaymentStatus.FAILED;
         };
@@ -271,6 +321,30 @@ public class PaymentServiceImpl implements PaymentService {
                 || status == PaymentStatus.CANCELLED
                 || status == PaymentStatus.REFUNDED
                 || status == PaymentStatus.EXPIRED;
+    }
+
+    private PaymentResponse toResponse(Payment payment) {
+        return transactionRepository
+                .findFirstByPaymentIdAndGatewayOrderIdIsNotNullOrderByCreatedAtDesc(payment.getId())
+                .map(transaction -> toResponse(payment, transaction))
+                .orElseGet(() -> paymentMapper.toResponse(payment));
+    }
+
+    private PaymentResponse toResponse(Payment payment, PaymentTransaction transaction) {
+        PaymentResponse response = paymentMapper.toResponse(payment);
+        response.setGatewayOrderId(transaction.getGatewayOrderId());
+        response.setPayUrl(transaction.getPayUrl());
+        return response;
+    }
+
+    private void authorize(Payment payment, Long userId) {
+        authorize(payment.getOrder(), userId);
+    }
+
+    private void authorize(Order order, Long userId) {
+        if (userId == null || order.getUser() == null || !userId.equals(order.getUser().getId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "You do not have access to this payment");
+        }
     }
 
     private String toJson(Object value) {

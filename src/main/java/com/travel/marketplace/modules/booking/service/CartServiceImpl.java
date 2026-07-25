@@ -5,14 +5,18 @@ import com.travel.marketplace.exception.ResourceNotFoundException;
 import com.travel.marketplace.modules.booking.dto.*;
 import com.travel.marketplace.modules.booking.entity.Cart;
 import com.travel.marketplace.modules.booking.entity.CartItem;
+import com.travel.marketplace.modules.booking.entity.CartItemExtra;
 import com.travel.marketplace.modules.booking.enums.CartStatus;
 import com.travel.marketplace.modules.booking.mapper.BookingMapper;
+import com.travel.marketplace.modules.booking.repository.CartItemExtraRepository;
 import com.travel.marketplace.modules.booking.repository.CartItemRepository;
 import com.travel.marketplace.modules.booking.repository.CartRepository;
 import com.travel.marketplace.modules.inventory.entity.Inventory;
 import com.travel.marketplace.modules.inventory.repository.InventoryRepository;
 import com.travel.marketplace.modules.listing.entity.Listing;
+import com.travel.marketplace.modules.listing.entity.ListingExtraService;
 import com.travel.marketplace.modules.listing.enums.ListingStatus;
+import com.travel.marketplace.modules.listing.repository.ListingExtraServiceRepository;
 import com.travel.marketplace.modules.listing.repository.ListingRepository;
 import com.travel.marketplace.modules.pricing.service.PricingService;
 import com.travel.marketplace.modules.user.entity.User;
@@ -23,7 +27,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -31,7 +39,9 @@ public class CartServiceImpl implements CartService {
 
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
+    private final CartItemExtraRepository cartItemExtraRepository;
     private final ListingRepository listingRepository;
+    private final ListingExtraServiceRepository listingExtraServiceRepository;
     private final InventoryRepository inventoryRepository;
     private final UserRepository userRepository;
     private final PricingService pricingService;
@@ -53,6 +63,7 @@ public class CartServiceImpl implements CartService {
     private CartResponse buildCartResponse(Cart cart) {
         List<CartItemResponse> itemResponses = new ArrayList<>();
         BigDecimal totalSubtotal = BigDecimal.ZERO;
+        BigDecimal totalExtras = BigDecimal.ZERO;
         BigDecimal totalServiceFee = BigDecimal.ZERO;
         BigDecimal totalTax = BigDecimal.ZERO;
         BigDecimal totalDiscount = BigDecimal.ZERO;
@@ -70,8 +81,12 @@ public class CartServiceImpl implements CartService {
                     item.getStartDate(),
                     item.getEndDate()
             );
+            BigDecimal extrasAmount = sumCartItemExtras(item);
+            breakdown.setExtrasAmount(extrasAmount);
+            breakdown.setFinalTotal(safe(breakdown.getFinalTotal()).add(extrasAmount));
 
             totalSubtotal = totalSubtotal.add(breakdown.getSubtotal());
+            totalExtras = totalExtras.add(extrasAmount);
             totalServiceFee = totalServiceFee.add(breakdown.getServiceFee());
             totalTax = totalTax.add(breakdown.getTax());
             totalDiscount = totalDiscount.add(breakdown.getDiscount());
@@ -83,6 +98,7 @@ public class CartServiceImpl implements CartService {
         PriceBreakdownDto totalBreakdown = PriceBreakdownDto.builder()
                 .basePrice(totalSubtotal)
                 .subtotal(totalSubtotal)
+                .extrasAmount(totalExtras)
                 .serviceFee(totalServiceFee)
                 .tax(totalTax)
                 .discount(totalDiscount)
@@ -102,6 +118,94 @@ public class CartServiceImpl implements CartService {
     @Transactional(readOnly = true)
     public CartResponse getActiveCart(Long userId) {
         Cart cart = getOrCreateCartEntity(userId);
+        return buildCartResponse(cart);
+    }
+
+    @Override
+    @Transactional
+    public CartResponse mergeCartItemExtras(Long userId, Long itemId, CartExtrasRequest request) {
+        Cart cart = getOrCreateCartEntity(userId);
+        CartItem item = cartItemRepository.findById(itemId)
+                .orElseThrow(() -> new ResourceNotFoundException("CartItem not found with id: " + itemId));
+
+        if (!item.getCart().getId().equals(cart.getId())) {
+            throw new BadRequestException("Item does not belong to the user's cart.");
+        }
+
+        if (request.getListingId() != null && !request.getListingId().equals(item.getListing().getId())) {
+            throw new BadRequestException("Listing ID does not match the cart item.");
+        }
+
+        List<CartExtraItemRequest> requestedItems = request.getItems() == null ? List.of() : request.getItems();
+        if (requestedItems.isEmpty()) {
+            return buildCartResponse(cart);
+        }
+
+        Map<Long, Integer> quantitiesByExtraId = new LinkedHashMap<>();
+        for (CartExtraItemRequest requestedItem : requestedItems) {
+            if (requestedItem.getExtraServiceId() == null) {
+                throw new BadRequestException("Extra service ID is required.");
+            }
+            if (requestedItem.getQuantity() == null || requestedItem.getQuantity() <= 0) {
+                throw new BadRequestException("Extra quantity must be greater than zero.");
+            }
+            quantitiesByExtraId.merge(requestedItem.getExtraServiceId(), requestedItem.getQuantity(), Integer::sum);
+        }
+
+        List<ListingExtraService> extras = listingExtraServiceRepository.findActiveByIdsForListing(
+                quantitiesByExtraId.keySet(),
+                item.getListing().getId(),
+                ListingStatus.ACTIVE
+        );
+        Map<Long, ListingExtraService> extrasById = extras.stream()
+                .collect(Collectors.toMap(ListingExtraService::getId, Function.identity()));
+        Map<Long, CartItemExtra> existingExtrasByServiceId = item.getExtras().stream()
+                .collect(Collectors.toMap(existing -> existing.getExtraService().getId(), Function.identity()));
+
+        for (Map.Entry<Long, Integer> entry : quantitiesByExtraId.entrySet()) {
+            ListingExtraService extra = extrasById.get(entry.getKey());
+            if (extra == null) {
+                throw new BadRequestException("Extra service is unavailable for this listing.");
+            }
+            Integer submittedQuantity = entry.getValue();
+            CartItemExtra existing = existingExtrasByServiceId.get(entry.getKey());
+            Integer mergedQuantity = submittedQuantity + (existing != null ? existing.getQuantity() : 0);
+
+            if (extra.getMaxQuantityPerBooking() != null && mergedQuantity > extra.getMaxQuantityPerBooking()) {
+                throw new BadRequestException("Extra quantity exceeds the maximum allowed.");
+            }
+            if (extra.getAvailableQuantity() != null && mergedQuantity > extra.getAvailableQuantity()) {
+                throw new BadRequestException("Extra quantity exceeds current availability.");
+            }
+            if (!item.getListing().getCurrency().equalsIgnoreCase(extra.getCurrency())) {
+                throw new BadRequestException("Extra service currency does not match the booking currency.");
+            }
+
+            BigDecimal lineTotal = calculateExtraLineTotal(extra, mergedQuantity, item);
+            if (existing != null) {
+                existing.setServiceNameSnapshot(extra.getName());
+                existing.setUnitPriceSnapshot(extra.getPrice());
+                existing.setCurrency(extra.getCurrency());
+                existing.setPricingUnit(extra.getPricingUnit());
+                existing.setQuantity(mergedQuantity);
+                existing.setLineTotal(lineTotal);
+                cartItemExtraRepository.save(existing);
+            } else {
+                CartItemExtra cartExtra = CartItemExtra.builder()
+                        .cartItem(item)
+                        .extraService(extra)
+                        .serviceNameSnapshot(extra.getName())
+                        .unitPriceSnapshot(extra.getPrice())
+                        .currency(extra.getCurrency())
+                        .pricingUnit(extra.getPricingUnit())
+                        .quantity(mergedQuantity)
+                        .lineTotal(lineTotal)
+                        .build();
+                cartItemExtraRepository.save(cartExtra);
+                item.getExtras().add(cartExtra);
+            }
+        }
+
         return buildCartResponse(cart);
     }
 
@@ -174,5 +278,36 @@ public class CartServiceImpl implements CartService {
         Cart cart = getOrCreateCartEntity(userId);
         cartItemRepository.deleteAllByCartId(cart.getId());
         cart.getItems().clear();
+    }
+
+    private BigDecimal sumCartItemExtras(CartItem item) {
+        if (item.getExtras() == null) {
+            return BigDecimal.ZERO;
+        }
+        return item.getExtras().stream()
+                .map(CartItemExtra::getLineTotal)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal calculateExtraLineTotal(ListingExtraService extra, Integer quantity, CartItem item) {
+        BigDecimal unitPrice = safe(extra.getPrice());
+        BigDecimal selectedQuantity = BigDecimal.valueOf(quantity);
+        return switch (extra.getPricingUnit()) {
+            case NIGHT -> unitPrice.multiply(selectedQuantity).multiply(BigDecimal.valueOf(getDurationNights(item)));
+            case ROOM -> unitPrice.multiply(selectedQuantity);
+            case GUEST, ITEM, BOTTLE, RIDE, BOOKING, STAY -> unitPrice.multiply(selectedQuantity);
+        };
+    }
+
+    private long getDurationNights(CartItem item) {
+        if (item.getStartDate() == null || item.getEndDate() == null || !item.getEndDate().isAfter(item.getStartDate())) {
+            return 1;
+        }
+        return java.time.temporal.ChronoUnit.DAYS.between(item.getStartDate(), item.getEndDate());
+    }
+
+    private BigDecimal safe(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 }

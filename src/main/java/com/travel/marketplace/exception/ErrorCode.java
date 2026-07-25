@@ -33,7 +33,27 @@ public enum ErrorCode {
     CANNOT_BAN_SELF("CANNOT_BAN_SELF", "You cannot ban your own account"),
     CANNOT_BAN_LAST_ADMIN("CANNOT_BAN_LAST_ADMIN", "You cannot ban the last active admin account"),
     INVALID_USER_STATUS_TRANSITION("INVALID_USER_STATUS_TRANSITION", "The requested user status transition is invalid"),
-    BAN_REASON_REQUIRED("BAN_REASON_REQUIRED", "A ban reason is required");
+    BAN_REASON_REQUIRED("BAN_REASON_REQUIRED", "A ban reason is required"),
+    OPENROUTER_AUTH_FAILED("OPENROUTER_AUTH_FAILED", "The AI provider authentication failed"),
+    GEMINI_AUTH_FAILED("GEMINI_AUTH_FAILED", "The AI provider authentication failed"),
+    AI_QUOTA_EXCEEDED("AI_QUOTA_EXCEEDED", "The AI quota has been exceeded"),
+    AI_INVALID_REQUEST("AI_INVALID_REQUEST", "The AI provider request was invalid"),
+    AI_PROVIDER_FORBIDDEN("AI_PROVIDER_FORBIDDEN", "The AI provider rejected the request"),
+    AI_RATE_LIMITED("AI_RATE_LIMITED", "The AI provider rate limit was reached"),
+    AI_PROVIDER_UNAVAILABLE("AI_PROVIDER_UNAVAILABLE", "The AI provider is temporarily unavailable"),
+    AI_PROVIDER_TIMEOUT("AI_PROVIDER_TIMEOUT", "The AI provider request timed out"),
+    AI_EMPTY_RESPONSE("AI_EMPTY_RESPONSE", "The AI provider returned an empty response"),
+    AI_INVALID_RESPONSE("AI_INVALID_RESPONSE", "The AI provider returned an invalid response"),
+    AI_INVALID_STRUCTURED_RESPONSE("AI_INVALID_STRUCTURED_RESPONSE", "The AI provider returned invalid structured itinerary data"),
+    AI_OUTPUT_TRUNCATED("AI_OUTPUT_TRUNCATED", "The AI itinerary response was incomplete"),
+    AI_RESPONSE_BLOCKED("AI_RESPONSE_BLOCKED", "The AI provider blocked the response"),
+    DRAFT_NOT_FOUND("DRAFT_NOT_FOUND", "The requested trip draft was not found"),
+    DRAFT_EXPIRED("DRAFT_EXPIRED", "The trip draft has expired"),
+    TRIP_ALREADY_CREATED("TRIP_ALREADY_CREATED", "This trip draft has already been saved"),
+    NO_ACTIVE_LISTINGS("NO_ACTIVE_LISTINGS", "No active marketplace listings are available for this trip"),
+    INSUFFICIENT_MARKETPLACE_DATA("INSUFFICIENT_MARKETPLACE_DATA", "There is not enough marketplace data to save this trip"),
+    BUDGET_NOT_FEASIBLE("BUDGET_NOT_FEASIBLE", "The requested trip budget is not feasible"),
+    TRIP_SAVE_FAILED("TRIP_SAVE_FAILED", "The trip could not be saved");
 
     private final String code;
     private final String defaultMessage;

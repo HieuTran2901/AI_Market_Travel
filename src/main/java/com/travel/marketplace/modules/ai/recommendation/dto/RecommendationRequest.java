@@ -23,6 +23,8 @@ public class RecommendationRequest {
     private List<String> interests;
     /** Optional: filter by category. If null, all categories are considered */
     private List<String> categories;
+    /** Optional listing IDs already selected in an itinerary and excluded from recommendations. */
+    private List<Long> selectedListingIds;
     /** Optional: authenticated user's ID to factor in booking history */
     private Long userId;
 }

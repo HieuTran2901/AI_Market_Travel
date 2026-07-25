@@ -14,6 +14,7 @@ import java.math.BigDecimal;
 public class PriceBreakdownDto {
     private BigDecimal basePrice;
     private BigDecimal subtotal;
+    private BigDecimal extrasAmount;
     private BigDecimal serviceFee;
     private BigDecimal tax;
     private BigDecimal discount;

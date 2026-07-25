@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
  * to this structure before returning to business logic.
  */
 @Data
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class AiResponse {
@@ -20,6 +20,9 @@ public class AiResponse {
 
     /** The model that generated this response (e.g. gemini-1.5-flash) */
     private String model;
+
+    /** Provider reasoning text, when exposed separately from final content. Not parsed as user content. */
+    private String reasoning;
 
     /** Why the generation stopped: stop | length | error */
     private String finishReason;

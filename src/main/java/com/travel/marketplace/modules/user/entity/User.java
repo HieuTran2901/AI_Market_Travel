@@ -42,6 +42,10 @@ public class User {
     @Builder.Default
     private boolean isActive = true;
 
+    @Column(name = "ai_coin_balance", nullable = false)
+    @Builder.Default
+    private Integer aiCoinBalance = 0;
+
     @Column(name = "banned_at")
     private Instant bannedAt;
 

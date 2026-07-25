@@ -52,26 +52,57 @@ storage:
     upload-dir: ${UPLOAD_DIR:./uploads}
     base-url: ${UPLOAD_BASE_URL:https://your-backend-url.com/uploads}
 
+payment:
+  momo:
+    enabled: ${MOMO_ENABLED:false}
+    partner-code: ${MOMO_PARTNER_CODE:MOMO}
+    access-key: ${MOMO_ACCESSKEY:}
+    secret-key: ${MOMO_SECRETKEY:}
+    endpoint: ${MOMO_ENDPOINT:https://test-payment.momo.vn/v2/gateway/api/create}
+    redirect-url: ${MOMO_REDIRECT_URL:https://app.example.com/payments/momo/return}
+    ipn-url: ${MOMO_IPN_URL:}
+    request-type: ${MOMO_REQUEST_TYPE:captureWallet}
+    language: ${MOMO_LANGUAGE:en}
+    timeout: ${MOMO_TIMEOUT:30s}
+
 ai:
-  provider: ${AI_PROVIDER:mock}
-  gemini:
-    api-key: ${GEMINI_API_KEY:}
-    model: gemini-1.5-flash
-    base-url: https://generativelanguage.googleapis.com/v1beta
-    max-tokens: 2048
-    temperature: 0.7
-  openai:
-    api-key: ${OPENAI_API_KEY:}
-    model: gpt-4o-mini
-    base-url: https://api.openai.com/v1
-    max-tokens: 2048
-    temperature: 0.7
-  anthropic:
-    api-key: ${ANTHROPIC_API_KEY:}
-    model: claude-3-haiku-20240307
-    base-url: https://api.anthropic.com
-    max-tokens: 2048
-    temperature: 0.7
+  provider: ${AI_PROVIDER:gemini}
+  trip-planner:
+    structured-model: ${AI_TRIP_PLANNER_STRUCTURED_MODEL:google/gemini-2.0-flash-001}
+    fallback-structured-model: ${AI_TRIP_PLANNER_FALLBACK_STRUCTURED_MODEL:openai/gpt-4o-mini}
+    structured-json-schema-enabled: ${AI_TRIP_PLANNER_STRUCTURED_JSON_SCHEMA_ENABLED:true}
+    reasoning-effort: ${AI_TRIP_PLANNER_REASONING_EFFORT:low}
+    exclude-reasoning: ${AI_TRIP_PLANNER_EXCLUDE_REASONING:true}
+    max-output-tokens-base: ${AI_TRIP_PLANNER_MAX_OUTPUT_TOKENS_BASE:1600}
+    max-output-tokens-per-day: ${AI_TRIP_PLANNER_MAX_OUTPUT_TOKENS_PER_DAY:750}
+    max-output-tokens-cap: ${AI_TRIP_PLANNER_MAX_OUTPUT_TOKENS_CAP:6000}
+    truncation-retry-multiplier: ${AI_TRIP_PLANNER_TRUNCATION_RETRY_MULTIPLIER:2}
+    max-activities-per-day: ${AI_TRIP_PLANNER_MAX_ACTIVITIES_PER_DAY:4}
+    max-description-words: ${AI_TRIP_PLANNER_MAX_DESCRIPTION_WORDS:20}
+    max-listing-context-items: ${AI_TRIP_PLANNER_MAX_LISTING_CONTEXT_ITEMS:16}
+    truncation-retry-enabled: ${AI_TRIP_PLANNER_TRUNCATION_RETRY_ENABLED:true}
+
+gemini:
+  api-key: ${GEMINI_API_KEY:}
+  base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
+  api-version: ${GEMINI_API_VERSION:v1beta}
+  model: ${GEMINI_MODEL:gemini-2.5-flash}
+  connect-timeout-seconds: ${GEMINI_CONNECT_TIMEOUT_SECONDS:10}
+  read-timeout-seconds: ${GEMINI_READ_TIMEOUT_SECONDS:90}
+  max-output-tokens: ${GEMINI_MAX_OUTPUT_TOKENS:6000}
+  temperature: ${GEMINI_TEMPERATURE:0.7}
+
+openrouter:
+  api-key: ${OPENROUTER_API_KEY:}
+  base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api/v1}
+  chat-path: ${OPENROUTER_CHAT_PATH:/chat/completions}
+  model: ${OPENROUTER_MODEL:nvidia/nemotron-3-super-120b-a12b:free}
+  connect-timeout-seconds: ${OPENROUTER_CONNECT_TIMEOUT_SECONDS:10}
+  read-timeout-seconds: ${OPENROUTER_READ_TIMEOUT_SECONDS:90}
+  max-output-tokens: ${OPENROUTER_MAX_OUTPUT_TOKENS:6000}
+  temperature: ${OPENROUTER_TEMPERATURE:0.7}
+  http-referer: ${OPENROUTER_HTTP_REFERER:}
+  title: ${OPENROUTER_TITLE:AI Travel Marketplace}
 
 logging:
   level:

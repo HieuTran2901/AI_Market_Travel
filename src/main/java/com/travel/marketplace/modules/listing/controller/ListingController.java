@@ -3,9 +3,12 @@ package com.travel.marketplace.modules.listing.controller;
 import com.travel.marketplace.dto.ApiResponse;
 import com.travel.marketplace.modules.listing.dto.CreateListingRequest;
 import com.travel.marketplace.modules.listing.dto.ListingResponse;
+import com.travel.marketplace.modules.listing.dto.ListingExtraServiceResponse;
 import com.travel.marketplace.modules.listing.dto.ListingSearchRequest;
 import com.travel.marketplace.modules.listing.dto.UpdateListingRequest;
+import com.travel.marketplace.modules.listing.enums.ExtraServiceCategory;
 import com.travel.marketplace.modules.listing.enums.ListingStatus;
+import com.travel.marketplace.modules.listing.service.ListingExtraServiceService;
 import com.travel.marketplace.modules.listing.service.ListingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -26,9 +29,11 @@ import org.springframework.web.bind.annotation.*;
 public class ListingController {
 
     private final ListingService listingService;
+    private final ListingExtraServiceService listingExtraServiceService;
 
-    public ListingController(ListingService listingService) {
+    public ListingController(ListingService listingService, ListingExtraServiceService listingExtraServiceService) {
         this.listingService = listingService;
+        this.listingExtraServiceService = listingExtraServiceService;
     }
 
     // ── Public Endpoints ────────────────────────────────────────────────
@@ -47,6 +52,15 @@ public class ListingController {
     @Operation(summary = "Get listing details by slug (public)")
     public ResponseEntity<ApiResponse<ListingResponse>> getListingBySlug(@PathVariable String slug) {
         ListingResponse response = listingService.getListingBySlug(slug);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/{listingId}/extras")
+    @Operation(summary = "Get active optional extras and services for a listing")
+    public ResponseEntity<ApiResponse<java.util.List<ListingExtraServiceResponse>>> getListingExtras(
+            @PathVariable Long listingId,
+            @RequestParam(required = false) ExtraServiceCategory category) {
+        java.util.List<ListingExtraServiceResponse> response = listingExtraServiceService.getVisibleExtras(listingId, category);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

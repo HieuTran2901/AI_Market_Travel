@@ -31,6 +31,7 @@ public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
     private final BookingRepository bookingRepository;
+    private final BookingExtraItemRepository bookingExtraItemRepository;
     private final BookingGuestRepository bookingGuestRepository;
     private final BookingPriceBreakdownRepository bookingPriceBreakdownRepository;
     private final BookingHistoryRepository bookingHistoryRepository;
@@ -68,6 +69,7 @@ public class OrderServiceImpl implements OrderService {
         order = orderRepository.save(order);
 
         BigDecimal totalSubtotal = BigDecimal.ZERO;
+        BigDecimal totalExtras = BigDecimal.ZERO;
         BigDecimal totalServiceFee = BigDecimal.ZERO;
         BigDecimal totalTax = BigDecimal.ZERO;
         BigDecimal totalDiscount = BigDecimal.ZERO;
@@ -113,6 +115,9 @@ public class OrderServiceImpl implements OrderService {
                     cartItem.getStartDate(),
                     cartItem.getEndDate()
             );
+            BigDecimal extrasAmount = sumCartExtras(cartItem);
+            pricing.setExtrasAmount(extrasAmount);
+            pricing.setFinalTotal(pricing.getFinalTotal().add(extrasAmount));
 
             // Generate Booking
             String bookingNumber = "BKG-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
@@ -133,9 +138,11 @@ public class OrderServiceImpl implements OrderService {
                     .discount(pricing.getDiscount())
                     .finalTotal(pricing.getFinalTotal())
                     .guests(new ArrayList<>())
+                    .extras(new ArrayList<>())
                     .build();
 
             booking = bookingRepository.save(booking);
+            copyCartExtrasToBooking(cartItem, booking);
 
             // Save guests
             if (detail.getGuests() != null) {
@@ -156,6 +163,9 @@ public class OrderServiceImpl implements OrderService {
 
             // Save price breakdowns
             savePriceBreakdown(booking, "Base Price", pricing.getSubtotal());
+            if (extrasAmount.compareTo(BigDecimal.ZERO) > 0) {
+                savePriceBreakdown(booking, "Extras & Services", extrasAmount);
+            }
             savePriceBreakdown(booking, "Service Fee", pricing.getServiceFee());
             savePriceBreakdown(booking, "VAT / Tax", pricing.getTax());
             if (pricing.getDiscount().compareTo(BigDecimal.ZERO) > 0) {
@@ -168,6 +178,7 @@ public class OrderServiceImpl implements OrderService {
             order.getBookings().add(booking);
 
             totalSubtotal = totalSubtotal.add(pricing.getSubtotal());
+            totalExtras = totalExtras.add(extrasAmount);
             totalServiceFee = totalServiceFee.add(pricing.getServiceFee());
             totalTax = totalTax.add(pricing.getTax());
             totalDiscount = totalDiscount.add(pricing.getDiscount());
@@ -177,7 +188,7 @@ public class OrderServiceImpl implements OrderService {
         }
 
         // Update order totals
-        order.setSubtotal(totalSubtotal);
+        order.setSubtotal(totalSubtotal.add(totalExtras));
         order.setServiceFee(totalServiceFee);
         order.setTax(totalTax);
         order.setDiscount(totalDiscount);
@@ -198,6 +209,37 @@ public class OrderServiceImpl implements OrderService {
                 .build();
         bookingPriceBreakdownRepository.save(pb);
         booking.getBreakdowns().add(pb);
+    }
+
+    private BigDecimal sumCartExtras(CartItem cartItem) {
+        if (cartItem.getExtras() == null) {
+            return BigDecimal.ZERO;
+        }
+        return cartItem.getExtras().stream()
+                .map(CartItemExtra::getLineTotal)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private void copyCartExtrasToBooking(CartItem cartItem, Booking booking) {
+        if (cartItem.getExtras() == null || cartItem.getExtras().isEmpty()) {
+            return;
+        }
+
+        for (CartItemExtra cartExtra : cartItem.getExtras()) {
+            BookingExtraItem bookingExtra = BookingExtraItem.builder()
+                    .booking(booking)
+                    .extraService(cartExtra.getExtraService())
+                    .serviceNameSnapshot(cartExtra.getServiceNameSnapshot())
+                    .unitPriceSnapshot(cartExtra.getUnitPriceSnapshot())
+                    .currency(cartExtra.getCurrency())
+                    .pricingUnit(cartExtra.getPricingUnit())
+                    .quantity(cartExtra.getQuantity())
+                    .lineTotal(cartExtra.getLineTotal())
+                    .build();
+            bookingExtraItemRepository.save(bookingExtra);
+            booking.getExtras().add(bookingExtra);
+        }
     }
 
     @Override

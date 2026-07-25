@@ -26,8 +26,16 @@ public class Payment {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_id", nullable = false)
+    @JoinColumn(name = "order_id", nullable = true)
     private Order order;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    @Builder.Default
+    private com.travel.marketplace.modules.payment.enums.PaymentPurpose purpose = com.travel.marketplace.modules.payment.enums.PaymentPurpose.BOOKING;
+
+    @Column(name = "reference_id")
+    private Long referenceId;
 
     @Column(nullable = false, precision = 14, scale = 2)
     private BigDecimal amount;

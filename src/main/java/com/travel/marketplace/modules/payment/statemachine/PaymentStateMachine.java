@@ -30,7 +30,12 @@ public class PaymentStateMachine {
 
         return switch (currentStatus) {
             case PENDING -> EnumSet.of(PaymentStatus.PROCESSING, PaymentStatus.FAILED, PaymentStatus.CANCELLED, PaymentStatus.EXPIRED).contains(newStatus);
-            case PROCESSING -> EnumSet.of(PaymentStatus.SUCCESS, PaymentStatus.FAILED, PaymentStatus.EXPIRED).contains(newStatus);
+            case PROCESSING -> EnumSet.of(
+                    PaymentStatus.SUCCESS,
+                    PaymentStatus.FAILED,
+                    PaymentStatus.CANCELLED,
+                    PaymentStatus.EXPIRED
+            ).contains(newStatus);
             case SUCCESS -> EnumSet.of(PaymentStatus.REFUNDED).contains(newStatus);
             case FAILED, CANCELLED, REFUNDED, EXPIRED -> false; // Terminal states
         };
