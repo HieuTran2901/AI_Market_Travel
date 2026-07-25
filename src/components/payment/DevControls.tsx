@@ -1,22 +1,38 @@
-import React, { useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle, CheckCircle2, ChevronDown, FlaskConical, XCircle } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import React, { useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  FlaskConical,
+  XCircle,
+} from "lucide-react";
+import { cn } from "../../lib/utils";
 
 interface DevControlsProps {
-  onSimulate: (outcome: 'success' | 'failed' | 'expired') => void;
+  onSimulate: (outcome: "success" | "failed" | "expired") => void;
   className?: string;
 }
 
-export const DevControls: React.FC<DevControlsProps> = ({ onSimulate, className }) => {
+export const DevControls: React.FC<DevControlsProps> = ({
+  onSimulate,
+  className,
+}) => {
   const [open, setOpen] = useState(false);
 
-  const isDevelopment = Boolean((import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV);
+  const isDevelopment = Boolean(
+    (import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV,
+  );
 
   if (!isDevelopment) return null;
 
   return (
-    <div className={cn('rounded-2xl border border-amber-300/80 bg-amber-50/80 shadow-sm', className)}>
+    <div
+      className={cn(
+        "rounded-2xl border border-amber-300/80 bg-amber-50/80 shadow-sm",
+        className,
+      )}
+    >
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
@@ -37,7 +53,10 @@ export const DevControls: React.FC<DevControlsProps> = ({ onSimulate, className 
             MockPaymentGateway scenarios are hidden here during development.
           </span>
         </span>
-        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
+        <motion.span
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+        >
           <ChevronDown className="h-4 w-4 text-amber-700" />
         </motion.span>
       </button>
@@ -46,20 +65,21 @@ export const DevControls: React.FC<DevControlsProps> = ({ onSimulate, className 
         {open && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
+            animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: 'easeInOut' }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
             className="overflow-hidden"
           >
             <div className="border-t border-amber-200 px-4 pb-4 pt-3">
               <p className="mb-3 flex items-start gap-2 text-xs leading-5 text-amber-700">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                These controls simulate gateway responses for testing the full payment workflow without external integrations.
+                These controls simulate gateway responses for testing the full
+                payment workflow without external integrations.
               </p>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => onSimulate('success')}
+                  onClick={() => onSimulate("success")}
                   className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-sm shadow-emerald-200 transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 >
                   <CheckCircle2 className="h-4 w-4" />
@@ -67,7 +87,7 @@ export const DevControls: React.FC<DevControlsProps> = ({ onSimulate, className 
                 </button>
                 <button
                   type="button"
-                  onClick={() => onSimulate('failed')}
+                  onClick={() => onSimulate("failed")}
                   className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white shadow-sm shadow-red-200 transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
                 >
                   <XCircle className="h-4 w-4" />
@@ -75,7 +95,7 @@ export const DevControls: React.FC<DevControlsProps> = ({ onSimulate, className 
                 </button>
                 <button
                   type="button"
-                  onClick={() => onSimulate('expired')}
+                  onClick={() => onSimulate("expired")}
                   className="inline-flex items-center gap-2 rounded-xl bg-slate-700 px-3 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
                 >
                   <AlertTriangle className="h-4 w-4" />
@@ -89,4 +109,3 @@ export const DevControls: React.FC<DevControlsProps> = ({ onSimulate, className 
     </div>
   );
 };
-

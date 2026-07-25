@@ -37,6 +37,11 @@ import {
 } from "@/pages/public/ai-coins/coinPackageAssets";
 import { PaymentMethod } from "@/types/payment";
 import {
+  primaryCoinPackages,
+  largeCoinPackages,
+  dailyCoinPassPackage,
+} from "@/pages/public/ai-coins/coinPackageConfig";
+import {
   paymentService,
   AiCoinPaymentStatusResponse,
 } from "@/services/paymentService";
@@ -51,6 +56,34 @@ export interface AiCoinPackage {
   bestValue?: boolean;
   imageUrl?: string;
 }
+
+
+const allCanonicalPackages = [
+  ...primaryCoinPackages,
+  ...largeCoinPackages,
+  dailyCoinPassPackage,
+];
+
+const mapCanonicalToModalPackage = (pkg: any): AiCoinPackage => {
+  return {
+    id: pkg.id,
+    packageCode: pkg.id.toUpperCase().replace("-", "_"),
+    coinAmount: pkg.coins,
+    bonusCoins: pkg.bonusCoins,
+    price: pkg.price,
+    discountPercentage: pkg.badge && pkg.badge.includes("%") ? parseInt(pkg.badge) : undefined,
+    bestValue: pkg.featured || pkg.badge === "BEST VALUE",
+    imageUrl: pkg.image,
+  };
+};
+
+const packageIdMap: Record<string, string> = {
+  "STARTER": "starter",
+  "EXPLORER": "explorer",
+  "TRAVELER": "traveler",
+  "ADVENTURE": "adventure",
+  "PRO": "pro",
+};
 
 const mockPackages: AiCoinPackage[] = [
   {
@@ -157,7 +190,7 @@ const paymentMethods: PaymentMethodOption[] = [
   },
 ];
 
-type AiCoinPurchaseStep =
+export type AiCoinPurchaseStep =
   | "package-selection"
   | "payment"
   | "momo-pending"
@@ -177,10 +210,13 @@ interface MomoPaymentSession {
   status: string;
 }
 
-interface AiCoinsModalProps {
+export interface AiCoinsModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentBalance: number;
+  onForceOpen?: (opts?: { packageId?: string; step?: AiCoinPurchaseStep }) => void;
+  initialPackageId?: string;
+  initialStep?: AiCoinPurchaseStep;
 }
 
 const formatVnd = (amount: number) => {
@@ -195,6 +231,8 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
   isOpen,
   onClose,
   currentBalance,
+  initialPackageId,
+  initialStep = "package-selection",
 }) => {
   const navigate = useNavigate();
   const shouldReduceMotion = useReducedMotion();
@@ -203,10 +241,10 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
   const { isOpen: isAuthModalOpen } = useAuthenticationGate();
 
   const [purchaseStep, setPurchaseStep] =
-    useState<AiCoinPurchaseStep>("package-selection");
+    useState<AiCoinPurchaseStep>(initialStep);
   const [direction, setDirection] = useState<number>(0);
 
-  const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
+  const [selectedPackId, setSelectedPackId] = useState<string | null>(initialPackageId || null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] =
     useState<PaymentMethod>(PaymentMethod.VNPAY);
   const [promoCode, setPromoCode] = useState("");
@@ -219,7 +257,18 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
     useState<AiCoinPaymentStatusResponse | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  const selectedPack = mockPackages.find((p) => p.id === selectedPackId);
+  const selectedPack = (() => {
+    const mock = mockPackages.find((p) => p.id === selectedPackId);
+    if (mock) return mock;
+
+    const canonical = allCanonicalPackages.find(
+      (p) => p.id === selectedPackId || p.id.toUpperCase().replace("-", "_") === selectedPackId?.toUpperCase()
+    );
+    if (canonical) {
+      return mapCanonicalToModalPackage(canonical);
+    }
+    return undefined;
+  })();
 
   // Restore session from redirect
   useEffect(() => {
@@ -512,12 +561,26 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
   const handleSubmitPayment = async () => {
     if (!selectedPack || !selectedPaymentMethod || isSubmitting) return;
 
+    const backendPackageId = selectedPack.packageCode ? (packageIdMap[selectedPack.packageCode] || selectedPack.id) : selectedPack.id;
+
+    // Safe validation
+    const packageIdNum = parseInt(selectedPack.id.replace("pack_", "")) || (selectedPack.id === "starter" ? 1 : selectedPack.id === "explorer" ? 2 : selectedPack.id === "traveler" ? 3 : selectedPack.id === "adventure" ? 4 : selectedPack.id === "pro" ? 5 : selectedPack.id === "elite" ? 6 : selectedPack.id === "mega" ? 7 : selectedPack.id === "ultimate" ? 8 : selectedPack.id === "galaxy" ? 9 : selectedPack.id === "daily-pass" ? 10 : 0);
+
+    if (
+      !selectedPack ||
+      !Number.isInteger(packageIdNum) ||
+      packageIdNum <= 0
+    ) {
+      setPaymentError("The selected AI Coin package is unavailable.");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       setPaymentError(null);
 
       const response = await paymentService.purchaseAiCoins({
-        packageId: selectedPack.id,
+        packageId: backendPackageId,
         packageCode: selectedPack.packageCode,
         coinAmount: selectedPack.coinAmount,
         bonusCoins: selectedPack.bonusCoins,
@@ -535,7 +598,7 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
         amount: data.amount,
         currency: data.currency || "VND",
         status: data.status || "PENDING",
-        selectedPackageId: selectedPack.id,
+        selectedPackageId: backendPackageId,
         modalStep: "momo-pending",
       };
 
@@ -763,7 +826,18 @@ const AiCoinPackageSelectionStep: React.FC<AiCoinPackageSelectionStepProps> = ({
   onBuyMoreEntry,
   onContinueToPayment,
 }) => {
-  const selectedPack = mockPackages.find((p) => p.id === selectedPackId);
+  const selectedPack = (() => {
+    const mock = mockPackages.find((p) => p.id === selectedPackId);
+    if (mock) return mock;
+
+    const canonical = allCanonicalPackages.find(
+      (p) => p.id === selectedPackId || p.id.toUpperCase().replace("-", "_") === selectedPackId?.toUpperCase()
+    );
+    if (canonical) {
+      return mapCanonicalToModalPackage(canonical);
+    }
+    return undefined;
+  })();
 
   return (
     <div className="flex flex-col h-full">

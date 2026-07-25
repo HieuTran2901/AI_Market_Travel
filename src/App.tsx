@@ -1,7 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { AuthProvider } from "./context/AuthContext";
-import { AuthenticationGateProvider } from "./context/AuthenticationGateContext";
+import { AuthProvider } from "@/context/AuthContext";
+import { AuthenticationGateProvider } from "@/context/AuthenticationGateContext";
+import { AiCoinsModalProvider } from "@/context/AiCoinsModalContext";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import { ScrollToTop } from "./routes/ScrollToTop";
 import { PublicLayout } from "./components/layout/PublicLayout";
@@ -62,7 +63,8 @@ const App = () => {
       <BrowserRouter>
         <AuthProvider>
           <AuthenticationGateProvider>
-            <ScrollToTop />
+            <AiCoinsModalProvider>
+              <ScrollToTop />
           <Routes>
             <Route path="/" element={<PublicLayout />}>
               <Route index element={<MarketplaceHomeRedesign />} />
@@ -144,6 +146,7 @@ const App = () => {
             </Route>
           </Routes>
           <TravelAiChat />
+            </AiCoinsModalProvider>
           </AuthenticationGateProvider>
         </AuthProvider>
       </BrowserRouter>

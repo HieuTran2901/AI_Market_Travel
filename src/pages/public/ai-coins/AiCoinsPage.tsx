@@ -1,5 +1,4 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   CreditCard,
@@ -10,6 +9,8 @@ import {
   Zap,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useAiCoinsModal } from "@/context/AiCoinsModalContext";
+import { useAuthenticationGate } from "@/context/AuthenticationGateContext";
 import { cn } from "@/lib/utils";
 import { coinGoldImage } from "./coinPackageAssets";
 import {
@@ -69,7 +70,7 @@ const paymentMethods = [
   "MoMo",
   "ZaloPay",
   "Apple Pay / Google Pay",
-  "The ngan hang",
+  "Bank Transfer",
 ];
 
 type PackageAction = (pkg: AiCoinPackage) => void;
@@ -355,9 +356,11 @@ const PackagePrice = ({ pkg }: { pkg: AiCoinPackage }) => (
 const PrimaryCoinPackageCard = ({
   pkg,
   onSelect,
+  isSelected,
 }: {
   pkg: AiCoinPackage;
   onSelect: PackageAction;
+  isSelected: boolean;
 }) => {
   const shouldReduceMotion = useReducedMotion();
   const featured = pkg.featured || pkg.badge === "BEST VALUE";
@@ -427,7 +430,7 @@ const PrimaryCoinPackageCard = ({
           <button
             type="button"
             onClick={() => onSelect(pkg)}
-            disabled={pkg.comingSoon}
+            disabled={pkg.comingSoon || isSelected}
             className={cn(
               "mt-3 h-10 w-full rounded-xl border px-3 text-sm font-black text-white transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-70 hover:shadow-[0_0_18px_var(--package-glow)]",
               featured
@@ -439,7 +442,7 @@ const PrimaryCoinPackageCard = ({
               borderColor: "var(--package-button-border)",
             }}
           >
-            {pkg.comingSoon ? "Coming soon" : "Chon goi"}
+            {pkg.comingSoon ? "Coming soon" : (isSelected ? "Selected" : "Choose package")}
           </button>
         </div>
       </div>
@@ -450,9 +453,11 @@ const PrimaryCoinPackageCard = ({
 const LargeCoinPackageCard = ({
   pkg,
   onSelect,
+  isSelected,
 }: {
   pkg: AiCoinPackage;
   onSelect: PackageAction;
+  isSelected: boolean;
 }) => {
   const shouldReduceMotion = useReducedMotion();
   const theme = getPackageTheme(pkg.id);
@@ -511,14 +516,14 @@ const LargeCoinPackageCard = ({
       <button
         type="button"
         onClick={() => onSelect(pkg)}
-        disabled={pkg.comingSoon}
+        disabled={pkg.comingSoon || isSelected}
         className="relative mt-3 h-10 w-full rounded-xl border px-3 text-sm font-black text-white transition hover:shadow-[0_0_18px_var(--package-glow)] focus:outline-none focus:ring-2 focus:ring-violet-300 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-70"
         style={{
           background: "var(--package-button-bg)",
           borderColor: "var(--package-button-border)",
         }}
       >
-        {pkg.comingSoon ? "Coming soon" : "Chon goi"}
+        {pkg.comingSoon ? "Coming soon" : (isSelected ? "Selected" : "Choose package")}
       </button>
     </motion.article>
   );
@@ -527,9 +532,11 @@ const LargeCoinPackageCard = ({
 const DailyCoinPassCard = ({
   pkg,
   onSelect,
+  isSelected,
 }: {
   pkg: AiCoinPackage;
   onSelect: PackageAction;
+  isSelected: boolean;
 }) => {
   const shouldReduceMotion = useReducedMotion();
   const theme = getPackageTheme(pkg.id);
@@ -562,13 +569,13 @@ const DailyCoinPassCard = ({
             {pkg.name}
           </h3>
           <p className="mt-2 text-sm leading-5 text-slate-300">
-            Nhan 100 AI Coins moi ngay trong 30 ngay lien tiep.
+            Get 100 AI Coins every day for 30 consecutive days
           </p>
           <p className="mt-3 text-xl font-black text-[var(--package-accent)] 2xl:text-2xl">
             {formatVnd(3000)}
             <span className="text-sm font-semibold text-slate-300">
               {" "}
-              / ngay
+              / day
             </span>
           </p>
         </div>
@@ -576,14 +583,14 @@ const DailyCoinPassCard = ({
       <button
         type="button"
         onClick={() => onSelect(pkg)}
-        disabled={pkg.comingSoon}
+        disabled={pkg.comingSoon || isSelected}
         className="relative mt-3 h-10 w-full rounded-xl border px-3 text-sm font-black text-white shadow-[0_12px_26px_rgba(245,158,11,0.24)] transition hover:shadow-[0_0_18px_var(--package-glow)] focus:outline-none focus:ring-2 focus:ring-amber-300 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-70"
         style={{
           background: "var(--package-button-bg)",
           borderColor: "var(--package-button-border)",
         }}
       >
-        {pkg.comingSoon ? "Coming soon" : "Kich hoat ngay"}
+        {pkg.comingSoon ? "Coming soon" : (isSelected ? "Selected" : "Choose package")}
       </button>
     </motion.article>
   );
@@ -592,7 +599,7 @@ const DailyCoinPassCard = ({
 const PaymentSecurityPanel = () => (
   <section className="grid gap-5 rounded-3xl border border-blue-400/18 bg-slate-950/56 p-5 shadow-[0_18px_44px_rgba(2,8,23,0.20)] lg:grid-cols-[minmax(0,1.5fr)_minmax(300px,0.8fr)] lg:items-center [@media(max-height:820px)]:p-4">
     <div className="min-w-0">
-      <h2 className="text-sm font-black text-white">Phuong thuc thanh toan</h2>
+      <h2 className="text-sm font-black text-white">Payment methods</h2>
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {paymentMethods.map((method) => (
           <div
@@ -611,10 +618,10 @@ const PaymentSecurityPanel = () => (
       </span>
       <div className="min-w-0">
         <h2 className="text-base font-black text-white">
-          Thanh toan bao mat 100%
+          100% Secure Payment
         </h2>
         <p className="mt-1 text-sm text-slate-300">
-          Thong tin cua ban luon duoc bao ve
+          Your information is always protected
         </p>
       </div>
     </div>
@@ -625,16 +632,15 @@ export const AiCoinsUpgradeContent: React.FC<{
   transition: UpgradeModeTransition;
   showBenefits?: boolean;
 }> = ({ transition, showBenefits = false }) => {
-  const navigate = useNavigate();
   const shouldReduceMotion = useReducedMotion();
   const { isAuthenticated } = useAuth();
+  const { openAuthenticationModal } = useAuthenticationGate();
+  const { openAiCoinsModal, isOpen: isAiCoinsModalOpen, options: modalOptions } = useAiCoinsModal();
   const [actionMessage, setActionMessage] = React.useState<string | null>(null);
 
   const handleSelectPackage = (pkg: AiCoinPackage) => {
     if (!isAuthenticated) {
-      navigate("/login", {
-        state: { redirectTo: "/ai-coins", selectedPackageId: pkg.id },
-      });
+      openAuthenticationModal({ returnTo: "/ai-coins", reason: "payment" });
       return;
     }
 
@@ -643,9 +649,7 @@ export const AiCoinsUpgradeContent: React.FC<{
       return;
     }
 
-    setActionMessage(
-      "AI Coins checkout is not connected yet. Your balance was not changed.",
-    );
+    openAiCoinsModal({ packageId: pkg.id, step: 'payment' });
   };
 
   const isLoading = false;
@@ -680,14 +684,14 @@ export const AiCoinsUpgradeContent: React.FC<{
         ) : loadError ? (
           <section className="rounded-3xl border border-red-300/20 bg-red-500/10 p-6 text-center">
             <h2 className="text-lg font-black text-red-100">
-              Khong the tai cac goi AI Coins.
+              Unable to load AI Coins packages.
             </h2>
-            <p className="mt-2 text-sm text-red-100/80">Vui long thu lai.</p>
+            <p className="mt-2 text-sm text-red-100/80">Please try again.</p>
           </section>
         ) : allPrimaryPackages.length === 0 ? (
           <section className="rounded-3xl border border-blue-300/20 bg-white/[0.04] p-6 text-center">
             <h2 className="text-lg font-black text-white">
-              Hien chua co goi AI Coins kha dung.
+              No AI Coins packages available at the moment.
             </h2>
           </section>
         ) : (
@@ -706,6 +710,7 @@ export const AiCoinsUpgradeContent: React.FC<{
                 <PrimaryCoinPackageCard
                   pkg={pkg}
                   onSelect={handleSelectPackage}
+                  isSelected={isAiCoinsModalOpen && modalOptions.packageId === pkg.id}
                 />
               </motion.div>
             ))}
@@ -724,13 +729,18 @@ export const AiCoinsUpgradeContent: React.FC<{
               variants={cardItemVariants}
               className="h-full min-w-0"
             >
-              <LargeCoinPackageCard pkg={pkg} onSelect={handleSelectPackage} />
+              <LargeCoinPackageCard 
+                pkg={pkg} 
+                onSelect={handleSelectPackage} 
+                isSelected={isAiCoinsModalOpen && modalOptions.packageId === pkg.id}
+              />
             </motion.div>
           ))}
           <motion.div variants={cardItemVariants} className="h-full min-w-0">
             <DailyCoinPassCard
               pkg={dailyCoinPassPackage}
               onSelect={handleSelectPackage}
+              isSelected={isAiCoinsModalOpen && modalOptions.packageId === dailyCoinPassPackage.id}
             />
           </motion.div>
         </motion.section>

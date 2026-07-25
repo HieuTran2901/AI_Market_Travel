@@ -78,8 +78,6 @@ type HeaderDropdown =
   | "challenge"
   | null;
 
-
-
 type AccountDropdownPosition = {
   top: number;
   left: number;
@@ -91,7 +89,6 @@ type MembershipSummary = {
   tier: string;
   benefitsLabel: string;
 };
-
 
 type MegaMenuItem = {
   label: string;
@@ -1425,7 +1422,7 @@ export const SiteHeaderV1: React.FC = () => {
                       ? "border-amber-100 bg-[linear-gradient(135deg,#faf5ff,#fff7ed)] text-violet-600 shadow-[0_0_18px_rgba(168,85,247,0.12)]"
                       : item.accent === "rose"
                         ? "border-fuchsia-100 bg-fuchsia-50 text-fuchsia-600 shadow-[0_0_18px_rgba(217,70,239,0.10)]"
-                      : "border-cyan-100 bg-cyan-50 text-cyan-600 shadow-[0_0_18px_rgba(6,182,212,0.10)]",
+                        : "border-cyan-100 bg-cyan-50 text-cyan-600 shadow-[0_0_18px_rgba(6,182,212,0.10)]",
                 )}
               >
                 <ItemIcon className="h-5 w-5" />
@@ -1678,8 +1675,6 @@ export const SiteHeaderV1: React.FC = () => {
       )}
     </div>
   );
-
-
 
   const AccountDropdown = () => {
     if (!accountDropdownPosition) return null;
@@ -2550,9 +2545,7 @@ export const SiteHeaderV1: React.FC = () => {
             {userOpen &&
               isAuthenticated &&
               isDesktopAccountMenu &&
-              isAccountPositionReady && (
-                <AccountDropdown />
-              )}
+              isAccountPositionReady && <AccountDropdown />}
           </AnimatePresence>,
           document.body,
         )}

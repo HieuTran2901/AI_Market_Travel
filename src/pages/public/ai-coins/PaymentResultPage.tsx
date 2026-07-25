@@ -1,23 +1,18 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { AiCoinsModal } from '@/components/payment/AiCoinsModal';
+import { useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAiCoinsModal } from '@/context/AiCoinsModalContext';
 
 export function PaymentResultPage() {
   const navigate = useNavigate();
-  const [isModalOpen, setIsModalOpen] = useState(true);
+  const { openAiCoinsModal } = useAiCoinsModal();
+  const location = useLocation();
 
-  const handleClose = () => {
-    setIsModalOpen(false);
-    navigate('/ai-coins', { replace: true });
-  };
+  useEffect(() => {
+    openAiCoinsModal();
+    navigate('/ai-coins' + location.search, { replace: true });
+  }, [navigate, openAiCoinsModal, location.search]);
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--ai-coins-surface)' }}>
-      <AiCoinsModal
-        isOpen={isModalOpen}
-        onClose={handleClose}
-        currentBalance={0}
-      />
-    </div>
+    <div className="min-h-screen" style={{ background: 'var(--ai-coins-surface)' }} />
   );
 }

@@ -308,13 +308,12 @@ const DailyMissionsPanel = () => (
     <div className="mt-4 rounded-2xl bg-[linear-gradient(135deg,rgba(124,58,237,0.26),rgba(245,158,11,0.14))] p-4">
       <div className="flex items-center gap-3">
         <img
-          src={luckyWheelChestAssets.premium}
-          alt="Premium Chest"
-          className="daily-mission-chest shrink-0"
+          src={luckyWheelChestAssets.common}
+          alt="Daily Mission Chest"
+          className="shrink-0 h-[48px] w-[48px] object-contain drop-shadow-md"
           draggable={false}
           onError={(e) => {
             (e.target as HTMLImageElement).src = giftboxImage;
-            console.warn("Failed to load daily mission chest asset.");
           }}
         />
         <div>
@@ -424,34 +423,34 @@ const SpecialRewardsPanel = () => {
     <Panel>
       <PanelTitle icon={Sparkles} title="Phần thưởng đặc biệt" />
       <div className="grid grid-cols-4 gap-3 text-center">
-        {[5, 10, 20, 50].map((milestone, index) => (
-          <span key={milestone} className="min-w-0">
-            <span
-              className={cn(
-                "mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border bg-white/[0.05]",
-                index === 3
-                  ? "border-amber-300/55 text-amber-300"
-                  : "border-violet-300/20 text-violet-100",
-              )}
-            >
-              <img
-                src={specialChests[index] || giftboxImage}
-                alt={`Chest ${milestone}`}
+        {[5, 10, 20, 50].map((milestone, index) => {
+          const size = index === 0 ? "24px" : index === 1 ? "28px" : index === 2 ? "32px" : "40px";
+          return (
+            <span key={milestone} className="min-w-0">
+              <span
                 className={cn(
-                  "special-reward-chest",
-                  index === 3 && "premium"
+                  "mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border bg-white/[0.05]",
+                  index === 3
+                    ? "border-amber-300/55 text-amber-300"
+                    : "border-violet-300/20 text-violet-100",
                 )}
-                draggable={false}
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = giftboxImage;
-                  console.warn(`Failed to load special chest image for milestone ${milestone}.`);
-                }}
-              />
+              >
+                <img
+                  src={specialChests[index] || giftboxImage}
+                  alt={`Chest ${milestone}`}
+                  className="object-contain pointer-events-none select-none drop-shadow-md"
+                  style={{ width: size, height: size }}
+                  draggable={false}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = giftboxImage;
+                  }}
+                />
+              </span>
+              <span className="mt-2 block text-sm font-black text-white">{milestone}</span>
+              <span className="block text-xs font-semibold text-violet-100/66">lượt</span>
             </span>
-            <span className="mt-2 block text-sm font-black text-white">{milestone}</span>
-            <span className="block text-xs font-semibold text-violet-100/66">lượt</span>
-          </span>
-        ))}
+          );
+        })}
       </div>
     </Panel>
   );
@@ -919,6 +918,28 @@ export const LuckyWheelPage: React.FC = () => {
               onSpin={startSpin}
               disabled={insufficientBalance}
             />
+            
+            <div className="relative z-10 -mt-16 mb-8 flex items-end justify-center gap-4">
+              <img
+                src={luckyWheelChestAssets.silver}
+                alt="Silver Chest"
+                className="h-[100px] w-[100px] object-contain drop-shadow-xl"
+                draggable={false}
+              />
+              <img
+                src={luckyWheelChestAssets.jackpot}
+                alt="Jackpot Chest"
+                className="z-10 -mb-2 h-[160px] w-[160px] object-contain drop-shadow-[0_0_24px_rgba(245,158,11,0.5)]"
+                draggable={false}
+              />
+              <img
+                src={luckyWheelChestAssets.gold}
+                alt="Gold Chest"
+                className="h-[100px] w-[100px] object-contain drop-shadow-xl"
+                draggable={false}
+              />
+            </div>
+
             <SpinControls
               quantity={quantity}
               setQuantity={setQuantity}

@@ -16,6 +16,7 @@ export interface User {
   fullName: string;
   phoneNumber?: string;
   avatarUrl?: string;
+  coinBalance?: number;
   roles: string[];
   providerProfile?: ProviderProfile;
 }
