@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   Bot,
@@ -21,6 +22,7 @@ import {
 import { Button } from '../../../components/ui/Button';
 import { aiService } from '../../../services/aiService';
 import { RankedRecommendation, RecommendationResponse, TripPlanResponse } from '../../../types/ai';
+import { getListingDetailPath } from '../../../utils/listingRoutes';
 
 const travelStyles = ['Relaxation', 'Culture', 'Adventure', 'Luxury', 'Budget'];
 const interestOptions = ['Beaches', 'Food', 'History', 'Nature', 'Nightlife'];
@@ -46,6 +48,10 @@ const getListingImage = (recommendation?: RankedRecommendation) => {
   return listing?.coverImageUrl || listing?.images?.find((image: any) => image?.isPrimary)?.imageUrl || listing?.images?.[0]?.imageUrl;
 };
 
+const getDayImage = (day: TripPlanResponse['itinerary'][number]) => {
+  return day.coverImageUrl || day.activities.find((activity) => activity.imageUrl)?.imageUrl;
+};
+
 const formatCurrency = (value?: number, currency = 'USD') => {
   if (value === undefined || value === null || Number.isNaN(value)) return 'Flexible';
   return new Intl.NumberFormat('en-US', {
@@ -61,6 +67,32 @@ const getTripDuration = (startDate: string, endDate: string) => {
   const end = new Date(endDate);
   const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
   return Number.isFinite(diff) && diff > 0 ? diff : 3;
+};
+
+const isValidTripPlan = (value: unknown): value is TripPlanResponse => {
+  if (!value || typeof value !== 'object') return false;
+  const plan = value as Partial<TripPlanResponse>;
+  if (!Array.isArray(plan.itinerary) || plan.itinerary.length === 0) return false;
+  if (typeof plan.destination !== 'string') return false;
+  if (typeof plan.durationDays !== 'number' || !Number.isFinite(plan.durationDays)) return false;
+  if (typeof plan.aiSummary !== 'string') return false;
+  if (typeof plan.totalEstimatedBudget !== 'number' || !Number.isFinite(plan.totalEstimatedBudget)) return false;
+
+  return plan.itinerary.every((day) => (
+    day &&
+    typeof day.dayNumber === 'number' &&
+    Number.isFinite(day.dayNumber) &&
+    typeof day.theme === 'string' &&
+    Array.isArray(day.activities) &&
+    day.activities.every((activity) => (
+      activity &&
+      typeof activity.time === 'string' &&
+      typeof activity.listingName === 'string' &&
+      typeof activity.type === 'string' &&
+      typeof activity.description === 'string' &&
+      (activity.estimatedCost === undefined || typeof activity.estimatedCost === 'number')
+    ))
+  ));
 };
 
 const PlannerIllustration = () => (
@@ -133,8 +165,19 @@ const HeroBackgroundDecorations = () => (
 );
 
 const RoutePreview = ({ destination, itinerary }: { destination: string; itinerary: TripPlanResponse['itinerary'] }) => {
-  const points = itinerary.slice(0, 3);
-  const labels = points.length ? points.map((day) => day.activities[0]?.listingName || day.theme) : [destination || 'Start', 'Route', 'Finish'];
+  const points = itinerary.flatMap((day) =>
+    day.activities
+      .filter((activity) => typeof activity.latitude === 'number' && typeof activity.longitude === 'number')
+      .map((activity) => ({ dayNumber: day.dayNumber, label: activity.listingName, activity }))
+  ).slice(0, 5);
+
+  if (!points.length) {
+    return (
+      <div className="mt-4 rounded-[20px] border border-dashed border-blue-100 bg-blue-50/60 p-5 text-sm font-semibold text-slate-600">
+        Route preview for {destination || 'your destination'} will appear when itinerary activities include marketplace coordinates.
+      </div>
+    );
+  }
 
   return (
     <div className="relative mt-4 min-h-[180px] w-full overflow-hidden rounded-[20px] border border-blue-100 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-5">
@@ -148,10 +191,10 @@ const RoutePreview = ({ destination, itinerary }: { destination: string; itinera
         <circle cx="556" cy="84" r="13" fill="#D946EF" stroke="white" strokeWidth="6" />
       </svg>
       <div className="relative z-10 mt-10 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {[0, 1, 2].map((index) => (
-          <div key={index} className="min-w-0 text-center">
-            <p className="truncate text-sm font-bold text-slate-700">{labels[index] || `Stop ${index + 1}`}</p>
-            <p className="mt-1 text-xs font-semibold text-blue-700">Day {points[index]?.dayNumber ?? index + 1}</p>
+        {points.map((point) => (
+          <div key={`${point.dayNumber}-${point.activity.listingId ?? point.label}`} className="min-w-0 text-center">
+            <p className="truncate text-sm font-bold text-slate-700">{point.label}</p>
+            <p className="mt-1 text-xs font-semibold text-blue-700">Day {point.dayNumber}</p>
           </div>
         ))}
       </div>
@@ -319,8 +362,7 @@ export const TripPlannerPage: React.FC = () => {
     setError('');
     try {
       const focusCategories = selectedInterests.length ? selectedInterests : [travelStyle];
-      const [tripResult, staysResult, activitiesResult] = await Promise.all([
-        aiService.planTrip({
+      const tripResult = await aiService.planTrip({
           naturalLanguageQuery: `${query.trim()} Travel style: ${travelStyle}. Interests: ${focusCategories.join(', ')}.`,
           destination: destination.trim(),
           durationDays,
@@ -328,7 +370,46 @@ export const TripPlannerPage: React.FC = () => {
           groupSize: travelers,
           startDate: startDate || undefined,
           focusCategories,
-        }),
+        });
+
+      if (!isValidTripPlan(tripResult)) {
+        if (import.meta.env.DEV) {
+          console.warn('Trip planner returned an invalid response shape.');
+        }
+        throw new Error('Invalid trip plan response');
+      }
+
+      const selectedListingIds = Array.from(new Set(
+        tripResult.itinerary.flatMap((day) => day.activities.map((activity) => activity.listingId).filter((id): id is number => typeof id === 'number'))
+      ));
+      const planRecommendations = tripResult.marketplaceRecommendations ?? [];
+      const fallbackStayRecommendations: RecommendationResponse = {
+        recommendations: planRecommendations
+          .filter((listing: any) => listing?.category === 'HOTEL')
+          .map((listing: any, index: number) => ({
+            rank: index + 1,
+            score: Math.max(70, Math.round(Number(listing.averageRating ?? 4) * 20)),
+            reasoning: 'Relevant marketplace stay for this itinerary.',
+            listing,
+          })),
+        aiSummary: 'Marketplace stays from the current destination.',
+        destination: tripResult.destination,
+        mockedAi: true,
+      };
+      const fallbackActivityRecommendations: RecommendationResponse = {
+        recommendations: planRecommendations
+          .filter((listing: any) => listing?.category !== 'HOTEL')
+          .map((listing: any, index: number) => ({
+            rank: index + 1,
+            score: Math.max(70, Math.round(Number(listing.averageRating ?? 4) * 20)),
+            reasoning: 'Relevant marketplace option for this itinerary.',
+            listing,
+          })),
+        aiSummary: 'Marketplace activities from the current destination.',
+        destination: tripResult.destination,
+        mockedAi: true,
+      };
+      const [staysResult, activitiesResult] = await Promise.all([
         aiService.getRecommendations({
           destination: destination.trim(),
           budgetPerPerson: budgetValue,
@@ -337,7 +418,8 @@ export const TripPlannerPage: React.FC = () => {
           groupSize: travelers,
           interests: focusCategories,
           categories: ['HOTEL'],
-        }).catch(() => null),
+          selectedListingIds,
+        }).catch(() => fallbackStayRecommendations),
         aiService.getRecommendations({
           destination: destination.trim(),
           budgetPerPerson: budgetValue,
@@ -346,16 +428,25 @@ export const TripPlannerPage: React.FC = () => {
           groupSize: travelers,
           interests: focusCategories,
           categories: ['TOUR', 'EXPERIENCE', 'RESTAURANT'],
-        }).catch(() => null),
+          selectedListingIds,
+        }).catch(() => fallbackActivityRecommendations),
       ]);
 
       setPlan(tripResult);
-      setStayRecommendations(staysResult);
-      setActivityRecommendations(activitiesResult);
+      setStayRecommendations(staysResult && staysResult.recommendations.length ? staysResult : fallbackStayRecommendations);
+      setActivityRecommendations(activitiesResult && activitiesResult.recommendations.length ? activitiesResult : fallbackActivityRecommendations);
       setActiveDayIndex(0);
-    } catch (err) {
-      console.error('Failed to plan trip:', err);
-      setError('We could not generate the itinerary right now. Please try again.');
+    } catch (err: any) {
+      const errorCode = err?.errorCode || err?.code;
+      const requestId = err?.requestId;
+      if (import.meta.env.DEV) {
+        console.warn('Failed to plan trip:', { errorCode, requestId });
+      }
+      setError(
+        errorCode === 'AI_OUTPUT_TRUNCATED'
+          ? 'The itinerary response was incomplete. Please generate it again.'
+          : 'We couldn’t generate a valid itinerary this time. Please try again.'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -613,7 +704,7 @@ export const TripPlannerPage: React.FC = () => {
                 {plan.itinerary.length ? (
                   <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
                     {plan.itinerary.map((day, index) => {
-                      const image = getListingImage(allRecommendations[index % Math.max(allRecommendations.length, 1)]);
+                      const image = getDayImage(day) || getListingImage(allRecommendations[index % Math.max(allRecommendations.length, 1)]);
                       return (
                         <button
                           key={day.dayNumber}
@@ -721,8 +812,9 @@ export const TripPlannerPage: React.FC = () => {
                       currentRecommendations.slice(0, 4).map((recommendation) => {
                         const listing = recommendation.listing;
                         const image = getListingImage(recommendation);
-                        return (
-                          <article key={`${recommendation.rank}-${listing?.id ?? listing?.title}`} className="group flex min-w-0 gap-3 rounded-2xl border border-slate-100 p-2.5 transition hover:border-blue-100 hover:bg-blue-50/40">
+                        const detailPath = listing ? getListingDetailPath(listing) : null;
+                        const cardContent = (
+                          <>
                             <div className="h-[72px] w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100">
                               {image ? <img src={image} alt={listing?.title || 'Recommended listing'} loading="lazy" className="h-full w-full object-cover transition group-hover:scale-105" /> : <Map className="m-5 h-7 w-7 text-blue-400" />}
                             </div>
@@ -737,6 +829,16 @@ export const TripPlannerPage: React.FC = () => {
                                 {listing?.basePrice ? `From ${formatCurrency(listing.basePrice, listing.currency || 'USD')}` : 'Marketplace match'}
                               </p>
                             </div>
+                          </>
+                        );
+                        const cardKey = `${recommendation.rank}-${listing?.id ?? listing?.title}`;
+                        return detailPath ? (
+                          <Link key={cardKey} to={detailPath} className="group flex min-w-0 gap-3 rounded-2xl border border-slate-100 p-2.5 transition hover:border-blue-100 hover:bg-blue-50/40">
+                            {cardContent}
+                          </Link>
+                        ) : (
+                          <article key={cardKey} className="group flex min-w-0 gap-3 rounded-2xl border border-slate-100 p-2.5 transition hover:border-blue-100 hover:bg-blue-50/40">
+                            {cardContent}
                           </article>
                         );
                       })

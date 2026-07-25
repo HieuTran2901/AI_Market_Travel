@@ -2,6 +2,8 @@ import api from './api';
 import { ApiResponse, PageResponse } from '@/types';
 import { 
   ListingResponse, 
+  ListingExtraService,
+  ExtraServiceCategory,
   CreateListingRequest, 
   UpdateListingRequest, 
   ListingSearchRequest,
@@ -17,6 +19,13 @@ export const listingService = {
 
   getListingBySlug: async (slug: string) => {
     const response = await api.get<ApiResponse<ListingResponse>>(`/listings/${slug}`);
+    return response.data;
+  },
+
+  getListingExtras: async (listingId: number, category?: ExtraServiceCategory) => {
+    const response = await api.get<ApiResponse<ListingExtraService[]>>(`/listings/${listingId}/extras`, {
+      params: category ? { category } : undefined,
+    });
     return response.data;
   },
 

@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion, type Variants } from 'framer-motion';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   CalendarDays,
   Check,
@@ -22,8 +23,9 @@ import {
 } from 'lucide-react';
 import { aiService } from '@/services/aiService';
 import { storageService } from '@/services/storageService';
-import { AssistantMessage, TripPlanResponse } from '@/types/ai';
+import { AssistantItineraryCard, AssistantListingRecommendation, AssistantMessage, AssistantResponse, SavedTrip, TripPlanResponse } from '@/types/ai';
 import { useAuth } from '@/context/AuthContext';
+import { getListingDetailPath } from '@/utils/listingRoutes';
 
 type ChatAttachment = {
   id: string;
@@ -39,11 +41,17 @@ type TravelChatMessage = AssistantMessage & {
   createdAt: Date;
   attachments?: Pick<ChatAttachment, 'id' | 'previewUrl' | 'uploadedUrl'>[];
   status?: 'sent' | 'error';
+  type?: 'TEXT' | 'ITINERARY' | 'RECOMMENDATIONS' | 'CLARIFICATION' | 'ERROR';
   kind?: 'TEXT' | 'ITINERARY' | 'LISTING_RECOMMENDATIONS' | 'ERROR';
   itinerary?: TripPlanResponse;
   itineraryCard?: ChatItinerary;
+  recommendations?: AssistantListingRecommendation[];
+  savedTrip?: SavedTrip;
   images?: string[];
+  extractedContext?: Record<string, unknown>;
 };
+
+type NormalizedAssistantType = 'TEXT' | 'LISTING_RESULT' | 'RECOMMENDATIONS' | 'ITINERARY' | 'CLARIFICATION' | 'ERROR';
 
 type ChatTransitionState = 'closed' | 'opening' | 'open' | 'closing';
 type RobotMood = 'idle' | 'thinking' | 'success' | 'error';
@@ -51,6 +59,12 @@ type RobotMood = 'idle' | 'thinking' | 'success' | 'error';
 const MAX_IMAGES = 4;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const CHAT_STORAGE_KEY = 'travel-ai-concierge-history-v2';
+
+const getChatStorageKey = (ownerId?: string | number | null) =>
+  ownerId ? `${CHAT_STORAGE_KEY}:user:${ownerId}` : `${CHAT_STORAGE_KEY}:guest`;
+
+const createGreetingMessage = (fallbackName?: string) =>
+  createMessage('assistant', `Hi ${fallbackName || 'there'}! I'm your AI travel concierge. How can I help plan your next adventure?`);
 
 type ChatItinerary = {
   destination: string;
@@ -61,9 +75,17 @@ type ChatItinerary = {
   travelers?: number;
   bestTime?: string;
   estimatedBudget?: string;
+  budget?: AssistantItineraryCard['budget'];
   coverImage?: string;
   mapImage?: string;
+  mapLabel?: string;
   totalEstimatedBudget?: number;
+  recommendations?: AssistantListingRecommendation[];
+  followUpSuggestions?: string[];
+  draftId?: string;
+  draftExpiresAt?: string;
+  supportsTripSave?: boolean;
+  savedTrip?: SavedTrip;
   days: {
     day: number;
     title: string;
@@ -97,39 +119,88 @@ const createMessage = (
   createdAt: new Date(),
   attachments,
   status: 'sent',
+  type: 'TEXT',
   kind: 'TEXT',
   ...extras,
 });
 
+const normalizePromptText = (text: string) =>
+  text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const isGreetingPrompt = (text: string) => {
+  const normalized = normalizePromptText(text);
+  return /^(hi|hello|hey|xin chao|chao|chao ban|chao buoi sang|chao buoi toi|alo|ban oi|good morning|good evening)$/.test(normalized);
+};
+
 const isTripPlanningPrompt = (text: string) => {
-  const lower = text.toLowerCase();
+  const lower = normalizePromptText(text);
   return (
-    ['plan a trip', 'itinerary', 'day-by-day', 'day by day', 'travel plan', 'trip to', 'travel to', 'build itinerary', 'getaway', 'vacation', 'holiday'].some((phrase) =>
+    ['plan a trip', 'itinerary', 'day-by-day', 'day by day', 'travel plan', 'trip to', 'travel to', 'build itinerary', 'getaway', 'vacation', 'holiday', 'lap ke hoach', 'lich trinh', 'du lich', 'chuyen di', 'toi muon di', 'muon di'].some((phrase) =>
       lower.includes(phrase)
-    ) || /\b\d+\s*[- ]?(?:day|days|night|nights)\b/.test(lower)
+    ) || /\b\d+\s*[- ]?(?:day|days|night|nights|ngay|dem)\b/.test(lower)
   );
 };
 
-const extractDestination = (text: string) => {
+const isListingRecommendationPrompt = (text: string) => {
+  const lower = normalizePromptText(text);
+  return ['find hotel', 'find hotels', 'recommend', 'suggest', 'where should i stay', 'under ', 'below ', 'cheap hotel', 'best stay', 'restaurant', 'tour', 'goi y', 'tim', 'khach san', 'nha hang'].some((phrase) =>
+    lower.includes(phrase)
+  );
+};
+
+const isConversationalPrompt = (text: string) => {
+  const lower = normalizePromptText(text);
+  return isGreetingPrompt(text)
+    || ['ban la ai', 'ban ten gi', 'ban co the lam gi', 'ban lam duoc gi', 'what can you do', 'who are you', 'thank you', 'thanks', 'cam on'].some((phrase) => lower.includes(phrase))
+    || ((lower.includes('database') || lower.includes('co so du lieu') || lower.includes('du lieu')) && (lower.includes('ban co the') || lower.includes('can you') || lower.includes('read') || lower.includes('doc')));
+};
+
+const extractDestination = (text: string): string | undefined => {
   const patterns = [
     /\b(?:to|in|for)\s+([A-Z][A-Za-z\s]+?)(?:\s+for|\s+with|\s+in|\s+on|\.|,|$)/,
     /\b([A-Z][A-Za-z\s]+)\s+getaway\b/i,
+    /\b(?:ở|tại|đến)\s+([\p{L}\s]+?)(?:\s+dưới|\s+trong|\s+cho|\.|,|$)/iu,
   ];
   for (const pattern of patterns) {
     const match = text.match(pattern);
     if (match?.[1]) return match[1].trim();
   }
-  return 'Da Nang';
+  return undefined;
 };
 
 const extractDuration = (text: string) => {
-  const match = text.match(/(\d+)\s*(?:day|days|night|nights)/i);
+  const match = normalizePromptText(text).match(/(\d+)\s*(?:day|days|night|nights|ngay|dem)/i);
   return match?.[1] ? Math.max(1, Number(match[1])) : 3;
 };
 
 const getListingImage = (recommendation: any) => {
   const listing = recommendation?.listing;
   return listing?.coverImageUrl || listing?.images?.find((image: any) => image?.isPrimary)?.imageUrl || listing?.images?.[0]?.imageUrl;
+};
+
+const extractBudget = (text: string) => {
+  const normalized = text.toLowerCase().replace(/,/g, '').replace(/\./g, '');
+  const millionMatch = normalized.match(/(?:under|below|dưới)\s*(\d+(?:\.\d+)?)\s*(?:m|mil|million|triệu)/i);
+  if (millionMatch?.[1]) return Number(millionMatch[1]) * 1_000_000;
+  const numberMatch = normalized.match(/(?:under|below|dưới)\s*(\d{5,})/i);
+  return numberMatch?.[1] ? Number(numberMatch[1]) : undefined;
+};
+
+const inferCategories = (text: string) => {
+  const lower = text.toLowerCase();
+  if (lower.includes('hotel') || lower.includes('khách sạn') || lower.includes('stay')) return ['HOTEL'];
+  if (lower.includes('restaurant') || lower.includes('food') || lower.includes('seafood')) return ['RESTAURANT'];
+  if (lower.includes('tour')) return ['TOUR'];
+  if (lower.includes('car') || lower.includes('vehicle')) return ['VEHICLE'];
+  if (lower.includes('experience') || lower.includes('workshop')) return ['EXPERIENCE'];
+  return undefined;
 };
 
 const formatBudget = (value?: number) => {
@@ -141,6 +212,41 @@ const formatBudget = (value?: number) => {
   }).format(value);
 };
 
+const formatMoney = (value?: number, currency = 'VND') => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return new Intl.NumberFormat(currency === 'VND' ? 'vi-VN' : 'en-US', {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 0,
+    }).format(value);
+  } catch {
+    return `${value.toLocaleString()} ${currency}`;
+  }
+};
+
+const safeAmount = (value?: number | null) => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0);
+
+const breakdownFallbackTotal = (budget?: ChatItinerary['budget']) => {
+  const breakdown = budget?.breakdown;
+  if (!breakdown) return 0;
+  return safeAmount(breakdown.accommodation)
+    + safeAmount(breakdown.food)
+    + safeAmount(breakdown.transport)
+    + safeAmount(breakdown.activities)
+    + safeAmount(breakdown.buffer);
+};
+
+const resolvedBudgetTotal = (budget?: ChatItinerary['budget'], warn = false) => {
+  const explicit = safeAmount(budget?.total) || safeAmount(budget?.estimatedTotal);
+  if (explicit > 0) return explicit;
+  const fallback = breakdownFallbackTotal(budget);
+  if (fallback > 0 && warn && import.meta.env.DEV) {
+    console.warn('Trip cost total missing; used breakdown fallback');
+  }
+  return fallback > 0 ? fallback : undefined;
+};
+
 const bucketActivityByTime = (time = ''): 'morning' | 'afternoon' | 'evening' => {
   const lower = time.toLowerCase();
   if (lower.includes('evening') || lower.includes('night') || lower.includes('dinner') || /^1[7-9]|^2[0-3]/.test(lower)) return 'evening';
@@ -148,47 +254,6 @@ const bucketActivityByTime = (time = ''): 'morning' | 'afternoon' | 'evening' =>
   return 'morning';
 };
 
-const looksLikeItineraryText = (text: string) => /\bday\s*1\b/i.test(text) && /\bday\s*2\b/i.test(text);
-
-const parseTextItinerary = (text: string, originalPrompt: string): ChatItinerary | null => {
-  if (!looksLikeItineraryText(text)) return null;
-  const destination = extractDestination(originalPrompt);
-  const durationDays = extractDuration(originalPrompt) || (text.match(/\bday\s*\d+\b/gi)?.length ?? 3);
-  const budgetMatch = text.match(/(?:estimated\s*)?budget[:\s-]*([^\n]+)/i);
-  const dayMatches = Array.from(text.matchAll(/(?:^|\n)\s*(?:\*\*)?Day\s*(\d+)(?:\s*[-:—]\s*)?([^\n*]*)/gi));
-
-  const days = dayMatches.slice(0, Math.max(durationDays, 1)).map((match, index) => {
-    const start = match.index ?? 0;
-    const end = dayMatches[index + 1]?.index ?? text.length;
-    const body = text
-      .slice(start + match[0].length, end)
-      .replace(/^[\s:*.-]+/gm, '')
-      .trim();
-    const sentences = body.split(/\n|\. /).map((part) => part.replace(/[*-]/g, '').trim()).filter(Boolean);
-
-    return {
-      day: Number(match[1]) || index + 1,
-      title: match[2]?.trim() || `Day ${index + 1}`,
-      shortTitle: (match[2]?.trim() || `Day ${index + 1}`).split(/\s+/).slice(0, 3).join(' '),
-      description: sentences.slice(0, 2).join('. ') || 'Curated places, timing, and local travel ideas.',
-      morning: sentences[0],
-      afternoon: sentences[1],
-      evening: sentences[2],
-    };
-  });
-
-  if (days.length === 0) return null;
-
-  return {
-    destination,
-    title: `${destination} Getaway`,
-    summary: text.split(/\n/).find((line) => line.trim() && !/^day\s*\d+/i.test(line.trim()))?.replace(/[*#]/g, '').trim() || `A personalized trip plan for ${destination}.`,
-    durationDays,
-    nights: Math.max(durationDays - 1, 0),
-    estimatedBudget: budgetMatch?.[1]?.trim(),
-    days,
-  };
-};
 
 const formatTime = (date: Date) =>
   new Intl.DateTimeFormat('en-US', {
@@ -238,29 +303,171 @@ const normalizeTripPlanForChat = (tripPlan: TripPlanResponse, images: string[] =
   };
 };
 
-const hydrateMessages = (fallbackName?: string): TravelChatMessage[] => {
+const looksLikeRawItineraryMarkdown = (text?: string) => {
+  const value = text || '';
+  return /(^|\n)\s*#{1,3}\s*(day|ngay|ngày)\s*\d+/i.test(value)
+    || /(^|\n)\s*(\*\*)?(sang|sáng|morning|afternoon|evening|toi|tối)(\*\*)?\s*[:|-]/i.test(value)
+    || /\|[^|\n]+\|[^|\n]+\|/.test(value)
+    || /(^|\n)\s*---+\s*(\n|$)/.test(value);
+};
+
+const parseDurationText = (durationText?: string) => {
+  if (!durationText) return { days: 3, nights: 2 };
+  const dayMatch = durationText.match(/(\d+)\s*d/i) || durationText.match(/(\d+)\s*day/i);
+  const nightMatch = durationText.match(/(\d+)\s*n/i) || durationText.match(/(\d+)\s*night/i);
+  const days = dayMatch?.[1] ? Number(dayMatch[1]) : 3;
+  return {
+    days: Number.isFinite(days) ? days : 3,
+    nights: nightMatch?.[1] ? Number(nightMatch[1]) : Math.max((Number.isFinite(days) ? days : 3) - 1, 0),
+  };
+};
+
+const normalizeAssistantItineraryForChat = (card: AssistantItineraryCard): ChatItinerary => {
+  const duration = parseDurationText(card.durationText);
+  const travelerMatch = card.travelerText?.match(/\d+/);
+  const listingRecommendations = (card.listingRecommendations || card.recommendedListings || card.recommendations || []).filter(isDatabaseListing);
+  return {
+    destination: card.destination || 'Your trip',
+    title: card.title || `${card.destination || 'Your trip'} Getaway`,
+    summary: card.summary || 'A personalized day-by-day travel plan based on current marketplace options.',
+    durationDays: card.durationDays || duration.days,
+    nights: card.durationNights ?? duration.nights,
+    travelers: travelerMatch?.[0] ? Number(travelerMatch[0]) : undefined,
+    bestTime: card.bestTimeText,
+    estimatedBudget: card.budgetText,
+    budget: card.budget,
+    coverImage: card.heroImageUrl || listingRecommendations?.find((item) => item.imageUrl)?.imageUrl,
+    mapImage: card.mapImageUrl,
+    mapLabel: card.mapLabel,
+    recommendations: listingRecommendations,
+    followUpSuggestions: card.followUpSuggestions,
+    draftId: card.draftId,
+    draftExpiresAt: card.draftExpiresAt,
+    supportsTripSave: card.supportsTripSave,
+    days: (card.days?.length ? card.days : [{ dayNumber: 1, title: 'Arrival and orientation' }]).map((day, index) => ({
+      day: day.dayNumber || index + 1,
+      title: day.title || `Day ${index + 1}`,
+      shortTitle: day.shortLabel || (day.title || `Day ${index + 1}`).split(/\s+/).slice(0, 3).join(' '),
+      description: [day.morning, day.afternoon, day.evening].filter(Boolean).join(' • ') || 'Curated timing and local travel ideas.',
+      morning: day.morning,
+      afternoon: day.afternoon,
+      evening: day.evening,
+      image: day.imageUrl || day.highlightImageUrl || listingRecommendations?.[index]?.imageUrl,
+    })),
+  };
+};
+
+const isDatabaseListing = (listing: Partial<AssistantListingRecommendation> | undefined | null): listing is AssistantListingRecommendation => (
+  Boolean(listing?.source === 'DATABASE' && listing.slug && (listing.title || listing.name))
+);
+
+const isTripSaveConfirmation = (text: string) => {
+  const normalized = normalizePromptText(text);
+  return /save this trip|add to my trips|add this trip|save trip|luu lai|luu chuyen|them chuyen|dong y.*chuyen|them vao danh sach/.test(normalized);
+};
+
+const normalizeAssistantType = (value?: string): NormalizedAssistantType => {
+  const normalized = value?.trim().toUpperCase();
+  if (normalized === 'TEXT') return 'TEXT';
+  if (normalized === 'ITINERARY') return 'ITINERARY';
+  if (normalized === 'RECOMMENDATION' || normalized === 'RECOMMENDATIONS') return 'RECOMMENDATIONS';
+  if (normalized === 'LISTING_RESULT') return 'LISTING_RESULT';
+  if (normalized === 'CLARIFICATION') return 'CLARIFICATION';
+  if (normalized === 'ERROR') return 'ERROR';
+  return 'ERROR';
+};
+
+const normalizeAssistantResponse = (response: AssistantResponse): TravelChatMessage => {
+  const type = normalizeAssistantType(response.type);
+  const text = response.message || response.reply || 'The AI concierge did not return a response.';
+  const planningIntent = /TRIP|ITINERARY|RECOMMENDATION|MARKETPLACE|DESTINATION/i.test(response.intent || '');
+
+  const itineraryPayload = response.itineraryCard || response.itinerary;
+
+  if (response.success === false || type === 'ERROR') {
+    return createMessage('assistant', text || 'The AI concierge could not complete that request. Please try again.', undefined, {
+      type: 'ERROR',
+      kind: 'ERROR',
+      extractedContext: response.extractedContext,
+    });
+  }
+
+  if (type === 'ITINERARY') {
+    if (!itineraryPayload?.days?.length) {
+      return createMessage('assistant', 'I prepared a travel plan, but could not render the itinerary card. Please try again.', undefined, {
+        type: 'ERROR',
+        kind: 'ERROR',
+        extractedContext: response.extractedContext,
+      });
+    }
+    return createMessage('assistant', text, undefined, {
+      type: 'ITINERARY',
+      kind: 'ITINERARY',
+      itineraryCard: normalizeAssistantItineraryForChat({
+        ...itineraryPayload,
+        listingRecommendations: itineraryPayload.listingRecommendations || itineraryPayload.recommendedListings || itineraryPayload.recommendations,
+      }),
+      extractedContext: response.extractedContext,
+    });
+  }
+
+  const databaseRecommendations = (response.recommendations || []).filter(isDatabaseListing);
+
+  if ((type === 'RECOMMENDATIONS' || type === 'LISTING_RESULT') && databaseRecommendations.length) {
+    return createMessage('assistant', response.summary || text, undefined, {
+      type: 'RECOMMENDATIONS',
+      kind: 'LISTING_RECOMMENDATIONS',
+      recommendations: databaseRecommendations,
+      images: response.heroImageUrl ? [response.heroImageUrl] : undefined,
+      extractedContext: response.extractedContext,
+    });
+  }
+
+  if (type === 'RECOMMENDATIONS' || type === 'LISTING_RESULT') {
+    return createMessage('assistant', text, undefined, {
+      type: 'CLARIFICATION',
+      extractedContext: response.extractedContext,
+    });
+  }
+
+  if (planningIntent && looksLikeRawItineraryMarkdown(text)) {
+    return createMessage('assistant', 'I prepared travel content, but could not render it as a card. Please try again and I’ll rebuild it visually.', undefined, {
+      type: 'ERROR',
+      kind: 'ERROR',
+      extractedContext: response.extractedContext,
+    });
+  }
+
+  return createMessage('assistant', text, undefined, {
+    type: type === 'CLARIFICATION' ? 'CLARIFICATION' : 'TEXT',
+    extractedContext: response.extractedContext,
+  });
+};
+
+const hydrateMessages = (storageKey: string, fallbackName?: string): TravelChatMessage[] => {
   if (typeof window === 'undefined') {
-    return [createMessage('assistant', `Hi ${fallbackName || 'there'}! I'm your AI travel concierge. How can I help plan your next adventure?`)];
+    return [createGreetingMessage(fallbackName)];
   }
 
   try {
-    const stored = window.localStorage.getItem(CHAT_STORAGE_KEY);
+    const stored = window.localStorage.getItem(storageKey);
     if (!stored) throw new Error('No stored chat history');
-    const parsed = JSON.parse(stored) as TravelChatMessage[];
+    const storedValue = JSON.parse(stored) as TravelChatMessage[] | { messages?: TravelChatMessage[] };
+    const parsed = Array.isArray(storedValue) ? storedValue : storedValue.messages;
     if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('Invalid chat history');
-    return parsed.map((message, index) => {
-      const previousUserPrompt =
-        parsed
-          .slice(0, index)
-          .reverse()
-          .find((item) => item.role === 'user')?.content || '';
-      const parsedItinerary =
-        message.role === 'assistant' && message.kind !== 'ITINERARY' ? parseTextItinerary(message.content, previousUserPrompt) : null;
-
+    return parsed.map((message) => {
+      if (message.role === 'assistant' && !message.itineraryCard && !message.itinerary && looksLikeRawItineraryMarkdown(message.content)) {
+        return {
+          ...message,
+          type: 'ERROR' as const,
+          kind: 'ERROR' as const,
+          content: 'This older itinerary response could not be rendered as a card. Send the request again and I’ll rebuild it visually.',
+          createdAt: new Date(message.createdAt),
+        };
+      }
       return {
         ...message,
-        kind: parsedItinerary ? 'ITINERARY' : message.kind,
-        itineraryCard: message.itineraryCard || parsedItinerary || (message.itinerary ? normalizeTripPlanForChat(message.itinerary, message.images) : undefined),
+        itineraryCard: message.itineraryCard || (message.itinerary ? normalizeTripPlanForChat(message.itinerary, message.images) : undefined),
         createdAt: new Date(message.createdAt),
         attachments: message.attachments?.map((attachment) => ({
           ...attachment,
@@ -269,7 +476,7 @@ const hydrateMessages = (fallbackName?: string): TravelChatMessage[] => {
       };
     });
   } catch {
-    return [createMessage('assistant', `Hi ${fallbackName || 'there'}! I'm your AI travel concierge. How can I help plan your next adventure?`)];
+    return [createGreetingMessage(fallbackName)];
   }
 };
 
@@ -587,43 +794,231 @@ const TravelFallbackImage = ({ destination }: { destination: string }) => (
   </div>
 );
 
-const CompactChatItineraryCard = ({ itinerary }: { itinerary: ChatItinerary }) => {
-  void ChatItineraryCard;
-  const visibleDays = itinerary.days.slice(0, 4);
-  const hiddenDayCount = Math.max(itinerary.days.length - visibleDays.length, 0);
+const formatDateRange = (startDate?: string, endDate?: string) => {
+  if (!startDate && !endDate) return undefined;
+  const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  try {
+    if (startDate && endDate) return `${formatter.format(new Date(startDate))} - ${formatter.format(new Date(endDate))}`;
+    return formatter.format(new Date(startDate || endDate || ''));
+  } catch {
+    return startDate && endDate ? `${startDate} - ${endDate}` : startDate || endDate;
+  }
+};
+
+const budgetStatusText = (budget?: ChatItinerary['budget']) => {
+  if (!budget) return 'Estimate unavailable';
+  const total = resolvedBudgetTotal(budget);
+  if (!total) return 'Estimate unavailable';
+  const withinBudget = budget.withinBudget ?? budget.feasible ?? (budget.requestedTotal ? total <= budget.requestedTotal : true);
+  return withinBudget ? 'Within budget' : 'Adjustment needed';
+};
+
+const budgetStatusClass = (budget?: ChatItinerary['budget']) => {
+  const total = resolvedBudgetTotal(budget);
+  if (!budget || !total) return 'text-blue-100';
+  const withinBudget = budget.withinBudget ?? budget.feasible ?? (budget.requestedTotal ? total <= budget.requestedTotal : true);
+  return withinBudget ? 'text-emerald-200' : 'text-amber-200';
+};
+
+const SavedTripSuccessCard = ({ itinerary, trip }: { itinerary: ChatItinerary; trip: SavedTrip }) => {
+  const detailPath = trip.detailPath || `/trips/${trip.slug}`;
+  const dateRange = formatDateRange(trip.startDate, trip.endDate);
+  const savedDays = trip.days?.length
+    ? trip.days.slice(0, 4).map((day) => ({
+        day: day.dayNumber,
+        title: day.title,
+        summary: day.summary || day.activities?.slice(0, 3).map((activity) => activity.title).join(', ') || 'Curated trip activities.',
+        image: day.imageUrl,
+      }))
+    : itinerary.days.slice(0, 4).map((day) => ({
+        day: day.day,
+        title: day.shortTitle || day.title,
+        summary: day.description || day.morning || day.afternoon || day.evening || 'Curated trip activities.',
+        image: day.image,
+      }));
+  const breakdown = Object.entries(itinerary.budget?.breakdown ?? {}).filter(([, value]) => typeof value === 'number' && value > 0) as Array<[string, number]>;
 
   return (
-    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-[18px] border border-white/20 bg-white/10 shadow-xl shadow-blue-950/20 backdrop-blur">
-      <div className="grid min-w-0 grid-cols-1 items-start gap-3 p-3 min-[360px]:grid-cols-[96px_minmax(0,1fr)]">
-        <div className="aspect-[16/9] h-auto w-full max-w-full min-w-0 overflow-hidden rounded-[14px] bg-blue-600/50 min-[360px]:aspect-square min-[360px]:max-w-[96px]">
-          {itinerary.coverImage ? (
-            <img src={itinerary.coverImage} alt={`${itinerary.destination} destination`} loading="lazy" className="h-full w-full object-cover" />
-          ) : (
-            <TravelFallbackImage destination={itinerary.destination} />
-          )}
+    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-white/20 bg-slate-950/35 shadow-xl shadow-blue-950/30 backdrop-blur">
+      <div className="border-b border-white/10 bg-emerald-400/10 p-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-300 text-emerald-950 shadow-lg shadow-emerald-950/20">
+            <Check className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <h4 className="text-base font-black text-white">Trip added to your list</h4>
+            <p className="mt-1 text-xs leading-5 text-emerald-50/85">"{trip.title}" has been saved successfully.</p>
+          </div>
         </div>
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-start justify-between gap-2">
-            <h4 className="min-w-0 flex-1 truncate text-[15px] font-semibold leading-tight text-white sm:text-[16px]">{itinerary.title || `${itinerary.destination} Getaway`}</h4>
-            <span className="shrink-0 rounded-full bg-white/12 px-2 py-1 text-xs font-bold text-blue-100">
-              {itinerary.durationDays}D{itinerary.nights !== undefined ? ` / ${itinerary.nights}N` : ''}
-            </span>
+        <a
+          href="/my-trips"
+          className="mt-3 flex min-h-12 items-center justify-between gap-3 rounded-[14px] border border-violet-300/35 bg-violet-500/15 px-3 py-2 text-left text-sm font-bold text-white transition hover:bg-violet-500/25 focus:outline-none focus:ring-2 focus:ring-violet-200"
+        >
+          <span className="min-w-0">
+            <span className="block truncate">View in My Trips</span>
+            <span className="block truncate text-xs font-medium text-violet-100/75">Your saved itinerary is ready.</span>
+          </span>
+          <span aria-hidden="true" className="text-lg text-violet-100">&gt;</span>
+        </a>
+      </div>
+
+      <div className="space-y-4 p-4">
+        <section aria-label="Trip overview" className="rounded-[16px] border border-white/10 bg-white/8 p-3">
+          <p className="mb-2 text-[11px] font-black uppercase tracking-wide text-blue-100/80">Trip overview</p>
+          <div className="grid min-w-0 gap-3 min-[420px]:grid-cols-[92px_minmax(0,1fr)]">
+            <div className="h-24 overflow-hidden rounded-[14px] bg-blue-600/40">
+              {trip.heroImageUrl || itinerary.coverImage ? (
+                <img src={trip.heroImageUrl || itinerary.coverImage} alt={trip.title} loading="lazy" className="h-full w-full object-cover" />
+              ) : (
+                <TravelFallbackImage destination={trip.destination} />
+              )}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <h5 className="min-w-0 truncate text-[15px] font-black text-white">{trip.title}</h5>
+                <span className="shrink-0 rounded-full bg-white/10 px-2 py-1 text-[10px] font-bold text-blue-100">{trip.status || 'UPCOMING'}</span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-bold text-blue-100/90">
+                <span className="rounded-full bg-white/10 px-2 py-1">{trip.durationText || `${trip.durationDays || itinerary.durationDays}D / ${trip.durationNights ?? itinerary.nights ?? 0}N`}</span>
+                <span className="rounded-full bg-white/10 px-2 py-1">{trip.travelerCount || itinerary.travelers || 1} travelers</span>
+                {dateRange ? <span className="rounded-full bg-white/10 px-2 py-1">{dateRange}</span> : null}
+              </div>
+              <p className="mt-2 line-clamp-2 text-[12px] leading-5 text-blue-50/80">{trip.summary || itinerary.summary}</p>
+              <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-bold">
+                <span className="rounded-full bg-slate-950/30 px-2 py-1 text-blue-50">Budget: {formatMoney(trip.budget, trip.currency) || 'Not set'}</span>
+                <span className="rounded-full bg-emerald-400/15 px-2 py-1 text-emerald-200">Estimated: {formatMoney(safeAmount(trip.estimatedCost) || resolvedBudgetTotal(itinerary.budget, true), trip.currency || itinerary.budget?.currency) || 'Estimate unavailable'}</span>
+              </div>
+            </div>
           </div>
-          <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-semibold text-blue-100/90">
-            {itinerary.estimatedBudget || itinerary.totalEstimatedBudget ? (
-              <span className="rounded-full bg-white/10 px-2 py-1">{itinerary.estimatedBudget || formatBudget(itinerary.totalEstimatedBudget)}</span>
-            ) : null}
-            {itinerary.travelers ? <span className="rounded-full bg-white/10 px-2 py-1">{itinerary.travelers} travelers</span> : null}
-            {itinerary.bestTime ? <span className="rounded-full bg-white/10 px-2 py-1">{itinerary.bestTime}</span> : null}
+        </section>
+
+        {savedDays.length > 0 ? (
+          <section aria-label="Itinerary summary">
+            <p className="mb-2 text-[11px] font-black uppercase tracking-wide text-blue-100/80">Itinerary summary</p>
+            <div className="space-y-2">
+              {savedDays.map((day) => (
+                <div key={`${day.day}-${day.title}`} className="grid min-w-0 grid-cols-[minmax(0,1fr)_72px] gap-3 rounded-[14px] border border-white/10 bg-white/8 p-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-black text-white">Day {day.day}: {day.title}</p>
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-blue-100/75">{day.summary}</p>
+                  </div>
+                  <div className="h-14 overflow-hidden rounded-[10px] bg-white/10">
+                    {day.image ? (
+                      <img src={day.image} alt={`Day ${day.day} ${trip.destination}`} loading="lazy" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-blue-100">
+                        <Map className="h-4 w-4" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <section aria-label="Estimated cost" className="rounded-[16px] border border-white/10 bg-white/8 p-3">
+          <p className="mb-2 text-[11px] font-black uppercase tracking-wide text-blue-100/80">Estimated cost</p>
+          <div className="space-y-1.5 text-xs text-blue-50/85">
+            {breakdown.slice(0, 5).map(([label, value]) => (
+              <div key={label} className="flex items-center justify-between gap-3">
+                <span className="capitalize text-blue-100/70">{label}</span>
+                <span className="font-bold">{formatMoney(value, trip.currency || itinerary.budget?.currency) || 'Pending'}</span>
+              </div>
+            ))}
+            <div className="mt-2 flex items-center justify-between border-t border-white/10 pt-2 font-black text-emerald-200">
+              <span>Total estimate</span>
+              <span>{formatMoney(safeAmount(trip.estimatedCost) || resolvedBudgetTotal(itinerary.budget, true), trip.currency || itinerary.budget?.currency) || 'Estimate unavailable'}</span>
+            </div>
           </div>
-          <p className="mt-2 line-clamp-3 text-[12px] leading-5 text-blue-50/85 sm:text-[13px]">{itinerary.summary}</p>
+        </section>
+
+        <div className="grid gap-2 min-[420px]:grid-cols-2">
+          <a href={detailPath} className="flex h-11 items-center justify-center rounded-[13px] border border-white/20 px-3 text-xs font-black text-white transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-200">
+            Edit trip
+          </a>
+          <a href={detailPath} className="flex h-11 items-center justify-center rounded-[13px] bg-gradient-to-r from-violet-500 to-blue-500 px-3 text-xs font-black text-white shadow-lg shadow-violet-950/30 transition hover:from-violet-400 hover:to-blue-400 focus:outline-none focus:ring-2 focus:ring-violet-200">
+            Start trip
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const CompactChatItineraryCard = ({
+  itinerary,
+  onSaveDraft,
+  saving,
+}: {
+  itinerary: ChatItinerary;
+  onSaveDraft?: (draftId: string) => void;
+  saving?: boolean;
+}) => {
+  void ChatItineraryCard;
+  if (itinerary.savedTrip) {
+    return <SavedTripSuccessCard itinerary={itinerary} trip={itinerary.savedTrip} />;
+  }
+
+  const visibleDays = itinerary.days.slice(0, 4);
+  const hiddenDayCount = Math.max(itinerary.days.length - visibleDays.length, 0);
+  const recommendations = itinerary.recommendations?.filter(isDatabaseListing).slice(0, 3) ?? [];
+  const requestedBudget = itinerary.budget?.requestedTotal ? formatMoney(itinerary.budget.requestedTotal, itinerary.budget.currency) : 'Flexible';
+  const estimatedTotal = resolvedBudgetTotal(itinerary.budget, true);
+  const estimatedCost = estimatedTotal
+    ? formatMoney(estimatedTotal, itinerary.budget?.currency)
+    : itinerary.estimatedBudget || formatBudget(itinerary.totalEstimatedBudget) || 'Estimate unavailable';
+
+  return (
+    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-white/20 bg-white/10 shadow-xl shadow-blue-950/25 backdrop-blur">
+      <div className="p-3.5">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/18 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-200">
+            <Sparkles className="h-3 w-3" />
+            New trip
+          </span>
+          <span className="shrink-0 rounded-full bg-white/12 px-2.5 py-1 text-[10px] font-black text-blue-100">
+            {itinerary.durationDays}D{itinerary.nights !== undefined ? ` / ${itinerary.nights}N` : ''}
+          </span>
+        </div>
+
+        <div className="grid min-w-0 gap-3 min-[430px]:grid-cols-[150px_minmax(0,1fr)]">
+          <div className="h-40 min-w-0 overflow-hidden rounded-[16px] bg-blue-600/50 min-[430px]:h-36">
+            {itinerary.coverImage ? (
+              <img src={itinerary.coverImage} alt={`${itinerary.destination} destination`} loading="lazy" className="h-full w-full object-cover" />
+            ) : (
+              <TravelFallbackImage destination={itinerary.destination} />
+            )}
+          </div>
+          <div className="min-w-0">
+            <h4 className="text-[18px] font-black leading-tight text-white">{itinerary.title || `${itinerary.destination} Getaway`}</h4>
+            <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-bold text-blue-100/90">
+              <span className="rounded-full bg-white/10 px-2 py-1">{itinerary.durationDays}D{itinerary.nights !== undefined ? ` / ${itinerary.nights}N` : ''}</span>
+              {itinerary.travelers ? <span className="rounded-full bg-white/10 px-2 py-1">{itinerary.travelers} travelers</span> : null}
+              {itinerary.bestTime ? <span className="rounded-full bg-white/10 px-2 py-1">{itinerary.bestTime}</span> : null}
+            </div>
+            <p className="mt-2 line-clamp-4 text-[12px] leading-5 text-blue-50/85 sm:text-[13px]">{itinerary.summary}</p>
+          </div>
+        </div>
+
+        <div className="mt-3 grid gap-2 min-[420px]:grid-cols-3">
+          {[
+            ['Requested budget', requestedBudget],
+            ['Estimated cost', estimatedCost || 'Pending'],
+            ['Budget status', budgetStatusText(itinerary.budget)],
+          ].map(([label, value], index) => (
+            <div key={label} className="min-w-0 rounded-[14px] border border-white/10 bg-slate-950/20 px-3 py-2.5">
+              <p className="truncate text-[10px] font-semibold text-blue-100/65">{label}</p>
+              <p className={`mt-1 truncate text-xs font-black ${index === 2 ? budgetStatusClass(itinerary.budget) : 'text-white'}`}>{value}</p>
+            </div>
+          ))}
         </div>
       </div>
 
-      <div className="flex w-full min-w-0 gap-2 overflow-x-auto px-3 pb-3 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="grid min-w-0 gap-2 px-3.5 pb-3.5 min-[420px]:grid-cols-3">
         {visibleDays.map((day, index) => (
-          <div key={`${day.day}-${day.title}`} className="w-[112px] min-w-[112px] max-w-[112px] shrink-0 snap-start overflow-hidden rounded-[14px] border border-white/15 bg-white/8 p-2.5">
-            <div className="mb-2 h-12 overflow-hidden rounded-[10px] bg-white/10">
+          <div key={`${day.day}-${day.title}`} className="min-w-0 overflow-hidden rounded-[14px] border border-white/15 bg-white/8 p-2.5">
+            <div className="mb-2 h-16 overflow-hidden rounded-[10px] bg-white/10 min-[420px]:h-12">
               {day.image ? (
                 <img src={day.image} alt={`${itinerary.destination} day ${day.day}`} loading="lazy" className="h-full w-full object-cover" />
               ) : (
@@ -633,8 +1028,8 @@ const CompactChatItineraryCard = ({ itinerary }: { itinerary: ChatItinerary }) =
               )}
             </div>
             <p className="text-[10px] font-black text-blue-100">Day {day.day}</p>
-            <p className="mt-0.5 line-clamp-2 text-[10px] font-semibold leading-4 text-white">{day.shortTitle || day.title}</p>
-            <p className="mt-1 line-clamp-2 text-[9px] leading-3 text-blue-100/75">{day.morning || day.afternoon || day.description}</p>
+            <p className="mt-0.5 line-clamp-2 text-[11px] font-bold leading-4 text-white">{day.shortTitle || day.title}</p>
+            <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-blue-100/75">{day.description || day.morning || day.afternoon}</p>
             {hiddenDayCount > 0 && index === visibleDays.length - 1 ? (
               <p className="mt-1 text-[10px] font-bold text-cyan-200">+{hiddenDayCount} days</p>
             ) : null}
@@ -642,24 +1037,97 @@ const CompactChatItineraryCard = ({ itinerary }: { itinerary: ChatItinerary }) =
         ))}
       </div>
 
+      {recommendations.length > 0 ? (
+        <div className="mx-3 mb-3 grid min-w-0 gap-2">
+          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-cyan-100/90">
+            <Sparkles className="h-3.5 w-3.5" />
+            Marketplace picks
+          </div>
+          <div className="grid min-w-0 gap-2">
+            {recommendations.map((item) => {
+              const detailPath = getListingDetailPath(item);
+              const content = (
+                <>
+                  <div className="h-11 overflow-hidden rounded-[10px] bg-white/10">
+                    {item.imageUrl ? (
+                      <img src={item.imageUrl} alt={item.name} loading="lazy" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-blue-100">
+                        <Hotel className="h-4 w-4" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-center justify-between gap-2">
+                      <p className="min-w-0 truncate text-[12px] font-bold text-white">{item.name}</p>
+                      {item.category ? <span className="shrink-0 rounded-full bg-cyan-400/15 px-2 py-0.5 text-[9px] font-bold text-cyan-100">{item.category}</span> : null}
+                    </div>
+                    <p className="mt-0.5 truncate text-[10px] text-blue-100/75">{item.location || item.priceText || 'Marketplace listing'}</p>
+                    <div className="mt-0.5 flex min-w-0 items-center justify-between gap-2 text-[10px] text-blue-50/80">
+                      {item.priceText ? <span className="min-w-0 truncate font-semibold">{item.priceText}</span> : <span />}
+                      {item.ratingText ? <span className="shrink-0">{item.ratingText}</span> : null}
+                    </div>
+                  </div>
+                </>
+              );
+              const className = "grid min-w-0 grid-cols-[44px_minmax(0,1fr)] gap-2 rounded-[12px] border border-white/10 bg-slate-950/20 p-2 transition hover:border-cyan-200/40 hover:bg-white/12";
+              return detailPath ? (
+                <a key={item.id ?? item.name} href={detailPath} className={className}>
+                  {content}
+                </a>
+              ) : (
+                <div key={item.id ?? item.name} className={`${className} cursor-not-allowed opacity-75`} aria-disabled="true">
+                  {content}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
       <div className="mx-3 mb-3 min-w-0 overflow-hidden rounded-[14px]">
         <div className="aspect-[16/7] w-full">
-          <MapMiniPreview destination={itinerary.destination} />
+          {itinerary.mapImage ? (
+            <img src={itinerary.mapImage} alt={itinerary.mapLabel || itinerary.destination} loading="lazy" className="h-full w-full object-cover" />
+          ) : (
+            <MapMiniPreview destination={itinerary.mapLabel || itinerary.destination} />
+          )}
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-white/15 px-3 py-3">
-        <button type="button" className="min-w-0 truncate text-[11px] font-bold text-cyan-200 transition hover:text-white">
+      <div className="grid gap-2 border-t border-white/15 px-3.5 py-3 min-[420px]:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)]">
+        <button type="button" className="flex h-11 min-w-0 items-center justify-center rounded-[13px] border border-white/20 px-3 text-[12px] font-black text-white transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-200">
           View full itinerary
         </button>
-        <div className="flex shrink-0 items-center gap-1">
-          <button type="button" aria-label="Helpful itinerary" className="flex h-7 w-7 items-center justify-center rounded-full text-blue-100 transition hover:bg-white/10">
-            <ThumbsUp className="h-3.5 w-3.5" />
+        {itinerary.supportsTripSave && itinerary.draftId ? (
+          <button
+            type="button"
+            onClick={() => onSaveDraft?.(itinerary.draftId!)}
+            disabled={saving}
+            className="flex h-11 min-w-0 items-center justify-center rounded-[13px] bg-gradient-to-r from-violet-500 to-blue-500 px-3 text-[12px] font-black text-white shadow-lg shadow-violet-950/30 transition hover:from-violet-400 hover:to-blue-400 focus:outline-none focus:ring-2 focus:ring-violet-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {saving ? 'Adding trip...' : 'Add to my trips'}
           </button>
-          <button type="button" aria-label="Not helpful itinerary" className="flex h-7 w-7 items-center justify-center rounded-full text-blue-100 transition hover:bg-white/10">
-            <ThumbsDown className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        ) : (
+          <div className="flex items-center justify-end gap-1">
+            <button type="button" aria-label="Helpful itinerary" className="flex h-9 w-9 items-center justify-center rounded-full text-blue-100 transition hover:bg-white/10">
+              <ThumbsUp className="h-3.5 w-3.5" />
+            </button>
+            <button type="button" aria-label="Not helpful itinerary" className="flex h-9 w-9 items-center justify-center rounded-full text-blue-100 transition hover:bg-white/10">
+              <ThumbsDown className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+        {itinerary.supportsTripSave && itinerary.draftId ? (
+          <div className="flex items-center justify-center gap-1 min-[420px]:col-span-2">
+            <button type="button" aria-label="Helpful itinerary" className="flex h-7 w-7 items-center justify-center rounded-full text-blue-100 transition hover:bg-white/10">
+              <ThumbsUp className="h-3.5 w-3.5" />
+            </button>
+            <button type="button" aria-label="Not helpful itinerary" className="flex h-7 w-7 items-center justify-center rounded-full text-blue-100 transition hover:bg-white/10">
+              <ThumbsDown className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -691,6 +1159,96 @@ const ChatItinerarySkeleton = () => (
   </div>
 );
 
+const formatListingPrice = (listing: any) => {
+  const amount = Number(listing?.basePrice);
+  if (!Number.isFinite(amount)) return 'Price unavailable';
+  const currency = listing?.currency || 'VND';
+  try {
+    return new Intl.NumberFormat('vi-VN', {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  } catch {
+    return `${amount.toLocaleString('vi-VN')} ${currency}`;
+  }
+};
+
+const hydrateTravelContext = (messages: TravelChatMessage[]): Record<string, unknown> => {
+  return (
+    [...messages]
+      .reverse()
+      .find((message) => message.extractedContext && Object.keys(message.extractedContext).length > 0)
+      ?.extractedContext || {}
+  );
+};
+
+const CompactRecommendationCards = ({ recommendations }: { recommendations: AssistantListingRecommendation[] }) => {
+  const databaseRecommendations = recommendations.filter(isDatabaseListing).slice(0, 4);
+  if (!databaseRecommendations.length) {
+    return null;
+  }
+  return (
+  <div className="motion-fade-up w-full min-w-0 overflow-hidden rounded-[18px] border border-white/12 bg-white/10 p-3 shadow-xl shadow-blue-950/20">
+    <div className="mb-3 flex items-center gap-2">
+      <Sparkles className="h-4 w-4 text-cyan-200" />
+      <h4 className="text-sm font-bold text-white">Marketplace matches</h4>
+    </div>
+    <div className="grid gap-2">
+      {databaseRecommendations.map((recommendation) => {
+        const listing = recommendation;
+        const image = getListingImage(recommendation) || recommendation.imageUrl;
+        const title = listing.title || listing.name || 'Marketplace listing';
+        const location = listing.location || [listing.city, listing.country].filter(Boolean).join(', ') || 'Location available in details';
+        const price = listing.priceText || formatListingPrice(listing);
+        const rating = listing.ratingText || (listing.averageRating ? `★ ${listing.averageRating} (${listing.reviewCount || 0})` : 'No reviews');
+        const href = getListingDetailPath(listing);
+        const cardContent = (
+          <>
+            <div className="h-14 overflow-hidden rounded-xl bg-white/10">
+              {image ? (
+                <img src={image} alt={title} loading="lazy" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-blue-100">
+                  <Hotel className="h-5 w-5" />
+                </div>
+              )}
+            </div>
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-start justify-between gap-2">
+                <p className="min-w-0 truncate text-sm font-bold text-white">{title}</p>
+                <span className="shrink-0 rounded-full bg-cyan-400/15 px-2 py-0.5 text-[10px] font-bold text-cyan-100">{listing.category || 'Travel'}</span>
+              </div>
+              <p className="mt-1 flex min-w-0 items-center gap-1 truncate text-[11px] text-blue-100/80">
+                <Pin className="h-3 w-3 shrink-0" />
+                {location}
+              </p>
+              <div className="mt-1 flex min-w-0 items-center justify-between gap-2 text-[11px]">
+                <span className="truncate font-semibold text-white">{price}</span>
+                <span className="shrink-0 text-blue-100/75">{rating}</span>
+              </div>
+              {recommendation.reasoning || listing.shortDescription ? <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-blue-50/75">{recommendation.reasoning || listing.shortDescription}</p> : null}
+            </div>
+          </>
+        );
+        const className = "grid min-w-0 grid-cols-[58px_minmax(0,1fr)] gap-3 rounded-[14px] border border-white/10 bg-slate-950/20 p-2 transition hover:border-cyan-200/40 hover:bg-white/12";
+        return (
+          href ? (
+            <a key={listing.id ?? `${title}-${recommendation.rank ?? ''}`} href={href} className={className}>
+              {cardContent}
+            </a>
+          ) : (
+            <div key={listing.id ?? `${title}-${recommendation.rank ?? ''}`} className={`${className} cursor-not-allowed opacity-75`} aria-disabled="true">
+              {cardContent}
+            </div>
+          )
+        );
+      })}
+    </div>
+  </div>
+  );
+};
+
 const AttachmentPreview = ({ attachments, onRemove }: { attachments: ChatAttachment[]; onRemove: (id: string) => void }) => {
   if (attachments.length === 0) return null;
 
@@ -718,14 +1276,39 @@ const AttachmentPreview = ({ attachments, onRemove }: { attachments: ChatAttachm
   );
 };
 
-const TravelMessage = ({ message }: { message: TravelChatMessage }) => {
+const TravelMessage = ({
+  message,
+  onSaveDraft,
+  savingDraftId,
+}: {
+  message: TravelChatMessage;
+  onSaveDraft?: (messageId: string, draftId: string) => void;
+  savingDraftId?: string | null;
+}) => {
   const isUser = message.role === 'user';
-  if (!isUser && message.kind === 'ITINERARY' && (message.itineraryCard || message.itinerary)) {
+  if (!isUser && (message.type === 'ITINERARY' || message.kind === 'ITINERARY') && (message.itineraryCard || message.itinerary)) {
     const itinerary = message.itineraryCard || normalizeTripPlanForChat(message.itinerary as TripPlanResponse, message.images);
     return (
       <div className="motion-fade-up flex w-full min-w-0 justify-start">
         <div className="w-full min-w-0 max-w-full">
-          <CompactChatItineraryCard itinerary={itinerary} />
+          <CompactChatItineraryCard
+            itinerary={{ ...itinerary, savedTrip: message.savedTrip }}
+            onSaveDraft={(draftId) => onSaveDraft?.(message.id, draftId)}
+            saving={Boolean(itinerary.draftId && savingDraftId === itinerary.draftId)}
+          />
+          <div className="mt-1 flex items-center gap-1 text-[10px] text-blue-200/70">
+            <span>{formatTime(message.createdAt)}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isUser && (message.type === 'RECOMMENDATIONS' || message.kind === 'LISTING_RECOMMENDATIONS') && message.recommendations?.length) {
+    return (
+      <div className="motion-fade-up flex w-full min-w-0 justify-start">
+        <div className="w-full min-w-0 max-w-full">
+          <CompactRecommendationCards recommendations={message.recommendations} />
           <div className="mt-1 flex items-center gap-1 text-[10px] text-blue-200/70">
             <span>{formatTime(message.createdAt)}</span>
           </div>
@@ -769,7 +1352,12 @@ const TravelMessage = ({ message }: { message: TravelChatMessage }) => {
 };
 
 export const TravelAiChat: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
+  const accountOwnerId = user?.id ?? null;
+  const accountOwnerKey = getChatStorageKey(accountOwnerId);
+  const accountOwnerRef = useRef(accountOwnerKey);
+  const previousOwnerKeyRef = useRef<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const launcherButtonRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -777,6 +1365,7 @@ export const TravelAiChat: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestControllerRef = useRef<AbortController | null>(null);
   const [chatState, setChatState] = useState<ChatTransitionState>('closed');
   const [launcherCompress, setLauncherCompress] = useState(false);
   const [launcherPortalActive, setLauncherPortalActive] = useState(false);
@@ -788,11 +1377,18 @@ export const TravelAiChat: React.FC = () => {
   const [lastCompletedMessageId, setLastCompletedMessageId] = useState<string>();
   const [unreadCount, setUnreadCount] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  const [pendingResponseKind, setPendingResponseKind] = useState<'TEXT' | 'ITINERARY' | null>(null);
+  const [pendingResponseKind, setPendingResponseKind] = useState<'TEXT' | 'ITINERARY' | 'LISTING_RECOMMENDATIONS' | null>(null);
+  const [savingDraftId, setSavingDraftId] = useState<string | null>(null);
   const [suggestedActions, setSuggestedActions] = useState<string[]>(suggestionChips);
-  const [messages, setMessages] = useState<TravelChatMessage[]>(() => hydrateMessages(user?.fullName?.split(' ')[0]));
+  const [messages, setMessages] = useState<TravelChatMessage[]>(() => [createGreetingMessage()]);
+  const [messagesOwnerKey, setMessagesOwnerKey] = useState(accountOwnerKey);
+  const [travelContext, setTravelContext] = useState<Record<string, unknown>>({});
 
-  const history = useMemo<AssistantMessage[]>(() => messages.map(({ role, content }) => ({ role, content })), [messages]);
+  const ownerScopedMessages = useMemo(
+    () => messagesOwnerKey === accountOwnerKey ? messages : [createGreetingMessage(user?.fullName?.split(' ')[0])],
+    [accountOwnerKey, messages, messagesOwnerKey, user?.fullName]
+  );
+  const history = useMemo<AssistantMessage[]>(() => ownerScopedMessages.map(({ role, content }) => ({ role, content })), [ownerScopedMessages]);
   const reducedMotion = useReducedMotion();
   const isVisible = chatState !== 'closed';
   const robotMood = useRobotMood({
@@ -801,6 +1397,48 @@ export const TravelAiChat: React.FC = () => {
     lastCompletedMessageId,
   });
   const canSend = input.trim().length > 0 || attachments.length > 0;
+
+  const latestDraftMessage = useMemo(
+    () => [...ownerScopedMessages].reverse().find((message) => message.itineraryCard?.draftId && !message.savedTrip),
+    [ownerScopedMessages]
+  );
+
+  const saveTripDraft = async (messageId: string, draftId: string) => {
+    if (savingDraftId) return;
+    const requestOwnerKey = accountOwnerRef.current;
+    setSavingDraftId(draftId);
+    setRequestError(false);
+    try {
+      const result = await aiService.confirmTripDraft(draftId);
+      if (requestOwnerKey !== accountOwnerRef.current) return;
+      setMessages((current) => current.map((message) => {
+        if (message.id !== messageId) return message;
+        return {
+          ...message,
+          savedTrip: result.trip,
+          itineraryCard: message.itineraryCard ? { ...message.itineraryCard, savedTrip: result.trip } : message.itineraryCard,
+        };
+      }));
+      await queryClient.invalidateQueries({ queryKey: ['my-trips'] });
+      await queryClient.invalidateQueries({ queryKey: ['trip-detail', result.trip.slug] });
+      setSuggestedActions(['View in My Trips', 'Continue editing']);
+    } catch (error) {
+      if (requestOwnerKey !== accountOwnerRef.current) return;
+      console.error('Failed to save AI trip draft:', error);
+      setRequestError(true);
+      setMessages((current) => [
+        ...current,
+        createMessage('assistant', 'I could not add that trip to My Trips yet. Please try again.', undefined, {
+          type: 'ERROR',
+          kind: 'ERROR',
+        }),
+      ]);
+    } finally {
+      if (requestOwnerKey === accountOwnerRef.current) {
+        setSavingDraftId(null);
+      }
+    }
+  };
 
   const resizeComposer = (node: HTMLTextAreaElement) => {
     node.style.height = '42px';
@@ -821,6 +1459,38 @@ export const TravelAiChat: React.FC = () => {
     }
   };
 
+  const clearSensitiveAiQueries = useCallback(() => {
+    queryClient.removeQueries({ queryKey: ['ai-conversations'] });
+    queryClient.removeQueries({ queryKey: ['ai-conversation'] });
+    queryClient.removeQueries({ queryKey: ['ai-trip-draft'] });
+    queryClient.removeQueries({ queryKey: ['my-trips'] });
+    queryClient.removeQueries({ queryKey: ['trip-detail'] });
+  }, [queryClient]);
+
+  const resetAiChatState = useCallback((storageKey: string, fallbackName?: string) => {
+    requestControllerRef.current?.abort();
+    requestControllerRef.current = null;
+    setIsLoading(false);
+    setRequestError(false);
+    setUploadError('');
+    setInput('');
+    setPendingResponseKind(null);
+    setSavingDraftId(null);
+    setSuggestedActions(suggestionChips);
+    setUnreadCount(0);
+    setLastCompletedMessageId(undefined);
+    setAttachments((current) => {
+      current.forEach((attachment) => URL.revokeObjectURL(attachment.previewUrl));
+      return [];
+    });
+    const nextMessages = hydrateMessages(storageKey, fallbackName);
+    setMessages(nextMessages);
+    setMessagesOwnerKey(storageKey);
+    setTravelContext(hydrateTravelContext(nextMessages));
+    if (textareaRef.current) textareaRef.current.style.height = '42px';
+    clearSensitiveAiQueries();
+  }, [clearSensitiveAiQueries]);
+
   const startLauncherCompress = () => {
     if (reducedMotion) return;
     setLauncherCompress(true);
@@ -838,11 +1508,31 @@ export const TravelAiChat: React.FC = () => {
   };
 
   useEffect(() => {
+    accountOwnerRef.current = accountOwnerKey;
+  }, [accountOwnerKey]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    const previousOwnerKey = previousOwnerKeyRef.current;
+    if (previousOwnerKey === accountOwnerKey) return;
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(CHAT_STORAGE_KEY);
+      if (previousOwnerKey && previousOwnerKey !== accountOwnerKey) {
+        window.localStorage.removeItem(previousOwnerKey);
+      }
+    }
+
+    previousOwnerKeyRef.current = accountOwnerKey;
+    resetAiChatState(accountOwnerKey, user?.fullName?.split(' ')[0]);
+  }, [accountOwnerKey, authLoading, resetAiChatState, user?.fullName]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, isLoading, isVisible]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || authLoading || messagesOwnerKey !== accountOwnerKey) return;
     const serializable = messages.map((message) => ({
       ...message,
       attachments: message.attachments?.map((attachment) => ({
@@ -851,8 +1541,12 @@ export const TravelAiChat: React.FC = () => {
         previewUrl: attachment.uploadedUrl || attachment.previewUrl,
       })),
     }));
-    window.localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(serializable));
-  }, [messages]);
+    window.localStorage.removeItem(CHAT_STORAGE_KEY);
+    window.localStorage.setItem(accountOwnerKey, JSON.stringify({
+      ownerKey: accountOwnerKey,
+      messages: serializable,
+    }));
+  }, [accountOwnerKey, authLoading, messages, messagesOwnerKey]);
 
   useEffect(() => {
     if (!isVisible) return;
@@ -875,6 +1569,7 @@ export const TravelAiChat: React.FC = () => {
     return () => {
       clearCloseTimer();
       clearFocusTimer();
+      requestControllerRef.current?.abort();
     };
   }, []);
 
@@ -977,17 +1672,58 @@ export const TravelAiChat: React.FC = () => {
 
   const sendMessage = async (text = input) => {
     if ((!text.trim() && attachments.length === 0) || isLoading) return;
+    const requestOwnerKey = accountOwnerRef.current;
+    const requestOwnerId = accountOwnerId;
     const trimmedText = text.trim();
-    const wantsItinerary = isTripPlanningPrompt(trimmedText);
+    if (trimmedText && isTripSaveConfirmation(trimmedText)) {
+      const userMessage = createMessage('user', trimmedText);
+      setMessages((current) => [...current, userMessage]);
+      setInput('');
+      if (textareaRef.current) textareaRef.current.style.height = '42px';
+      if (latestDraftMessage?.itineraryCard?.draftId) {
+        await saveTripDraft(latestDraftMessage.id, latestDraftMessage.itineraryCard.draftId);
+      } else {
+        setMessages((current) => [
+          ...current,
+          createMessage('assistant', 'I do not have an active trip preview to save yet. Tell me where you want to go and I will prepare one first.', undefined, {
+            type: 'CLARIFICATION',
+          }),
+        ]);
+      }
+      return;
+    }
+    const destination = extractDestination(trimmedText);
+    const conversationalOnly = isConversationalPrompt(trimmedText);
+    const hasTravelContext = !conversationalOnly && Boolean(destination || travelContext.destination || travelContext.responseMode);
+    const wantsItinerary = !conversationalOnly && (isTripPlanningPrompt(trimmedText) || (hasTravelContext && /cheaper|more food|near the beach|what should|what to do|ideas|weekend|wife|people|re hon|them mon an/i.test(normalizePromptText(trimmedText))));
+    const wantsRecommendations = !conversationalOnly && !wantsItinerary && (isListingRecommendationPrompt(trimmedText) || hasTravelContext);
+    const responseKind = conversationalOnly ? 'TEXT' : wantsItinerary ? 'ITINERARY' : wantsRecommendations ? 'LISTING_RECOMMENDATIONS' : 'TEXT';
+    const controller = new AbortController();
+    requestControllerRef.current?.abort();
+    requestControllerRef.current = controller;
     setIsLoading(true);
     setRequestError(false);
-    setPendingResponseKind(wantsItinerary ? 'ITINERARY' : 'TEXT');
+    setPendingResponseKind(responseKind);
     setUploadError('');
 
     try {
       const uploaded = await uploadAttachments();
+      if (requestOwnerKey !== accountOwnerRef.current || controller.signal.aborted) return;
       const uploadedUrls = uploaded.map((attachment) => attachment.uploadedUrl).filter(Boolean);
-      const messageContent = [trimmedText || 'Please review these travel images.', uploadedUrls.length ? `Attached image URLs:\n${uploadedUrls.join('\n')}` : '']
+      const inferredBudget = extractBudget(trimmedText);
+      const inferredCategories = inferCategories(trimmedText);
+      const inferredDuration = wantsItinerary ? extractDuration(trimmedText) : undefined;
+      const hintLines = [
+        destination ? `Destination hint: ${destination}` : '',
+        inferredDuration ? `Duration hint: ${inferredDuration} days` : '',
+        inferredBudget ? `Budget hint: ${inferredBudget} VND` : '',
+        inferredCategories?.length ? `Category hints: ${inferredCategories.join(', ')}` : '',
+      ].filter(Boolean);
+      const messageContent = [
+        trimmedText || 'Please review these travel images.',
+        hintLines.length ? `Travel context hints:\n${hintLines.join('\n')}` : '',
+        uploadedUrls.length ? `Attached image URLs:\n${uploadedUrls.join('\n')}` : '',
+      ]
         .filter(Boolean)
         .join('\n\n');
       const userMessage = createMessage(
@@ -1002,83 +1738,44 @@ export const TravelAiChat: React.FC = () => {
       setAttachments([]);
       setSuggestedActions([]);
 
-      let aiMessage: TravelChatMessage;
-      if (wantsItinerary) {
-        const destination = extractDestination(trimmedText);
-        const durationDays = extractDuration(trimmedText);
-        const travelers = trimmedText.match(/(\d+)\s*(?:people|travelers|adults|guests)/i)?.[1]
-          ? Number(trimmedText.match(/(\d+)\s*(?:people|travelers|adults|guests)/i)?.[1])
-          : undefined;
-        const [tripPlan, recommendations] = await Promise.all([
-          aiService.planTrip({
-            naturalLanguageQuery: trimmedText,
-            destination,
-            durationDays,
-            groupSize: travelers,
-          }),
-          aiService
-            .getRecommendations({
-              destination,
-              interests: ['HOTEL', 'EXPERIENCE'],
-              categories: ['HOTEL', 'TOUR', 'EXPERIENCE'],
-              size: 4 } as any)
-            .catch(() => null),
-        ]);
-        const images = recommendations?.recommendations?.map(getListingImage).filter(Boolean) || [];
-        const itineraryCard = normalizeTripPlanForChat(tripPlan, images, travelers);
-        aiMessage = createMessage('assistant', tripPlan.aiSummary || `Here is a structured itinerary for ${tripPlan.destination}.`, undefined, {
-          kind: 'ITINERARY',
-          itinerary: tripPlan,
-          itineraryCard,
-          images,
-        });
-      } else {
-        const response = await aiService.chatWithAssistant({
+      const response = await aiService.chatWithAssistant(
+        {
           message: messageContent,
-          history,
-        });
-        const textItinerary = parseTextItinerary(response.reply || '', trimmedText);
-        if (textItinerary) {
-          const recommendationImages = await aiService
-            .getRecommendations({
-              destination: textItinerary.destination,
-              interests: ['HOTEL', 'EXPERIENCE'],
-              categories: ['HOTEL', 'TOUR', 'EXPERIENCE'],
-            })
-            .then((result) => result.recommendations?.map(getListingImage).filter(Boolean) || [])
-            .catch(() => []);
-          const daysWithImages = textItinerary.days.map((day, index) => ({
-            ...day,
-            image: day.image || recommendationImages[index + 1] || recommendationImages[index],
-          }));
-          aiMessage = createMessage('assistant', response.reply || `Here is a structured itinerary for ${textItinerary.destination}.`, undefined, {
-            kind: 'ITINERARY',
-            itineraryCard: {
-              ...textItinerary,
-              coverImage: textItinerary.coverImage || recommendationImages[0],
-              days: daysWithImages,
-            },
-            images: recommendationImages,
-          });
-        } else {
-          aiMessage = createMessage('assistant', response.reply || 'I found a few travel ideas for you.');
-        }
-        setSuggestedActions(response.suggestedActions?.length ? response.suggestedActions : suggestionChips);
+          history: history.slice(-12),
+          historyOwnerId: requestOwnerId,
+          contextDestination: destination,
+          extractedContext: travelContext,
+        },
+        controller.signal
+      );
+      if (requestOwnerKey !== accountOwnerRef.current || controller.signal.aborted) return;
+      const aiMessage = normalizeAssistantResponse(response);
+      if (response.extractedContext) {
+        setTravelContext(response.extractedContext);
       }
+      const nextSuggestions = response.itineraryCard?.followUpSuggestions || response.suggestions || response.suggestedActions || [];
+      setSuggestedActions(nextSuggestions.length ? nextSuggestions : suggestionChips);
       setMessages([...nextMessages, aiMessage]);
       setLastCompletedMessageId(aiMessage.id);
       if (aiMessage.kind === 'ITINERARY') {
-        setSuggestedActions(['Adjust this for a lower budget', 'Add more food stops', 'Make it family-friendly']);
+        setSuggestedActions(aiMessage.itineraryCard?.followUpSuggestions?.length ? aiMessage.itineraryCard.followUpSuggestions : ['Adjust this for a lower budget', 'Add more food stops', 'Make it family-friendly']);
       }
       if (!isVisible) setUnreadCount((count) => count + 1);
     } catch (error) {
+      if ((error as any)?.name === 'CanceledError' || (error as any)?.code === 'ERR_CANCELED') return;
+      if (requestOwnerKey !== accountOwnerRef.current) return;
       console.error('Failed to send chat message:', error);
       setRequestError(true);
       setUploadError(error instanceof Error ? error.message : 'The AI concierge could not respond right now.');
       setMessages((current) => [...current, createMessage('assistant', 'Sorry, I could not connect to the travel concierge right now. Please try again.')]);
     } finally {
-      setIsLoading(false);
-      setPendingResponseKind(null);
+      if (requestControllerRef.current === controller) {
+        requestControllerRef.current = null;
+      }
+      if (requestOwnerKey === accountOwnerRef.current) {
+        setIsLoading(false);
+        setPendingResponseKind(null);
+      }
     }
   };
 
@@ -1296,8 +1993,13 @@ export const TravelAiChat: React.FC = () => {
               ))}
             </motion.div>
             <div className="min-w-0 space-y-4">
-              {messages.slice(1).map((message) => (
-                <TravelMessage key={message.id} message={message} />
+              {ownerScopedMessages.slice(1).map((message) => (
+                <TravelMessage
+                  key={message.id}
+                  message={message}
+                  onSaveDraft={saveTripDraft}
+                  savingDraftId={savingDraftId}
+                />
               ))}
               {isLoading && pendingResponseKind === 'ITINERARY' && <ChatItinerarySkeleton />}
               {isLoading && pendingResponseKind !== 'ITINERARY' && (
@@ -1308,7 +2010,7 @@ export const TravelAiChat: React.FC = () => {
                       <span className="h-2 w-2 animate-bounce rounded-full bg-blue-200 [animation-delay:-60ms]" />
                       <span className="h-2 w-2 animate-bounce rounded-full bg-blue-200" />
                     </span>
-                    Thinking...
+                    {pendingResponseKind === 'LISTING_RECOMMENDATIONS' ? 'Searching marketplace data...' : 'Building your response...'}
                   </div>
                 </div>
               )}

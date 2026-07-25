@@ -38,9 +38,9 @@ export const AiAssistantPage: React.FC = () => {
         history: messages
       });
 
-      setMessages([...newHistory, { role: 'assistant', content: response.reply }]);
-      if (response.suggestedActions) {
-        setSuggestedActions(response.suggestedActions);
+      setMessages([...newHistory, { role: 'assistant', content: response.message || response.reply || 'I found a travel response for you.' }]);
+      if (response.suggestions || response.suggestedActions) {
+        setSuggestedActions(response.suggestions || response.suggestedActions || []);
       }
     } catch (error) {
       console.error('Failed to chat:', error);

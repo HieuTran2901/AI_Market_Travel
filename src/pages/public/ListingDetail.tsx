@@ -24,6 +24,7 @@ import {
   Printer,
   ReceiptText,
   ShieldCheck,
+  ShoppingBag,
   ShoppingCart,
   Sparkles,
   Star,
@@ -43,6 +44,7 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { StateBlock } from '@/components/ui/StateBlock';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { BookingRequestModal } from '@/components/listing/BookingRequestModal';
+import { ExtrasServicesTab } from '@/components/listing/ExtrasServicesTab';
 import { PhotoLightbox } from '@/components/listing/PhotoLightbox';
 import { ReviewSection } from '@/components/listing/ReviewSection';
 import { useAuth } from '@/context/AuthContext';
@@ -50,7 +52,7 @@ import { cn } from '@/lib/utils';
 import { listingService } from '@/services/listingService';
 import type { ListingResponse } from '@/types/listing';
 
-type DetailTab = 'overview' | 'rates' | 'amenities' | 'location' | 'policies' | 'reviews';
+type DetailTab = 'overview' | 'rates' | 'amenities' | 'location' | 'policies' | 'reviews' | 'extras';
 
 type DetailItem = {
   key: string;
@@ -837,6 +839,7 @@ export const ListingDetail: React.FC = () => {
     { id: 'location', label: 'Location', icon: MapPin },
     { id: 'policies', label: 'Policies', icon: ShieldCheck },
     { id: 'reviews', label: `Reviews (${listing.reviewCount})`, icon: Star },
+    { id: 'extras', label: 'Extras & Services', icon: ShoppingBag },
   ];
 
   const providerDetails = listing.details || {};
@@ -2010,6 +2013,10 @@ export const ListingDetail: React.FC = () => {
                   <div className="motion-fade-up">
                     <ReviewSection listingId={listing.id} averageRating={listing.averageRating} reviewCount={listing.reviewCount} listingTitle={listing.title} />
                   </div>
+                )}
+
+                {activeTab === 'extras' && (
+                  <ExtrasServicesTab listing={listing} isAuthenticated={isAuthenticated} />
                 )}
               </div>
             </section>

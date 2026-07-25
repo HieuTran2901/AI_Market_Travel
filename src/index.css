@@ -37,6 +37,21 @@
     --input: 215 15% 85%;
     --ring: 199 89% 48%;
 
+    --sidebar-border: 240 5.9% 90%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* AI Coins Modal Light Theme */
+    --ai-coins-surface: #ffffff;
+    --ai-coins-surface-secondary: #f8faff;
+    --ai-coins-surface-muted: #f3f6fc;
+    --ai-coins-border: #e3e8f2;
+    --ai-coins-border-strong: #d6ddeb;
+    --ai-coins-text-primary: #111b34;
+    --ai-coins-text-secondary: #64708a;
+    --ai-coins-shadow: 0 24px 70px rgba(39, 58, 110, 0.16);
+    --ai-coins-summary-bg: #f8faff;
+    --ai-coins-divider: #e1e7f0;
+
     --radius: 0.75rem;
   }
 
@@ -68,6 +83,21 @@
     --border: 215 28% 17%;
     --input: 215 28% 17%;
     --ring: 199 89% 48%;
+
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* AI Coins Modal Dark Theme */
+    --ai-coins-surface: #0d172a;
+    --ai-coins-surface-secondary: #111d32;
+    --ai-coins-surface-muted: #152139;
+    --ai-coins-border: rgba(158, 176, 210, 0.28);
+    --ai-coins-border-strong: rgba(172, 190, 225, 0.42);
+    --ai-coins-text-primary: #f7f9ff;
+    --ai-coins-text-secondary: #b6c0d4;
+    --ai-coins-shadow: 0 28px 90px rgba(0, 0, 0, 0.48);
+    --ai-coins-summary-bg: rgba(17, 29, 50, 0.6);
+    --ai-coins-divider: rgba(158, 176, 210, 0.15);
   }
 }
 
@@ -965,5 +995,52 @@
     .travel-ai-motion-panel {
       transition: opacity 80ms ease;
     }
+  }
+}
+@layer components {
+  .wheel-reward-chest {
+    height: 4.5rem; /* 72px */
+    width: 5rem;    /* 80px */
+    object-fit: contain;
+    pointer-events: none;
+    user-select: none;
+    margin-bottom: 0.125rem;
+  }
+
+  .jackpot-chest {
+    height: 10rem; /* 160px */
+    width: 100%;
+    max-width: 16rem;
+    object-fit: contain;
+    pointer-events: none;
+    user-select: none;
+    margin: 0 auto;
+    filter: drop-shadow(0 0 28px rgba(245, 158, 11, 0.36));
+  }
+
+  .special-reward-chest {
+    height: 3rem; /* 48px */
+    width: 3rem;  /* 48px */
+    object-fit: contain;
+    pointer-events: none;
+    user-select: none;
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4));
+  }
+
+  .special-reward-chest.premium {
+    height: 3.5rem; /* 56px - slightly larger as per requirements */
+    width: 3.5rem;
+    margin-top: -0.25rem;
+  }
+
+  .daily-mission-chest {
+    height: 5.5rem; /* 88px */
+    width: 6rem;    /* 96px */
+    object-fit: contain;
+    pointer-events: none;
+    user-select: none;
+    filter: drop-shadow(0 0 12px rgba(0,0,0,0.4));
+    margin-top: -0.5rem; /* slightly upward for emphasis */
+    margin-bottom: -0.5rem;
   }
 }

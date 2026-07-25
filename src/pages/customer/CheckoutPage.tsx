@@ -39,9 +39,11 @@ import { StateBlock } from "../../components/ui/StateBlock";
 import { StatusBadge } from "../../components/ui/StatusBadge";
 import { PaymentTimeline } from "../../components/payment/PaymentTimeline";
 import { DevControls } from "../../components/payment/DevControls";
+import coinGoldImage from "../../assets/images/coin-gold.png";
 import { bookingService } from "../../services/bookingService";
 import { paymentService } from "../../services/paymentService";
 import { useAuth } from "../../context/AuthContext";
+import { cn } from "../../lib/utils";
 import {
   Cart,
   CartItem,
@@ -50,6 +52,11 @@ import {
   PaymentStatus,
   PriceBreakdownDto,
 } from "../../types/payment";
+import {
+  FALLBACK_AI_COIN_BALANCE,
+  getAiCoinBreakdown,
+  type AiCoinBreakdown,
+} from "./checkoutAiCoins";
 
 type CheckoutStep = "details" | "payment" | "review" | "processing" | "result";
 type DevOutcome = "success" | "failed" | "expired";
@@ -62,6 +69,7 @@ type PaymentMethodOption = {
   description: string;
   badge: string;
   disabled?: boolean;
+  featuredLabel?: string;
 };
 
 const PAYMENT_METHODS: PaymentMethodOption[] = [
@@ -81,9 +89,9 @@ const PAYMENT_METHODS: PaymentMethodOption[] = [
   {
     value: PaymentMethod.MOMO,
     label: "MoMo",
-    description: "Mobile wallet payment, coming soon",
+    description: "Vietnam mobile wallet",
     badge: "MoMo",
-    disabled: true,
+    featuredLabel: "Sandbox",
   },
   {
     value: PaymentMethod.PAYPAL,
@@ -98,6 +106,13 @@ const PAYMENT_METHODS: PaymentMethodOption[] = [
     description: "Vietnam mobile wallet, coming soon",
     badge: "ZALOPAY",
     disabled: true,
+  },
+  {
+    value: PaymentMethod.AI_COINS,
+    label: "AI Coins",
+    description: "Pay with your coins",
+    badge: "AI_COINS",
+    featuredLabel: "Best value",
   },
 ];
 
@@ -447,13 +462,19 @@ function getPaymentMeta(method: PaymentMethodOption): PaymentCardMeta {
       return {
         title: "MoMo",
         description: "Vietnam mobile wallet",
-        status: "Coming Soon",
+        status: "Available",
       };
     case PaymentMethod.PAYPAL:
       return {
         title: "PayPal",
         description: "International wallet",
         status: "Coming Soon",
+      };
+    case PaymentMethod.AI_COINS:
+      return {
+        title: "AI Coins",
+        description: "Pay with your coins",
+        status: "Available",
       };
     case PaymentMethod.STRIPE:
     default:
@@ -466,6 +487,19 @@ function getPaymentMeta(method: PaymentMethodOption): PaymentCardMeta {
 }
 
 function PaymentLogoMark({ logo }: { logo: string }) {
+  if (logo === "AI_COINS") {
+    return (
+      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-amber-100 to-yellow-50 shadow-sm ring-1 ring-amber-300/70">
+        <img
+          src={coinGoldImage}
+          alt=""
+          aria-hidden="true"
+          className="h-10 w-10 object-contain"
+        />
+      </span>
+    );
+  }
+
   if (logo === "CARD") {
     return (
       <div className="flex items-center justify-center gap-2">
@@ -570,6 +604,7 @@ function PaymentMethodCard({
 }) {
   const meta = getPaymentMeta(method);
   const comingSoon = meta.status === "Coming Soon";
+  const isAiCoins = method.value === PaymentMethod.AI_COINS;
   const title = method.value === PaymentMethod.MOCK ? "Card" : meta.title;
   const description =
     method.value === PaymentMethod.MOCK
@@ -588,7 +623,9 @@ function PaymentMethodCard({
       whileTap={{ scale: comingSoon ? 1 : 0.98 }}
       className={`relative min-h-[128px] rounded-2xl border bg-white p-3 text-center shadow-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-[150px] sm:p-4 ${
         selected
-          ? "border-blue-500 bg-blue-50/70 shadow-xl shadow-blue-100"
+          ? isAiCoins
+            ? "border-violet-500 bg-gradient-to-br from-violet-50/80 to-amber-50/70 shadow-xl shadow-violet-100"
+            : "border-blue-500 bg-blue-50/70 shadow-xl shadow-blue-100"
           : "border-slate-200 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-100/60"
       } ${comingSoon ? "opacity-90" : ""}`}
     >
@@ -599,7 +636,7 @@ function PaymentMethodCard({
               initial={{ opacity: 0, scale: 0.3 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.3 }}
-              className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-white"
+              className={`flex h-5 w-5 items-center justify-center rounded-full text-white ${isAiCoins ? "bg-violet-600" : "bg-blue-600"}`}
             >
               <Check className="h-3.5 w-3.5" />
             </motion.span>
@@ -622,7 +659,7 @@ function PaymentMethodCard({
         }`}
       >
         {comingSoon && <Clock className="h-3 w-3" />}
-        {comingSoon ? "Coming Soon" : "Recommended"}
+        {comingSoon ? "Coming Soon" : method.featuredLabel || "Recommended"}
       </span>
     </motion.button>
   );
@@ -919,12 +956,132 @@ function CheckoutHeader({ cartCount }: { cartCount: number }) {
   );
 }
 
+function AiCoinValue({
+  value,
+  className = "",
+}: {
+  value: number;
+  className?: string;
+}) {
+  return (
+    <span className={`inline-flex items-center justify-end gap-1.5 font-semibold text-slate-950 ${className}`}>
+      {value.toLocaleString("en-US")}
+      <img src={coinGoldImage} alt="AI Coins" className="h-4 w-4 shrink-0 object-contain" />
+    </span>
+  );
+}
+
+function AiCoinSummary({
+  breakdown,
+  balance,
+  insufficientBalance,
+  onTopUp,
+  onContinue,
+  showActions,
+}: {
+  breakdown: AiCoinBreakdown;
+  balance: number;
+  insufficientBalance: boolean;
+  onTopUp: () => void;
+  onContinue: () => void;
+  showActions: boolean;
+}) {
+  const lines = [
+    ["Listing price", breakdown.subtotal],
+    ...(breakdown.extrasAmount > 0
+      ? ([["Extras & services", breakdown.extrasAmount]] as Array<[string, number]>)
+      : []),
+    ["Service fee", breakdown.serviceFee],
+    ["Taxes & fees", breakdown.tax],
+  ] as Array<[string, number]>;
+
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="rounded-2xl border border-violet-300 bg-gradient-to-br from-violet-50/80 via-white to-amber-50/60 p-4 shadow-sm shadow-violet-100/70">
+        <div className="flex items-end justify-between gap-3 border-b border-violet-100 pb-3">
+          <div>
+            <p className="text-sm font-black text-violet-800">Total (AI Coins)</p>
+            <p className="mt-1 text-xs text-slate-500">Includes taxes and platform fees</p>
+          </div>
+          <AiCoinValue value={breakdown.finalTotal} className="text-2xl font-black text-violet-700" />
+        </div>
+        <div className="mt-3 space-y-2.5 text-xs">
+          {lines.map(([label, value]) => (
+            <div key={label} className="flex items-center justify-between gap-4 text-slate-600">
+              <span>{label}</span>
+              <AiCoinValue value={value} />
+            </div>
+          ))}
+          {breakdown.discount > 0 && (
+            <div className="flex items-center justify-between gap-4 text-emerald-700">
+              <span>Discount</span>
+              <span>-<AiCoinValue value={breakdown.discount} className="text-emerald-700" /></span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className={`rounded-2xl border p-3.5 ${insufficientBalance ? "border-rose-200 bg-rose-50/70" : "border-amber-300 bg-amber-50/70"}`}>
+        <div className="flex items-center gap-3">
+          <img src={coinGoldImage} alt="" aria-hidden="true" className="h-9 w-9 shrink-0 object-contain" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-black text-slate-950">You&apos;ll pay with AI Coins</p>
+            <p className="mt-0.5 text-xs text-slate-600">
+              Balance available: <strong>{balance.toLocaleString("en-US")}</strong>
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-9 shrink-0 rounded-xl border-violet-300 bg-white px-3 text-violet-700 hover:bg-violet-50"
+            onClick={onTopUp}
+          >
+            Top up
+          </Button>
+        </div>
+        {insufficientBalance && (
+          <p className="mt-2 rounded-xl bg-white/80 px-3 py-2 text-xs font-semibold text-rose-700">
+            You need {(breakdown.finalTotal - balance).toLocaleString("en-US")} more AI Coins.
+          </p>
+        )}
+        <p className="mt-2 flex items-center gap-2 rounded-xl bg-violet-100/70 px-3 py-2 text-xs font-semibold text-violet-700">
+          <Sparkles className="h-4 w-4" /> AI Coins offer a simple cashless payment option.
+        </p>
+      </div>
+
+      {showActions && (
+        <MotionButton
+          type="button"
+          disabled={insufficientBalance}
+          onClick={onContinue}
+          whileHover={insufficientBalance ? undefined : { y: -1 }}
+          whileTap={insufficientBalance ? undefined : { scale: 0.98 }}
+          className="h-12 w-full rounded-2xl bg-gradient-to-r from-blue-600 via-violet-600 to-purple-600 font-black shadow-lg shadow-violet-200 disabled:cursor-not-allowed disabled:opacity-55"
+        >
+          <img src={coinGoldImage} alt="" aria-hidden="true" className="mr-2 h-6 w-6 object-contain" />
+          Pay with AI Coins
+        </MotionButton>
+      )}
+    </div>
+  );
+}
+
 function BookingSummaryCard({
   items,
   totals,
+  selectedMethod,
+  aiCoinBalance,
+  onTopUp,
+  onCoinContinue,
+  showCoinActions,
 }: {
   items: CartItem[];
   totals?: PriceBreakdownDto;
+  selectedMethod: PaymentMethod;
+  aiCoinBalance: number;
+  onTopUp: () => void;
+  onCoinContinue: () => void;
+  showCoinActions: boolean;
 }) {
   const primaryItem = items[0];
   const currency = primaryItem?.currency || "VND";
@@ -933,6 +1090,9 @@ function BookingSummaryCard({
   const total =
     totals?.finalTotal ??
     (primaryItem ? primaryItem.basePrice * primaryItem.quantity * duration : 0);
+  const isAiCoinMode = selectedMethod === PaymentMethod.AI_COINS;
+  const aiCoinBreakdown = getAiCoinBreakdown(totals, total);
+  const insufficientAiCoinBalance = aiCoinBreakdown.finalTotal > aiCoinBalance;
   const destination =
     primaryItem &&
     ([primaryItem.listingCity, primaryItem.listingCountry]
@@ -1104,59 +1264,72 @@ function BookingSummaryCard({
               </div>
             </div>
 
-            <div className="flex items-end justify-between gap-4 border-b border-slate-100 py-4">
-              <div>
-                <p className="text-sm font-black text-slate-950">
-                  Total ({currency})
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Includes taxes and platform fees
-                </p>
-              </div>
-              <motion.p
-                key={`${currency}-${total}`}
-                layout
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25, ease: "easeInOut" }}
-                className="shrink-0 text-right text-2xl font-black tracking-tight text-slate-950"
-              >
-                {formatMoney(total, currency)}
-              </motion.p>
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-cyan-50/50 p-3.5">
-              {[
-                [
-                  "Best Price Guarantee",
-                  "If you find a lower price, we'll match it.",
-                ],
-                [
-                  "Free Cancellation",
-                  primaryItem.endDate
-                    ? `Cancel for free before ${formatDate(primaryItem.startDate)}`
-                    : "Flexible options shown at checkout.",
-                ],
-                [
-                  "Instant Confirmation",
-                  "You'll receive confirmation instantly.",
-                ],
-              ].map(([title, description]) => (
-                <div key={title} className="flex gap-3 py-1.5">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-emerald-600 shadow-sm">
-                    <ShieldCheck className="h-4 w-4" />
-                  </span>
-                  <span>
-                    <span className="block text-xs font-black text-emerald-800">
-                      {title}
-                    </span>
-                    <span className="mt-0.5 block text-xs leading-4 text-emerald-700">
-                      {description}
-                    </span>
-                  </span>
+            {isAiCoinMode ? (
+              <AiCoinSummary
+                breakdown={aiCoinBreakdown}
+                balance={aiCoinBalance}
+                insufficientBalance={insufficientAiCoinBalance}
+                onTopUp={onTopUp}
+                onContinue={onCoinContinue}
+                showActions={showCoinActions}
+              />
+            ) : (
+              <>
+                <div className="flex items-end justify-between gap-4 border-b border-slate-100 py-4">
+                  <div>
+                    <p className="text-sm font-black text-slate-950">
+                      Total ({currency})
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Includes taxes and platform fees
+                    </p>
+                  </div>
+                  <motion.p
+                    key={`${currency}-${total}`}
+                    layout
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, ease: "easeInOut" }}
+                    className="shrink-0 text-right text-2xl font-black tracking-tight text-slate-950"
+                  >
+                    {formatMoney(total, currency)}
+                  </motion.p>
                 </div>
-              ))}
-            </div>
+
+                <div className="mt-4 rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-cyan-50/50 p-3.5">
+                  {[
+                    [
+                      "Best Price Guarantee",
+                      "If you find a lower price, we'll match it.",
+                    ],
+                    [
+                      "Free Cancellation",
+                      primaryItem.endDate
+                        ? `Cancel for free before ${formatDate(primaryItem.startDate)}`
+                        : "Flexible options shown at checkout.",
+                    ],
+                    [
+                      "Instant Confirmation",
+                      "You'll receive confirmation instantly.",
+                    ],
+                  ].map(([title, description]) => (
+                    <div key={title} className="flex gap-3 py-1.5">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-emerald-600 shadow-sm">
+                        <ShieldCheck className="h-4 w-4" />
+                      </span>
+                      <span>
+                        <span className="block text-xs font-black text-emerald-800">
+                          {title}
+                        </span>
+                        <span className="mt-0.5 block text-xs leading-4 text-emerald-700">
+                          {description}
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
             <div className="mt-5">
               <p className="text-xs font-black text-slate-700">We accept</p>
@@ -1208,6 +1381,7 @@ export const CheckoutPage: React.FC = () => {
   const [contactPhone, setContactPhone] = useState(user?.phoneNumber || "");
   const [travelersSameAsContact, setTravelersSameAsContact] = useState(true);
   const checkoutContentRef = useRef<HTMLDivElement>(null);
+  const paymentSubmissionRef = useRef(false);
   const [promoCode, setPromoCode] = useState("");
 
   const loadCart = async () => {
@@ -1275,18 +1449,46 @@ export const CheckoutPage: React.FC = () => {
   };
 
   const submitPayment = async (outcome: DevOutcome = "success") => {
-    if (!cart || cart.items.length === 0) return;
+    if (!cart || cart.items.length === 0 || paymentSubmissionRef.current) return;
 
+    if (selectedMethod === PaymentMethod.AI_COINS) {
+      const fallbackTotal =
+        cart.totalBreakdown?.finalTotal ??
+        cart.items.reduce(
+          (sum, item) => sum + item.basePrice * item.quantity * getDuration(item),
+          0,
+        );
+      const coinTotal = getAiCoinBreakdown(cart.totalBreakdown, fallbackTotal).finalTotal;
+      setError(
+        coinTotal > FALLBACK_AI_COIN_BALANCE
+          ? `You need ${(coinTotal - FALLBACK_AI_COIN_BALANCE).toLocaleString("en-US")} more AI Coins to complete this booking.`
+          : "AI Coins checkout is not connected to the payment service yet. Your balance was not changed.",
+      );
+      moveToStep("payment");
+      return;
+    }
+
+    paymentSubmissionRef.current = true;
     setProcessing(true);
     setError(null);
     moveToStep("processing");
+    let momoRedirectStarted = false;
 
     try {
       const orderResponse = await bookingService.createOrder(
         cart.items.map((item) => item.id),
       );
       const scenarioSuffix = outcome === "success" ? "success" : outcome;
-      const idempotencyKey = `checkout-${orderResponse.data.id}-${scenarioSuffix}-${Date.now()}`;
+      const momoStorageKey = `momo-idempotency-${orderResponse.data.id}`;
+      const existingMomoKey = window.sessionStorage.getItem(momoStorageKey);
+      const idempotencyKey =
+        selectedMethod === PaymentMethod.MOMO
+          ? existingMomoKey ??
+            `checkout-momo-${orderResponse.data.id}-${window.crypto.randomUUID()}`
+          : `checkout-${orderResponse.data.id}-${scenarioSuffix}-${Date.now()}`;
+      if (selectedMethod === PaymentMethod.MOMO && !existingMomoKey) {
+        window.sessionStorage.setItem(momoStorageKey, idempotencyKey);
+      }
       const paymentResponse = await paymentService.createPayment(
         orderResponse.data.id,
         selectedMethod,
@@ -1294,12 +1496,33 @@ export const CheckoutPage: React.FC = () => {
       );
       setPayment(paymentResponse.data);
       saveRecentPaymentId(paymentResponse.data.id);
+      if (selectedMethod === PaymentMethod.MOMO) {
+        const payUrl = paymentResponse.data.payUrl;
+        if (!payUrl) {
+          throw new Error(
+            "MoMo is still confirming the payment request. Please try again shortly.",
+          );
+        }
+        const parsedPayUrl = new URL(payUrl);
+        if (
+          parsedPayUrl.protocol !== "https:" ||
+          parsedPayUrl.hostname !== "test-payment.momo.vn"
+        ) {
+          throw new Error("The MoMo payment URL could not be verified.");
+        }
+        window.location.assign(parsedPayUrl.toString());
+        momoRedirectStarted = true;
+        return;
+      }
       moveToStep("result");
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, "Checkout failed."));
       moveToStep("review");
     } finally {
-      setProcessing(false);
+      if (!momoRedirectStarted) {
+        setProcessing(false);
+        paymentSubmissionRef.current = false;
+      }
     }
   };
 
@@ -1307,6 +1530,15 @@ export const CheckoutPage: React.FC = () => {
   const items = cart?.items ?? [];
   const primaryItem = items[0];
   const currency = primaryItem?.currency || "VND";
+  const aiCoinBalance = FALLBACK_AI_COIN_BALANCE;
+  const fallbackTotal =
+    totals?.finalTotal ??
+    items.reduce(
+      (sum, item) => sum + item.basePrice * item.quantity * getDuration(item),
+      0,
+    );
+  const aiCoinBreakdown = getAiCoinBreakdown(totals, fallbackTotal);
+  const insufficientAiCoinBalance = aiCoinBreakdown.finalTotal > aiCoinBalance;
   const paymentStatus = payment?.status ?? PaymentStatus.PENDING;
 
   const totalGuests = useMemo(() => primaryItem?.quantity || 0, [primaryItem]);
@@ -1319,6 +1551,8 @@ export const CheckoutPage: React.FC = () => {
   const selectedPaymentLabel =
     PAYMENT_METHODS.find((method) => method.value === selectedMethod)?.label ||
     "Mock Payment";
+  const isAiCoinSelected = selectedMethod === PaymentMethod.AI_COINS;
+  const isMomoSelected = selectedMethod === PaymentMethod.MOMO;
 
   const wizardContent = (
     <AnimatePresence mode="wait">
@@ -1502,7 +1736,7 @@ export const CheckoutPage: React.FC = () => {
                   Recommended
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                   {PAYMENT_METHODS.map((method) => (
                     <PaymentMethodCard
                       key={method.value}
@@ -1819,15 +2053,40 @@ export const CheckoutPage: React.FC = () => {
                   <p className="font-black text-slate-950">Payment method</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-950">
-                    Card
+                  <span
+                    className={cn(
+                      "inline-flex items-center rounded-xl border px-4 py-2 text-sm font-black",
+                      isAiCoinSelected
+                        ? "border-amber-300 bg-amber-50 text-amber-950"
+                        : isMomoSelected
+                          ? "border-pink-300 bg-pink-50 text-pink-950"
+                        : "border-slate-200 bg-white text-slate-950",
+                    )}
+                  >
+                    {isAiCoinSelected && (
+                      <img
+                        src={coinGoldImage}
+                        alt=""
+                        aria-hidden="true"
+                        className="mr-2 h-5 w-5 object-contain"
+                      />
+                    )}
+                    {isAiCoinSelected
+                      ? "AI Coins"
+                      : isMomoSelected
+                        ? "MoMo"
+                        : "Card"}
                   </span>
                   <span>
                     <span className="block text-sm font-black text-slate-950">
                       {selectedPaymentLabel}
                     </span>
                     <span className="text-xs text-slate-500">
-                      Instant test payment through MockPaymentGateway
+                      {isAiCoinSelected
+                        ? "Pay with your available AI Coin balance"
+                        : isMomoSelected
+                          ? "Secure MoMo Sandbox wallet payment"
+                        : "Instant test payment through MockPaymentGateway"}
                     </span>
                   </span>
                 </div>
@@ -1854,15 +2113,6 @@ export const CheckoutPage: React.FC = () => {
                   <p className="font-black text-slate-950">Price breakdown</p>
                 </div>
                 <div className="w-full max-w-3xl space-y-1.5 text-sm lg:max-w-2xl xl:max-w-3xl">
-                  <div className="flex justify-between gap-4 text-slate-600">
-                    <span>
-                      Base price ({primaryItem ? getDuration(primaryItem) : 1} night x{" "}
-                      {primaryItem?.quantity || 0} room)
-                    </span>
-                    <span className="font-semibold text-slate-950">
-                      {formatMoney(primaryItem?.basePrice || 0, currency)}
-                    </span>
-                  </div>
                   {totals && (
                     <>
                       <div className="flex justify-between gap-4 text-slate-600">
@@ -1871,6 +2121,14 @@ export const CheckoutPage: React.FC = () => {
                           {formatMoney(totals.subtotal, currency)}
                         </span>
                       </div>
+                      {(totals.extrasAmount ?? 0) > 0 && (
+                        <div className="flex justify-between gap-4 text-slate-600">
+                          <span>Extras & services</span>
+                          <span className="font-semibold text-slate-950">
+                            {formatMoney(totals.extrasAmount ?? 0, currency)}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex justify-between gap-4 text-slate-600">
                         <span>Service fee</span>
                         <span className="font-semibold text-slate-950">
@@ -1961,23 +2219,52 @@ export const CheckoutPage: React.FC = () => {
                   </Button>
                   <MotionButton
                     whileHover={{
-                      y: processing ? 0 : -2,
+                      y: processing || insufficientAiCoinBalance ? 0 : -2,
                       boxShadow: "0 16px 30px rgba(37, 99, 235, 0.26)",
                     }}
-                    whileTap={{ scale: processing ? 1 : 0.98 }}
-                    className="h-14 w-full rounded-2xl bg-gradient-to-r from-blue-600 to-teal-500 px-6 shadow-lg shadow-blue-500/20 sm:w-[360px] sm:px-10 lg:w-[400px]"
+                    whileTap={{
+                      scale: processing || insufficientAiCoinBalance ? 1 : 0.98,
+                    }}
+                    className={cn(
+                      "h-14 w-full rounded-2xl px-6 shadow-lg sm:w-[360px] sm:px-10 lg:w-[400px]",
+                      isAiCoinSelected
+                        ? "bg-gradient-to-r from-blue-600 via-violet-600 to-purple-600 shadow-violet-500/20"
+                        : isMomoSelected
+                          ? "bg-gradient-to-r from-pink-600 to-fuchsia-600 shadow-pink-500/20"
+                        : "bg-gradient-to-r from-blue-600 to-teal-500 shadow-blue-500/20",
+                    )}
                     onClick={() => submitPayment("success")}
-                    disabled={processing}
+                    disabled={
+                      processing ||
+                      (isAiCoinSelected && insufficientAiCoinBalance)
+                    }
                   >
                     {processing ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : isAiCoinSelected ? (
+                      <img
+                        src={coinGoldImage}
+                        alt=""
+                        aria-hidden="true"
+                        className="mr-2 h-6 w-6 object-contain"
+                      />
                     ) : (
                       <Lock className="mr-2 h-4 w-4" />
                     )}
                     <span>
-                      <span className="block font-black">Confirm Booking</span>
+                      <span className="block font-black">
+                        {isAiCoinSelected
+                          ? "Pay with AI Coins"
+                          : isMomoSelected
+                            ? "Pay with MoMo"
+                          : "Confirm Booking"}
+                      </span>
                       <span className="block text-xs font-medium text-white/85">
-                        You won't be charged yet
+                        {isAiCoinSelected && insufficientAiCoinBalance
+                          ? "Top up your balance to continue"
+                          : isMomoSelected
+                            ? "Continue securely in MoMo Sandbox"
+                          : "You won't be charged yet"}
                       </span>
                     </span>
                     <ArrowRight className="ml-4 h-4 w-4" />
@@ -2147,7 +2434,15 @@ export const CheckoutPage: React.FC = () => {
                 </div>
                 {step !== "review" && (
                   <aside className="order-first space-y-3 lg:order-none lg:sticky lg:top-20 lg:self-start xl:space-y-4">
-                    <BookingSummaryCard items={items} totals={totals} />
+                    <BookingSummaryCard
+                      items={items}
+                      totals={totals}
+                      selectedMethod={selectedMethod}
+                      aiCoinBalance={aiCoinBalance}
+                      onTopUp={() => navigate("/ai-coins")}
+                      onCoinContinue={() => moveToStep("review")}
+                      showCoinActions={step === "payment"}
+                    />
                     {step !== "payment" && (
                       <>
                         <Card className="rounded-2xl border-blue-100 bg-white/95 shadow-sm">

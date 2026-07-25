@@ -15,7 +15,8 @@ export enum PaymentMethod {
   MOMO = 'MOMO',
   ZALOPAY = 'ZALOPAY',
   STRIPE = 'STRIPE',
-  PAYPAL = 'PAYPAL'
+  PAYPAL = 'PAYPAL',
+  AI_COINS = 'AI_COINS'
 }
 
 export enum RefundStatus {
@@ -38,10 +39,16 @@ export enum SettlementStatus {
 export interface Payment {
   id: number;
   orderId: number;
+  orderNumber?: string;
   amount: number;
   currency: string;
   status: PaymentStatus;
   paymentMethod: PaymentMethod;
+  listingTitle?: string;
+  listingCoverImageUrl?: string;
+  listingCategory?: string;
+  gatewayOrderId?: string;
+  payUrl?: string;
   expiresAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -79,10 +86,28 @@ export interface Settlement {
 export interface PriceBreakdownDto {
   basePrice: number;
   subtotal: number;
+  extrasAmount?: number;
   serviceFee: number;
   tax: number;
   discount: number;
   finalTotal: number;
+  coinSubtotal?: number;
+  coinExtrasAmount?: number;
+  coinServiceFee?: number;
+  coinTax?: number;
+  coinDiscount?: number;
+  coinFinalTotal?: number;
+}
+
+export interface CartItemExtra {
+  id: number;
+  extraServiceId: number;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  currency: string;
+  pricingUnit: string;
 }
 
 export interface CartItem {
@@ -106,6 +131,7 @@ export interface CartItem {
   timeSlot?: string;
   basePrice: number;
   priceBreakdown: PriceBreakdownDto;
+  selectedExtras?: CartItemExtra[];
 }
 
 export interface Cart {
@@ -130,4 +156,30 @@ export interface Order {
   }>;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PaymentBookingSummary {
+  bookingId?: number;
+  listingId?: number;
+  listingTitle?: string;
+  listingType?: string;
+  listingLocation?: string;
+  averageRating?: number;
+  reviewCount?: number;
+  roomName?: string;
+  roomType?: string;
+  imageUrl?: string;
+  checkIn?: string;
+  checkOut?: string;
+  adults?: number;
+  children?: number;
+  infants?: number;
+  totalGuests?: number;
+}
+
+export interface PaymentDetail extends Payment {
+  booking?: PaymentBookingSummary;
+  priceBreakdown?: PriceBreakdownDto;
+  isRefundable?: boolean;
+  existingRefundId?: number;
 }

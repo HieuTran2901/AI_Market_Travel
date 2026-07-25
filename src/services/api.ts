@@ -65,12 +65,36 @@ api.interceptors.response.use(
           // Token refresh failed, perform logout cleanup
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');
-          window.location.href = '/login?expired=true';
         }
       } else {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
       }
+
+      // If we reach here, we're definitely unauthenticated
+      window.dispatchEvent(
+        new CustomEvent('auth:required', {
+          detail: { returnTo: window.location.pathname + window.location.search },
+        })
+      );
+      
+      // Return a special error so downstream catch blocks can suppress generic toasts
+      return Promise.reject(new Error('AuthenticationRequiredError'));
+    }
+
+    // Check for 403 where user is just unauthorized entirely or requires login
+    if (
+      error.response?.status === 403 &&
+      (error.response?.data?.errorCode === 'AUTHENTICATION_REQUIRED' || 
+       error.response?.data?.errorCode === 'UNAUTHORIZED' || 
+       error.response?.data?.errorCode === 'LOGIN_REQUIRED')
+    ) {
+      window.dispatchEvent(
+        new CustomEvent('auth:required', {
+          detail: { returnTo: window.location.pathname + window.location.search },
+        })
+      );
+      return Promise.reject(new Error('AuthenticationRequiredError'));
     }
 
     return Promise.reject(error.response?.data || error);

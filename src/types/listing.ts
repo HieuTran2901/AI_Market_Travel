@@ -2,6 +2,32 @@ export type ListingCategory = 'HOTEL' | 'TOUR' | 'RESTAURANT' | 'VEHICLE' | 'EXP
 
 export type ListingStatus = 'DRAFT' | 'PENDING_REVIEW' | 'ACTIVE' | 'INACTIVE' | 'REJECTED' | 'ARCHIVED' | 'SUSPENDED';
 
+export type ExtraServiceCategory = 'FOOD_DRINK' | 'COMFORT' | 'TRANSPORT' | 'EXPERIENCE' | 'OTHER';
+
+export type ExtraServicePricingUnit =
+  | 'STAY'
+  | 'GUEST'
+  | 'BOTTLE'
+  | 'RIDE'
+  | 'ROOM'
+  | 'NIGHT'
+  | 'ITEM'
+  | 'BOOKING';
+
+export interface ListingExtraService {
+  id: number;
+  listingId: number;
+  name: string;
+  description?: string;
+  imageUrl?: string;
+  category: ExtraServiceCategory;
+  price: number;
+  currency: string;
+  pricingUnit: ExtraServicePricingUnit;
+  maxQuantity?: number;
+  available: boolean;
+}
+
 export interface ListingImage {
   id: number;
   imageUrl: string;
@@ -38,6 +64,9 @@ export interface ListingResponse {
   coverImageUrl?: string;
   basePrice: number;
   currency: string;
+  coinPrice?: number;
+  aiCoinPrice?: number;
+  coinFare?: number;
   
   status: ListingStatus;
   rejectionReason?: string;

@@ -1,0 +1,1319 @@
+.missions-page {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .missions-page {
+    display: block;
+    min-height: 100dvh;
+    overflow-x: clip;
+    background:
+      radial-gradient(circle at 42% 10%, rgba(126, 34, 206, 0.14), transparent 34%),
+      radial-gradient(circle at 86% 24%, rgba(79, 70, 229, 0.1), transparent 28%),
+      linear-gradient(180deg, #07091f, #090722 62%, #07091c);
+    color: #f8fafc;
+  }
+
+  .missions-page button {
+    font: inherit;
+  }
+
+  .missions-page__container {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+    width: min(100%, 1580px);
+    margin: 0 auto;
+    padding: 22px 20px 32px;
+  }
+
+  .missions-page__main,
+  .missions-page__sidebar {
+    min-width: 0;
+  }
+
+  .missions-page__main {
+    display: grid;
+    align-content: start;
+    gap: 12px;
+  }
+
+  .missions-page__sidebar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 12px;
+  }
+
+  .missions-card {
+    border: 1px solid rgba(139, 92, 246, 0.25);
+    border-radius: 17px;
+    background: linear-gradient(180deg, rgba(13, 11, 41, 0.97), rgba(18, 13, 54, 0.98));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  }
+
+  .missions-hero {
+    position: relative;
+    display: grid;
+    min-height: 126px;
+    grid-template-columns: 210px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .missions-hero::after {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: radial-gradient(circle at 48% 50%, rgba(168, 85, 247, 0.08), transparent 46%);
+    content: "";
+    pointer-events: none;
+  }
+
+  .missions-hero__art {
+    position: relative;
+    z-index: 1;
+    width: 200px;
+    height: 132px;
+    object-fit: contain;
+    filter: drop-shadow(0 15px 24px rgba(88, 28, 135, 0.28));
+  }
+
+  .missions-hero__copy {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+  }
+
+  .missions-hero__sparkles {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 5px;
+    color: #fbbf24;
+  }
+
+  .missions-hero__sparkles svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .missions-hero__sparkles span {
+    width: 34px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(251, 191, 36, 0.7), transparent);
+  }
+
+  .missions-hero h1 {
+    margin: 0;
+    background: linear-gradient(90deg, #fde68a, #fb7185, #c084fc);
+    background-clip: text;
+    color: transparent;
+    font-size: clamp(40px, 4vw, 58px);
+    font-weight: 950;
+    letter-spacing: 0;
+    line-height: 0.95;
+    text-shadow: 0 0 24px rgba(251, 191, 36, 0.14), 0 0 34px rgba(192, 132, 252, 0.12);
+  }
+
+  .missions-hero p {
+    max-width: 570px;
+    margin: 10px auto 0;
+    color: #dbeafe;
+    font-size: 15px;
+    font-weight: 650;
+    line-height: 1.45;
+  }
+
+  .missions-history-button {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid rgba(167, 139, 250, 0.32);
+    border-radius: 12px;
+    background: rgba(88, 28, 135, 0.2);
+    color: #f5f3ff;
+    padding: 0 16px;
+    font-size: 13px;
+    font-weight: 800;
+    transition: border-color 160ms ease, background-color 160ms ease;
+  }
+
+  .missions-history-button:hover {
+    border-color: rgba(216, 180, 254, 0.68);
+    background: rgba(124, 58, 237, 0.28);
+  }
+
+  .missions-history-button svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .missions-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    overflow: hidden;
+    border: 1px solid rgba(139, 92, 246, 0.26);
+    border-radius: 15px;
+    background: rgba(12, 11, 40, 0.91);
+  }
+
+  .missions-summary__metric {
+    min-width: 0;
+    padding: 11px 18px;
+  }
+
+  .missions-summary__metric + .missions-summary__metric {
+    border-left: 1px solid rgba(196, 181, 253, 0.16);
+  }
+
+  .missions-summary__metric > span {
+    display: block;
+    overflow: hidden;
+    color: #c4b5fd;
+    font-size: 11px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .missions-summary__metric strong {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    margin-top: 3px;
+    color: #f8fafc;
+    font-size: 23px;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  .missions-summary__metric strong.is-accent {
+    color: #facc15;
+  }
+
+  .missions-summary__metric strong img {
+    width: 21px;
+    height: 21px;
+    object-fit: contain;
+  }
+
+  .missions-summary__metric small {
+    color: #cbd5e1;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .season-progress-card {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1.7fr);
+    align-items: center;
+    gap: 18px;
+    min-height: 132px;
+    padding: 20px 18px 14px;
+  }
+
+  .season-progress-card__countdown {
+    position: absolute;
+    top: 8px;
+    right: 14px;
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .season-progress-card__countdown strong {
+    color: #fde68a;
+  }
+
+  .season-level {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+  }
+
+  .season-level__badge {
+    display: block;
+    width: 70px;
+    height: 70px;
+    object-fit: contain;
+    filter: drop-shadow(0 0 14px rgba(168, 85, 247, 0.32));
+  }
+
+  .season-level > div {
+    min-width: 0;
+  }
+
+  .season-level > div > strong {
+    color: #fde68a;
+    font-size: 15px;
+    font-weight: 900;
+  }
+
+  .season-level p {
+    margin: 8px 0 9px;
+    color: #cbd5e1;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .season-level p b {
+    color: white;
+    font-size: 15px;
+  }
+
+  .missions-progress {
+    position: relative;
+    width: 100%;
+    height: 7px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(99, 102, 241, 0.16);
+  }
+
+  .missions-progress__fill {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+  }
+
+  .missions-progress__fill--violet {
+    background: linear-gradient(90deg, #7c3aed, #c026d3);
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.44);
+  }
+
+  .missions-progress__fill--green {
+    background: linear-gradient(90deg, #16a34a, #65a30d);
+  }
+
+  .season-milestones {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(66px, 1fr));
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .season-milestone {
+    position: relative;
+    display: grid;
+    min-width: 0;
+    min-height: 88px;
+    place-items: center;
+    align-content: center;
+    gap: 3px;
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    border-radius: 12px;
+    background: rgba(8, 10, 35, 0.56);
+    color: #94a3b8;
+  }
+
+  .season-milestone--current {
+    border-color: rgba(251, 191, 36, 0.78);
+    background: linear-gradient(180deg, rgba(124, 58, 237, 0.3), rgba(88, 28, 135, 0.2));
+    box-shadow: 0 0 18px rgba(168, 85, 247, 0.26), inset 0 0 18px rgba(251, 191, 36, 0.08);
+    color: #fff;
+  }
+
+  .season-milestone--completed {
+    color: #d1fae5;
+  }
+
+  .season-milestone__icon {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border-radius: 9px;
+    background: rgba(139, 92, 246, 0.14);
+  }
+
+  .season-milestone--completed .season-milestone__icon {
+    background: rgba(34, 197, 94, 0.14);
+    color: #4ade80;
+  }
+
+  .season-milestone--current .season-milestone__icon {
+    background: rgba(251, 191, 36, 0.18);
+    color: #fbbf24;
+  }
+
+  .season-milestone__icon svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .season-milestone__icon.has-image {
+    width: 46px;
+    height: 38px;
+    overflow: hidden;
+    background: transparent;
+  }
+
+  .season-milestone__icon.has-image img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .season-milestone > strong {
+    font-size: 13px;
+  }
+
+  .season-milestone small {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: #facc15;
+    font-size: 10px;
+    font-weight: 800;
+  }
+
+  .season-milestone small img {
+    width: 13px;
+    height: 13px;
+  }
+
+  .missions-board {
+    overflow: hidden;
+  }
+
+  .mission-tabs {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    border-bottom: 1px solid rgba(139, 92, 246, 0.18);
+    background: rgba(6, 8, 30, 0.3);
+  }
+
+  .mission-tabs button {
+    position: relative;
+    display: inline-flex;
+    min-width: 0;
+    min-height: 48px;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border: 0;
+    border-right: 1px solid rgba(139, 92, 246, 0.12);
+    background: transparent;
+    color: #cbd5e1;
+    padding: 8px;
+    font-size: 13px;
+    font-weight: 800;
+    transition: background-color 160ms ease, color 160ms ease;
+  }
+
+  .mission-tabs button:last-child {
+    border-right: 0;
+  }
+
+  .mission-tabs button:hover {
+    background: rgba(124, 58, 237, 0.12);
+    color: white;
+  }
+
+  .mission-tabs button.is-active {
+    color: #f5f3ff;
+  }
+
+  .mission-tab-active {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(180deg, rgba(126, 34, 206, 0.46), rgba(76, 29, 149, 0.32));
+    box-shadow: inset 0 -2px 0 #a855f7, 0 0 18px rgba(168, 85, 247, 0.14);
+    pointer-events: none;
+  }
+
+  .mission-tab-label {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .mission-tabs svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .mission-list {
+    position: relative;
+    padding: 8px 10px 4px;
+  }
+
+  .mission-list__results {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .mission-row {
+    display: grid;
+    grid-template-columns: auto minmax(150px, 1.55fr) minmax(145px, 0.9fr) minmax(78px, auto) 126px;
+    align-items: center;
+    gap: 13px;
+    min-height: 72px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.09);
+    border-radius: 11px;
+    padding: 9px 11px;
+    transition: background-color 160ms ease;
+  }
+
+  .mission-row:hover {
+    background: rgba(124, 58, 237, 0.055);
+  }
+
+  .mission-row__icon {
+    display: grid;
+    width: 46px;
+    height: 46px;
+    place-items: center;
+    border: 1px solid currentColor;
+    border-radius: 11px;
+  }
+
+  .mission-row__icon svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .mission-row__icon img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 10px;
+    object-fit: contain;
+  }
+
+  .mission-row__icon--violet { background: rgba(126, 34, 206, 0.42); color: #d8b4fe; }
+  .mission-row__icon--green { background: rgba(22, 163, 74, 0.3); color: #86efac; }
+  .mission-row__icon--blue { background: rgba(37, 99, 235, 0.32); color: #93c5fd; }
+  .mission-row__icon--amber { background: rgba(217, 119, 6, 0.3); color: #fde68a; }
+  .mission-row__icon--rose { background: rgba(190, 24, 93, 0.3); color: #f9a8d4; }
+
+  .mission-row__copy,
+  .mission-row__progress {
+    min-width: 0;
+  }
+
+  .mission-row__copy strong {
+    display: block;
+    overflow: hidden;
+    color: #f8fafc;
+    font-size: 13px;
+    font-weight: 850;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mission-row__copy p {
+    overflow: hidden;
+    margin: 3px 0 0;
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mission-row__progress {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .mission-row__progress span {
+    color: #cbd5e1;
+    font-size: 10px;
+    font-weight: 750;
+    white-space: nowrap;
+  }
+
+  .mission-row__reward {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: #facc15;
+    font-size: 17px;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  .mission-row__reward img {
+    width: 25px;
+    height: 25px;
+    object-fit: contain;
+  }
+
+  .mission-row__action {
+    display: inline-flex;
+    width: 126px;
+    min-height: 40px;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid rgba(168, 85, 247, 0.68);
+    border-radius: 10px;
+    background: linear-gradient(135deg, #5b21b6, #3b0764);
+    color: white;
+    font-size: 11px;
+    font-weight: 850;
+    transition: filter 150ms ease;
+  }
+
+  .mission-row__action--claim {
+    border-color: #fde047;
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    box-shadow: 0 0 14px rgba(251, 191, 36, 0.18);
+    color: #351308;
+  }
+
+  .mission-row__action:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
+
+  .mission-action-status-icon,
+  .mission-action-status-icon svg,
+  .daily-check-in-day__check,
+  .daily-check-in-day__check svg {
+    display: block;
+  }
+
+  .mission-row__action:disabled {
+    cursor: not-allowed;
+    border-color: rgba(100, 116, 139, 0.28);
+    background: rgba(51, 65, 85, 0.38);
+    box-shadow: none;
+    color: #94a3b8;
+  }
+
+  .mission-row__action svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .mission-list__more {
+    display: flex;
+    min-height: 34px;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    margin: 2px auto 8px;
+    border: 1px solid rgba(139, 92, 246, 0.42);
+    border-radius: 999px;
+    background: rgba(76, 29, 149, 0.2);
+    color: #e9d5ff;
+    padding: 5px 15px;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .mission-list__more svg {
+    width: 14px;
+    height: 14px;
+    transition: transform 160ms ease;
+  }
+
+  .mission-list__more svg.is-open {
+    transform: rotate(180deg);
+  }
+
+  .mission-list__empty {
+    display: grid;
+    min-height: 190px;
+    place-items: center;
+    align-content: center;
+    color: #c4b5fd;
+    text-align: center;
+  }
+
+  .mission-list__empty svg {
+    width: 30px;
+    height: 30px;
+  }
+
+  .mission-list__empty strong {
+    margin-top: 9px;
+    color: white;
+  }
+
+  .mission-list__empty p {
+    margin: 5px 0 0;
+    color: #94a3b8;
+    font-size: 12px;
+  }
+
+  .vip-upgrade-banner {
+    display: grid;
+    grid-template-columns: auto minmax(180px, 0.9fr) minmax(300px, 1.25fr) auto;
+    align-items: center;
+    gap: 16px;
+    min-height: 76px;
+    border: 1px solid rgba(251, 113, 133, 0.45);
+    border-radius: 16px;
+    background: linear-gradient(105deg, rgba(55, 16, 79, 0.94), rgba(49, 15, 72, 0.88), rgba(30, 13, 59, 0.94));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 24px rgba(192, 38, 211, 0.09);
+    padding: 10px 14px;
+  }
+
+  .vip-upgrade-banner__badge {
+    display: block;
+    width: 92px;
+    height: 56px;
+    border-radius: 10px;
+    object-fit: contain;
+  }
+
+  .vip-upgrade-banner__copy strong {
+    color: #fde68a;
+    font-size: 17px;
+    font-weight: 950;
+  }
+
+  .vip-upgrade-banner__copy p {
+    margin: 3px 0 0;
+    color: #ddd6fe;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .vip-upgrade-banner ul {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 9px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .vip-upgrade-banner li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #f5f3ff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+
+  .vip-upgrade-banner li svg {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    color: #fbbf24;
+  }
+
+  .vip-upgrade-banner > button {
+    display: inline-flex;
+    min-width: 148px;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid rgba(251, 191, 36, 0.58);
+    border-radius: 11px;
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.82), rgba(88, 28, 135, 0.94));
+    color: #fde68a;
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  .vip-upgrade-banner > button svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .missions-card-title {
+    display: flex;
+    min-height: 43px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border-bottom: 1px solid rgba(139, 92, 246, 0.15);
+    padding: 10px 13px;
+  }
+
+  .missions-card-title > span {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .missions-card-title svg {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    color: #fbbf24;
+  }
+
+  .missions-card-title strong {
+    overflow: hidden;
+    color: #f8fafc;
+    font-size: 12px;
+    font-weight: 900;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .missions-card-title > button {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    border: 0;
+    background: transparent;
+    color: #c4b5fd;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .missions-card-title > button svg {
+    width: 12px;
+    height: 12px;
+    color: currentColor;
+  }
+
+  .daily-check-in-card {
+    grid-column: 1 / -1;
+  }
+
+  .daily-check-in-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+    padding: 12px;
+  }
+
+  .daily-check-in-day {
+    display: grid;
+    min-width: 0;
+    min-height: 78px;
+    place-items: center;
+    align-content: center;
+    gap: 3px;
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    border-radius: 11px;
+    background: rgba(9, 10, 35, 0.56);
+  }
+
+  .daily-check-in-day--claimed {
+    color: #86efac;
+  }
+
+  .daily-check-in-day--current {
+    border-color: #fbbf24;
+    background: linear-gradient(180deg, rgba(124, 58, 237, 0.32), rgba(88, 28, 135, 0.22));
+    box-shadow: 0 0 16px rgba(251, 191, 36, 0.18), inset 0 0 14px rgba(168, 85, 247, 0.16);
+    color: #fde68a;
+  }
+
+  .daily-check-in-day > span {
+    display: grid;
+    width: 27px;
+    height: 27px;
+    place-items: center;
+  }
+
+  .daily-check-in-day img,
+  .daily-check-in-day svg {
+    width: 23px;
+    height: 23px;
+    object-fit: contain;
+  }
+
+  .daily-check-in-day--current > span {
+    width: 42px;
+    height: 32px;
+  }
+
+  .daily-check-in-day--current img {
+    width: 42px;
+    height: 32px;
+  }
+
+  .daily-check-in-day strong {
+    max-width: 100%;
+    overflow: hidden;
+    color: currentColor;
+    font-size: 10px;
+    font-weight: 900;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .daily-check-in-day small {
+    color: #94a3b8;
+    font-size: 9px;
+    font-weight: 700;
+  }
+
+  .today-rewards-card {
+    position: relative;
+    overflow: hidden;
+    min-height: 164px;
+  }
+
+  .today-rewards-card__body {
+    display: flex;
+    min-height: 74px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px 0;
+  }
+
+  .today-rewards-card__amount {
+    display: grid;
+    grid-template-columns: auto auto;
+    align-items: center;
+    gap: 4px 8px;
+  }
+
+  .today-rewards-card__amount img {
+    width: 30px;
+    height: 30px;
+  }
+
+  .today-rewards-card__amount strong {
+    color: #fde68a;
+    font-size: 29px;
+    font-weight: 950;
+  }
+
+  .today-rewards-card__amount small {
+    grid-column: 1 / -1;
+    color: #cbd5e1;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .today-rewards-card__art {
+    width: 94px;
+    height: 72px;
+    object-fit: contain;
+  }
+
+  .today-rewards-card > button {
+    display: block;
+    width: calc(100% - 24px);
+    min-height: 34px;
+    margin: 4px 12px 11px;
+    border: 1px solid rgba(192, 132, 252, 0.65);
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(88, 28, 135, 0.84), rgba(76, 29, 149, 0.94));
+    color: white;
+    font-size: 11px;
+    font-weight: 850;
+  }
+
+  .missions-leaderboard-card {
+    grid-row: span 2;
+  }
+
+  .missions-leaderboard-card ol {
+    display: grid;
+    gap: 3px;
+    margin: 0;
+    padding: 7px;
+    list-style: none;
+  }
+
+  .missions-leaderboard-card li {
+    display: grid;
+    grid-template-columns: 25px 30px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 7px;
+    min-height: 41px;
+    border-radius: 9px;
+    padding: 4px 6px;
+  }
+
+  .missions-leaderboard-card li.is-current {
+    border: 1px solid rgba(192, 132, 252, 0.48);
+    background: linear-gradient(90deg, rgba(126, 34, 206, 0.38), rgba(76, 29, 149, 0.24));
+  }
+
+  .missions-rank {
+    display: grid;
+    width: 24px;
+    height: 26px;
+    place-items: center;
+    border-radius: 8px;
+    background: rgba(71, 85, 105, 0.5);
+    color: #e2e8f0;
+    font-size: 10px;
+    font-weight: 900;
+  }
+
+  .missions-rank--1 { background: #f59e0b; color: #422006; }
+  .missions-rank--2 { background: #cbd5e1; color: #334155; }
+  .missions-rank--3 { background: #c2410c; color: #ffedd5; }
+
+  .missions-rank img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .missions-avatar {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border: 1px solid rgba(196, 181, 253, 0.36);
+    border-radius: 50%;
+    background: linear-gradient(145deg, #312e81, #7e22ce);
+    color: white;
+    font-size: 8px;
+    font-weight: 900;
+  }
+
+  .missions-leaderboard-card li > strong {
+    overflow: hidden;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .missions-leaderboard-card__score {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: #facc15;
+    font-size: 10px;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  .missions-leaderboard-card__score img {
+    width: 15px;
+    height: 15px;
+  }
+
+  .recent-achievement-card__body {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 11px;
+  }
+
+  .recent-achievement-card__badge {
+    display: grid;
+    width: 46px;
+    height: 52px;
+    place-items: center;
+    border: 2px solid #a855f7;
+    border-radius: 16px 16px 20px 20px;
+    background: linear-gradient(145deg, rgba(126, 34, 206, 0.58), rgba(88, 28, 135, 0.72));
+    color: #fde68a;
+    box-shadow: 0 0 16px rgba(168, 85, 247, 0.22);
+  }
+
+  .recent-achievement-card__badge svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .recent-achievement-card__badge img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    object-fit: contain;
+  }
+
+  .recent-achievement-card__body > div {
+    min-width: 0;
+  }
+
+  .recent-achievement-card__body > div > strong {
+    display: block;
+    overflow: hidden;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .recent-achievement-card__body p {
+    margin: 3px 0 8px;
+    color: #94a3b8;
+    font-size: 9px;
+  }
+
+  .recent-achievement-card__body small {
+    display: block;
+    margin-top: 4px;
+    color: #cbd5e1;
+    font-size: 9px;
+    text-align: right;
+  }
+
+  .recent-achievement-card__body > b {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: #facc15;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+
+  .recent-achievement-card__body > b img {
+    width: 16px;
+    height: 16px;
+  }
+
+  .missions-notice {
+    position: fixed;
+    z-index: 1500;
+    right: 20px;
+    bottom: 20px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    width: min(420px, calc(100vw - 40px));
+    border: 1px solid rgba(192, 132, 252, 0.44);
+    border-radius: 14px;
+    background: #15103b;
+    box-shadow: 0 20px 50px rgba(2, 6, 23, 0.44);
+    color: #e9d5ff;
+    padding: 12px 14px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .missions-notice > svg {
+    width: 20px;
+    height: 20px;
+    color: #86efac;
+  }
+
+  .missions-notice button,
+  .missions-modal > div > button {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #cbd5e1;
+  }
+
+  .missions-notice button:hover,
+  .missions-modal > div > button:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .missions-notice button svg,
+  .missions-modal > div > button svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .missions-modal-backdrop {
+    position: fixed;
+    z-index: 1600;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgba(2, 6, 23, 0.72);
+    padding: 20px;
+  }
+
+  .missions-modal {
+    width: min(440px, 100%);
+    border: 1px solid rgba(192, 132, 252, 0.36);
+    border-radius: 18px;
+    background: linear-gradient(160deg, #15103b, #0c1230);
+    box-shadow: 0 28px 90px rgba(2, 6, 23, 0.62);
+    padding: 18px;
+  }
+
+  .missions-modal > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .missions-modal h2 {
+    margin: 0;
+    font-size: 20px;
+  }
+
+  .missions-modal > p {
+    margin: 10px 0 0;
+    color: #94a3b8;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .missions-modal ul {
+    display: grid;
+    gap: 7px;
+    margin: 14px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .missions-modal li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.045);
+    padding: 10px;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .missions-modal li svg {
+    width: 17px;
+    height: 17px;
+    color: #4ade80;
+  }
+
+  .missions-modal li span {
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 650;
+  }
+
+  .missions-page button:focus-visible,
+  .missions-notice button:focus-visible,
+  .missions-modal button:focus-visible {
+    outline: 2px solid #c084fc;
+    outline-offset: 2px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .missions-page__container {
+    grid-template-columns: minmax(0, 1.9fr) minmax(320px, 0.82fr);
+  }
+
+  .missions-page__sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  .daily-check-in-card {
+    grid-column: auto;
+  }
+
+  .missions-leaderboard-card {
+    grid-row: auto;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .missions-hero {
+    grid-template-columns: 170px minmax(0, 1fr) auto;
+  }
+
+  .missions-hero__art {
+    width: 165px;
+  }
+
+  .missions-page__sidebar {
+    margin-top: 4px;
+  }
+}
+
+@media (min-width: 1280px) and (max-width: 1439px) {
+  .missions-page__container {
+    padding: 16px 16px 26px;
+  }
+
+  .missions-hero {
+    min-height: 112px;
+    grid-template-columns: 175px minmax(0, 1fr) auto;
+  }
+
+  .missions-hero__art {
+    width: 168px;
+    height: 116px;
+  }
+
+  .missions-hero h1 {
+    font-size: 43px;
+  }
+
+  .missions-hero p {
+    margin-top: 7px;
+    font-size: 13px;
+  }
+
+  .missions-summary__metric {
+    padding: 9px 13px;
+  }
+
+  .missions-summary__metric strong {
+    font-size: 20px;
+  }
+
+  .season-progress-card {
+    grid-template-columns: minmax(205px, 0.7fr) minmax(0, 1.7fr);
+    gap: 12px;
+    min-height: 120px;
+    padding-inline: 13px;
+  }
+
+  .season-milestone {
+    min-height: 80px;
+  }
+
+  .mission-row {
+    grid-template-columns: auto minmax(135px, 1.35fr) minmax(122px, 0.8fr) minmax(70px, auto) 116px;
+    gap: 10px;
+    min-height: 67px;
+    padding-block: 7px;
+  }
+
+  .mission-row__icon {
+    width: 42px;
+    height: 42px;
+  }
+
+  .mission-row__action {
+    width: 116px;
+    min-height: 37px;
+  }
+
+  .vip-upgrade-banner {
+    grid-template-columns: auto minmax(150px, 0.8fr) minmax(260px, 1.2fr) auto;
+    gap: 11px;
+  }
+
+  .daily-check-in-grid {
+    gap: 4px;
+    padding: 10px;
+  }
+
+  .daily-check-in-day {
+    min-height: 70px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .missions-page *,
+  .missions-page *::before,
+  .missions-page *::after {
+    scroll-behavior: auto;
+    transition-duration: 0.01ms;
+  }
+}

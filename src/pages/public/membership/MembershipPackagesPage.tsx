@@ -1,4 +1,5 @@
 import React from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   CheckCircle2,
   CreditCard,
@@ -10,6 +11,13 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MembershipCoinTopLayout } from "../ai-coins/MembershipCoinTopLayout";
+import {
+  cardContainerVariants,
+  cardItemVariants,
+  UpgradeModeTransition,
+  UpgradeThemeGlow,
+  useUpgradeModeTransition,
+} from "../ai-coins/useUpgradeModeTransition";
 import coinGoldImage from "@/assets/images/coin-gold.png";
 import beginnerIcon from "@/assets/images/01-paper-plane.png";
 import beginnerLandscape from "@/assets/images/01-beginner-tropical-beach.png";
@@ -21,8 +29,10 @@ import ultraIcon from "@/assets/images/04-crystal.png";
 import ultraLandscape from "@/assets/images/04-ultra-luxury-villa.png";
 import galaxyIcon from "@/assets/images/05-crowned-planet.png";
 import galaxyLandscape from "@/assets/images/05-galaxy-space.png";
+import { AnimatedNumber } from "../upgrade/AnimatedNumber";
+import { upgradeSectionVariants } from "../upgrade/upgradeMotion";
 
-type BillingCycle = "monthly" | "yearly";
+export type BillingCycle = "monthly" | "yearly";
 
 type MembershipPlan = {
   id: string;
@@ -183,7 +193,7 @@ const infoBlocks = [
   },
 ];
 
-const MembershipBillingControls = ({
+export const MembershipBillingControls = ({
   billingCycle,
   setBillingCycle,
 }: {
@@ -218,13 +228,21 @@ const MembershipBillingControls = ({
               type="button"
               onClick={() => setBillingCycle(value as BillingCycle)}
               className={cn(
-                "h-8 rounded-full px-2 text-[11px] font-black transition focus:outline-none focus:ring-2 focus:ring-violet-300",
+                "relative h-8 rounded-full px-2 text-[11px] font-black transition focus:outline-none focus:ring-2 focus:ring-violet-300",
                 billingCycle === value
-                  ? "bg-violet-500/24 text-white ring-1 ring-violet-300/60"
+                  ? "text-white"
                   : "text-slate-300 hover:bg-white/[0.04]",
               )}
             >
-              {label}
+              {billingCycle === value ? (
+                <motion.span
+                  layoutId="membership-billing-active"
+                  aria-hidden="true"
+                  className="absolute inset-0 rounded-full bg-violet-500/24 ring-1 ring-violet-300/60"
+                  transition={{ type: "spring", stiffness: 420, damping: 36 }}
+                />
+              ) : null}
+              <span className="relative z-10">{label}</span>
             </button>
           ))}
           <span className="flex h-8 items-center justify-center rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 px-2 text-[10px] font-black text-white">
@@ -236,39 +254,46 @@ const MembershipBillingControls = ({
   </div>
 );
 
+export const MembershipIntro = () => (
+  <div className="min-w-0">
+    <h1 className="max-w-4xl text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-5xl">
+      Choose the{" "}
+      <span className="bg-gradient-to-r from-violet-300 via-fuchsia-300 to-blue-300 bg-clip-text text-transparent">
+        membership plan
+      </span>{" "}
+      that suits you
+    </h1>
+    <p className="mt-3 max-w-3xl text-base font-medium leading-7 text-slate-300">
+      Unlock exclusive privileges and elevate your AI travel experience.
+    </p>
+    <div className="mt-4 flex flex-wrap gap-3">
+      <span className="inline-flex items-center gap-2 rounded-2xl border border-blue-300/16 bg-blue-400/8 px-4 py-2 text-sm font-bold text-slate-100">
+        <ShieldCheck className="h-4 w-4 text-blue-300" />
+        Secure payment
+      </span>
+      <span className="inline-flex items-center gap-2 rounded-2xl border border-blue-300/16 bg-blue-400/8 px-4 py-2 text-sm font-bold text-slate-100">
+        <RotateCcw className="h-4 w-4 text-sky-300" />
+        Cancel anytime
+      </span>
+    </div>
+  </div>
+);
+
 const MembershipHeader = ({
   billingCycle,
   setBillingCycle,
+  transition,
 }: {
   billingCycle: BillingCycle;
   setBillingCycle: React.Dispatch<React.SetStateAction<BillingCycle>>;
+  transition: UpgradeModeTransition;
 }) => (
   <MembershipCoinTopLayout
     activeTab="membership"
-    left={
-      <div className="min-w-0">
-      <h1 className="max-w-4xl text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-5xl">
-        Choose the{" "}
-        <span className="bg-gradient-to-r from-violet-300 via-fuchsia-300 to-blue-300 bg-clip-text text-transparent">
-          membership plan
-        </span>{" "}
-        that suits you
-      </h1>
-      <p className="mt-3 max-w-3xl text-base font-medium leading-7 text-slate-300">
-        Unlock exclusive privileges and elevate your AI travel experience.
-      </p>
-      <div className="mt-4 flex flex-wrap gap-3">
-        <span className="inline-flex items-center gap-2 rounded-2xl border border-blue-300/16 bg-blue-400/8 px-4 py-2 text-sm font-bold text-slate-100">
-          <ShieldCheck className="h-4 w-4 text-blue-300" />
-          Secure payment
-        </span>
-        <span className="inline-flex items-center gap-2 rounded-2xl border border-blue-300/16 bg-blue-400/8 px-4 py-2 text-sm font-bold text-slate-100">
-          <RotateCcw className="h-4 w-4 text-sky-300" />
-          Cancel anytime
-        </span>
-      </div>
-      </div>
-    }
+    visualTab={transition.visualMode}
+    isTransitioning={transition.isTransitioning}
+    onTabSelect={transition.switchMode}
+    left={<MembershipIntro />}
     controls={
       <MembershipBillingControls
         billingCycle={billingCycle}
@@ -278,11 +303,58 @@ const MembershipHeader = ({
   />
 );
 
-const MembershipPlanCard = ({ plan }: { plan: MembershipPlan }) => (
-  <article
+const membershipPriceFormatter = (value: number) =>
+  new Intl.NumberFormat("vi-VN").format(value);
+
+const AnimatedFeatureText = ({
+  text,
+  playKey,
+}: {
+  text: string;
+  playKey: string;
+}) => {
+  const match = text.match(/(\d[\d.]*)/);
+  if (!match || match.index === undefined) return <>{text}</>;
+
+  const numericValue = Number(match[1].replace(/\./g, ""));
+  if (!Number.isFinite(numericValue)) return <>{text}</>;
+
+  return (
+    <>
+      {text.slice(0, match.index)}
+      <AnimatedNumber
+        value={numericValue}
+        duration={0.58}
+        formatter={membershipPriceFormatter}
+        playKey={playKey}
+        className="tabular-nums"
+      />
+      {text.slice(match.index + match[1].length)}
+    </>
+  );
+};
+
+const MembershipPlanCard = ({
+  plan,
+  billingCycle,
+}: {
+  plan: MembershipPlan;
+  billingCycle: BillingCycle;
+}) => {
+  const shouldReduceMotion = useReducedMotion();
+  const priceValue = Number(plan.price.replace(/\D/g, ""));
+  const playKey = `${billingCycle}-${plan.id}`;
+
+  return (
+  <motion.article
+    whileHover={
+      shouldReduceMotion ? undefined : { y: -4, scale: 1.008 }
+    }
+    whileTap={shouldReduceMotion ? undefined : { scale: 0.985 }}
+    transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
     className={cn(
-      "group relative mt-12 flex min-h-[610px] min-w-0 flex-col overflow-visible rounded-[2rem] transition duration-300 hover:-translate-y-1.5",
-      plan.featured && "xl:-translate-y-4 xl:hover:-translate-y-5",
+      "group relative mt-12 flex min-h-[610px] min-w-0 flex-col overflow-visible rounded-[2rem]",
+      plan.featured && "xl:-translate-y-4",
     )}
     style={{
       boxShadow: plan.featured
@@ -358,7 +430,14 @@ const MembershipPlanCard = ({ plan }: { plan: MembershipPlan }) => (
         {plan.tagline}
       </p>
       <p className="mt-5 text-2xl font-black text-white">
-        {plan.price}
+        <AnimatedNumber
+          value={priceValue}
+          duration={0.82}
+          suffix=" đ"
+          formatter={membershipPriceFormatter}
+          playKey={playKey}
+          className="tabular-nums"
+        />
         <span className="ml-1 text-sm font-semibold text-slate-300">
           / tháng
         </span>
@@ -381,14 +460,20 @@ const MembershipPlanCard = ({ plan }: { plan: MembershipPlan }) => (
             <CheckCircle2
               className={cn("mt-0.5 h-4 w-4 shrink-0", plan.accent)}
             />
-            <span>{feature}</span>
+            <span>
+              <AnimatedFeatureText
+                text={feature}
+                playKey={`${playKey}-${feature}`}
+              />
+            </span>
           </li>
         ))}
       </ul>
       <div className="mt-auto" />
     </div>
-  </article>
-);
+  </motion.article>
+  );
+};
 
 const MembershipInfoBar = () => (
   <section className="grid gap-4 rounded-3xl border border-blue-300/18 bg-[linear-gradient(135deg,rgba(8,23,55,0.88),rgba(17,18,55,0.92))] p-5 shadow-[0_20px_54px_rgba(2,8,23,0.28)] lg:grid-cols-[1.45fr_repeat(3,minmax(0,1fr))]">
@@ -414,27 +499,68 @@ const MembershipInfoBar = () => (
   </section>
 );
 
+export const MembershipUpgradeContent: React.FC<{
+  transition: UpgradeModeTransition;
+  billingCycle?: BillingCycle;
+}> = ({ transition, billingCycle = "yearly" }) => {
+  const shouldReduceMotion = useReducedMotion();
+
+  return (
+  <section
+    className="mt-6 min-w-0"
+    aria-busy={transition.isTransitioning}
+  >
+    <motion.section
+      variants={cardContainerVariants}
+      initial={shouldReduceMotion ? false : "hidden"}
+      animate="visible"
+      className="grid items-stretch gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+    >
+      {plans.map((plan) => (
+        <motion.div
+          key={plan.id}
+          variants={cardItemVariants}
+          className="h-full min-w-0"
+        >
+          <MembershipPlanCard plan={plan} billingCycle={billingCycle} />
+        </motion.div>
+      ))}
+    </motion.section>
+
+    <motion.div
+      variants={upgradeSectionVariants}
+      initial={shouldReduceMotion ? false : "hidden"}
+      whileInView="visible"
+      viewport={{ once: true, amount: 0.25 }}
+      className="mt-8"
+    >
+      <MembershipInfoBar />
+    </motion.div>
+  </section>
+  );
+};
+
 export const MembershipPackagesPage: React.FC = () => {
   const [billingCycle, setBillingCycle] =
     React.useState<BillingCycle>("yearly");
+  const transition = useUpgradeModeTransition();
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_50%_0%,rgba(50,65,150,0.14),transparent_38%),linear-gradient(180deg,#020817_0%,#031127_55%,#020817_100%)] text-white">
-      <div className="mx-auto w-[min(calc(100%_-_40px),1720px)] pb-8 pt-5 [@media(max-height:820px)]:pb-6 [@media(max-height:820px)]:pt-4">
+    <main className="relative min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_50%_0%,rgba(50,65,150,0.14),transparent_38%),linear-gradient(180deg,#020817_0%,#031127_55%,#020817_100%)] text-white">
+      <UpgradeThemeGlow mode={transition.visualMode} phase={transition.phase} />
+      <div className="relative z-10 mx-auto w-[min(calc(100%_-_40px),1720px)] pb-8 pt-5 [@media(max-height:820px)]:pb-6 [@media(max-height:820px)]:pt-4">
         <MembershipHeader
           billingCycle={billingCycle}
           setBillingCycle={setBillingCycle}
+          transition={transition}
         />
 
-        <section className="mt-6 grid items-stretch gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {plans.map((plan) => (
-            <MembershipPlanCard key={plan.id} plan={plan} />
-          ))}
-        </section>
-
-        <div className="mt-8">
-          <MembershipInfoBar />
-        </div>
+        <motion.div {...transition.pageMotionProps}>
+          <MembershipUpgradeContent
+            transition={transition}
+            billingCycle={billingCycle}
+          />
+        </motion.div>
       </div>
     </main>
   );

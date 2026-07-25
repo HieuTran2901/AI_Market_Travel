@@ -7,14 +7,17 @@ import {
   BriefcaseBusiness,
   CalendarCheck,
   Car,
+  Crown,
   ChevronDown,
   ChevronUp,
+  Coins,
   Compass,
   CreditCard,
   ArrowRight,
   Bike as BikeIcon,
   Coffee as CoffeeIcon,
   Gift,
+  Gamepad2,
   Globe2,
   Grid2X2,
   Heart,
@@ -27,18 +30,23 @@ import {
   Map,
   Menu,
   Plane,
+  ListChecks,
+  RotateCw,
   Search,
   Settings,
   ShieldCheck,
   ShoppingCart,
   Sparkles,
   Star,
+  Trophy,
   Ticket,
   Utensils,
   Users as UsersIcon,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+
+import { AiCoinsModal } from "@/components/payment/AiCoinsModal";
 import { useAuth } from "@/context/AuthContext";
 import { bookingService } from "@/services/bookingService";
 import { cn } from "@/lib/utils";
@@ -62,34 +70,28 @@ type CategoryMenuKey =
   | "vehicles"
   | "deals";
 
-type HeaderDropdown = "explore" | "deals" | "ai-planner" | "categories" | null;
+type HeaderDropdown =
+  | "explore"
+  | "deals"
+  | "ai-planner"
+  | "categories"
+  | "challenge"
+  | null;
 
-type CoinAnchorRect = {
-  left: number;
-  right: number;
+
+
+type AccountDropdownPosition = {
   top: number;
-  bottom: number;
+  left: number;
   width: number;
-  height: number;
+  maxHeight: number;
 };
 
-const aiCoinPackages = [
-  { amount: 200, price: "29.000 d", bonus: "+20 Bonus" },
-  {
-    amount: 500,
-    price: "59.000 d",
-    bonus: "+75 Bonus",
-    badge: "Tiet kiem 15%",
-  },
-  { amount: 1000, price: "99.000 d", bonus: "+200 Bonus" },
-  {
-    amount: 2500,
-    price: "249.000 d",
-    bonus: "+500 Bonus",
-    badge: "Best value",
-  },
-  { amount: 5000, price: "449.000 d", bonus: "+1,250 Bonus" },
-];
+type MembershipSummary = {
+  tier: string;
+  benefitsLabel: string;
+};
+
 
 type MegaMenuItem = {
   label: string;
@@ -366,6 +368,7 @@ const secondaryNavItems: HeaderLink[] = [
   },
   { label: "AI Planner", to: "/ai/planner", icon: Sparkles, badge: "New" },
   { label: "All categories", to: "/search", icon: Compass },
+  { label: "Challenge", to: "/challenges", icon: Trophy },
 ];
 
 const dealsMenuItems: MegaMenuItem[] = [
@@ -458,6 +461,37 @@ const allCategoryItems: MegaMenuItem[] = [
   { label: "More", to: "/search", icon: Compass, accent: "slate" },
 ];
 
+const challengeMenuItems: MegaMenuItem[] = [
+  {
+    label: "Lucky Wheel",
+    to: "/challenges/lucky-wheel",
+    icon: RotateCw,
+    description: "Spin for AI Coins and special prizes",
+    accent: "purple",
+  },
+  {
+    label: "Missions",
+    to: "/challenges/missions",
+    icon: ListChecks,
+    description: "Complete tasks and earn rewards",
+    accent: "blue",
+  },
+  {
+    label: "Games",
+    to: "/challenges/games",
+    icon: Gamepad2,
+    description: "Explore fun travel mini games",
+    accent: "orange",
+  },
+  {
+    label: "Rewards",
+    to: "/challenges/rewards",
+    icon: Gift,
+    description: "Redeem Special Coins for premium gifts",
+    accent: "rose",
+  },
+];
+
 const tabletNav: HeaderLink[] = [
   primaryNav[0],
   primaryNav[1],
@@ -496,14 +530,94 @@ export const SiteHeaderV1: React.FC = () => {
   const [scrolled, setScrolled] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
   const [cartCount, setCartCount] = React.useState(0);
-  const [coinAnchorRect, setCoinAnchorRect] =
-    React.useState<CoinAnchorRect | null>(null);
+
+  const [accountDropdownPosition, setAccountDropdownPosition] =
+    React.useState<AccountDropdownPosition | null>(null);
+  const [isAccountPositionReady, setIsAccountPositionReady] =
+    React.useState(false);
+  const [isDesktopAccountMenu, setIsDesktopAccountMenu] = React.useState(
+    () => typeof window !== "undefined" && window.innerWidth >= 768,
+  );
   const secondaryNavRef = React.useRef<HTMLDivElement | null>(null);
   const coinsTriggerRef = React.useRef<HTMLButtonElement | null>(null);
+  const userTriggerRef = React.useRef<HTMLButtonElement | null>(null);
+
+  const updateAccountDropdownPosition = React.useCallback(() => {
+    const rect = userTriggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const viewportPadding = 16;
+    const gap = 10;
+    const width = Math.min(352, window.innerWidth - viewportPadding * 2);
+    const top = rect.bottom + gap;
+    const left = Math.min(
+      Math.max(rect.right - width, viewportPadding),
+      window.innerWidth - width - viewportPadding,
+    );
+    const maxHeight = Math.min(
+      720,
+      Math.max(280, window.innerHeight - top - viewportPadding),
+    );
+
+    setAccountDropdownPosition((current) => {
+      const next = { top, left, width, maxHeight };
+      if (
+        current &&
+        current.top === next.top &&
+        current.left === next.left &&
+        current.width === next.width &&
+        current.maxHeight === next.maxHeight
+      ) {
+        return current;
+      }
+
+      return next;
+    });
+  }, []);
 
   React.useEffect(() => {
     setMounted(true);
   }, []);
+
+  React.useEffect(() => {
+    const media = window.matchMedia("(min-width: 768px)");
+    const update = () => setIsDesktopAccountMenu(media.matches);
+
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  React.useLayoutEffect(() => {
+    if (!userOpen || !isDesktopAccountMenu) {
+      setIsAccountPositionReady(false);
+      return;
+    }
+
+    updateAccountDropdownPosition();
+    setIsAccountPositionReady(true);
+
+    if (import.meta.env.DEV) {
+      console.debug("[AccountDropdown]", {
+        phase: "initial-measure",
+        isOpen: userOpen,
+        triggerRect: userTriggerRef.current?.getBoundingClientRect(),
+      });
+    }
+  }, [isDesktopAccountMenu, updateAccountDropdownPosition, userOpen]);
+
+  React.useEffect(() => {
+    if (!userOpen || !isDesktopAccountMenu) return;
+
+    const updateOnViewportChange = () => updateAccountDropdownPosition();
+    window.addEventListener("resize", updateOnViewportChange);
+    window.addEventListener("scroll", updateOnViewportChange, true);
+
+    return () => {
+      window.removeEventListener("resize", updateOnViewportChange);
+      window.removeEventListener("scroll", updateOnViewportChange, true);
+    };
+  }, [isDesktopAccountMenu, updateAccountDropdownPosition, userOpen]);
 
   React.useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -526,12 +640,21 @@ export const SiteHeaderV1: React.FC = () => {
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        const restoreUserFocus = userOpen;
         setUserOpen(false);
+        setAccountDropdownPosition(null);
+        setIsAccountPositionReady(false);
         setMobileOpen(false);
         setOpenCategory(null);
         setActiveDropdown(null);
         setCoinsOpen(false);
-        coinsTriggerRef.current?.focus();
+        requestAnimationFrame(() => {
+          if (restoreUserFocus) {
+            userTriggerRef.current?.focus();
+            return;
+          }
+          coinsTriggerRef.current?.focus();
+        });
       }
     };
 
@@ -565,7 +688,6 @@ export const SiteHeaderV1: React.FC = () => {
 
     const handleResize = () => {
       setCoinsOpen(false);
-      setCoinAnchorRect(null);
     };
 
     window.addEventListener("resize", handleResize);
@@ -583,7 +705,7 @@ export const SiteHeaderV1: React.FC = () => {
   }, [isSecondaryNavCollapsed]);
 
   React.useEffect(() => {
-    if (!mobileOpen && !userOpen) {
+    if (!mobileOpen && (!userOpen || isDesktopAccountMenu)) {
       document.body.style.overflow = "";
       return;
     }
@@ -593,7 +715,7 @@ export const SiteHeaderV1: React.FC = () => {
     return () => {
       document.body.style.overflow = "";
     };
-  }, [mobileOpen, userOpen]);
+  }, [isDesktopAccountMenu, mobileOpen, userOpen]);
 
   const refreshCartCount = React.useCallback(async () => {
     if (!isAuthenticated) {
@@ -643,6 +765,21 @@ export const SiteHeaderV1: React.FC = () => {
   const isProvider = user?.roles?.some((role) =>
     role.startsWith("ROLE_PROVIDER_"),
   );
+
+  const membershipRole = user?.roles?.find((role) =>
+    /VIP|PREMIUM|BEGINNER|MASTER|PRO|ULTRA|GALAXY/.test(role),
+  );
+  const membershipSummary: MembershipSummary = {
+    tier: membershipRole
+      ? membershipRole
+          .replace(/^ROLE_/, "")
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (character: string) => character.toUpperCase())
+      : "Member",
+    benefitsLabel: membershipRole
+      ? "Premium travel benefits active"
+      : "Travel rewards and member benefits",
+  };
 
   const accountLinks: Array<HeaderLink & { description?: string }> = [
     {
@@ -893,6 +1030,9 @@ export const SiteHeaderV1: React.FC = () => {
       <button
         type="button"
         onClick={() => {
+          setCoinsOpen(false);
+          setUserOpen(false);
+          setOpenCategory(null);
           setActiveDropdown((current) =>
             current === dropdown ? null : dropdown,
           );
@@ -907,6 +1047,12 @@ export const SiteHeaderV1: React.FC = () => {
           item.label === "AI Planner" &&
             !isActive &&
             "hover:bg-violet-50 hover:text-violet-600",
+          item.label === "Challenge" &&
+            !isActive &&
+            "hover:bg-violet-50 hover:text-violet-600",
+          item.label === "Challenge" &&
+            isActive &&
+            "border-violet-200 bg-violet-50 text-violet-700 shadow-[0_8px_22px_rgba(124,58,237,0.12)]",
         )}
         aria-expanded={isOpen}
         aria-haspopup="menu"
@@ -916,10 +1062,14 @@ export const SiteHeaderV1: React.FC = () => {
             className={cn(
               "h-[18px] w-[18px]",
               isActive
-                ? "text-blue-600"
+                ? item.label === "Challenge"
+                  ? "text-violet-600"
+                  : "text-blue-600"
                 : item.label === "Deals"
                   ? "text-rose-500"
-                  : "text-slate-800 group-hover:text-blue-600",
+                  : item.label === "Challenge"
+                    ? "text-violet-500"
+                    : "text-slate-800 group-hover:text-blue-600",
             )}
           />
         )}
@@ -1073,10 +1223,12 @@ export const SiteHeaderV1: React.FC = () => {
     dropdown,
     children,
     className,
+    dark = false,
   }: {
     dropdown: Exclude<HeaderDropdown, null>;
     children: React.ReactNode;
     className?: string;
+    dark?: boolean;
   }) => (
     <AnimatePresence>
       {activeDropdown === dropdown && (
@@ -1088,10 +1240,17 @@ export const SiteHeaderV1: React.FC = () => {
             transition={{ duration: 0.2, ease: "easeOut" }}
             className={cn(
               "relative w-[min(92vw,320px)] rounded-[20px] border border-slate-200/80 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.16)]",
+              dark &&
+                "border-blue-300/20 bg-[linear-gradient(145deg,rgba(7,18,45,0.98),rgba(13,16,45,0.98))] shadow-[0_18px_50px_rgba(2,6,23,0.44),0_0_24px_rgba(99,102,241,0.10)]",
               className,
             )}
           >
-            <span className="absolute left-1/2 top-0 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rotate-45 border-l border-t border-slate-200/80 bg-white" />
+            <span
+              className={cn(
+                "absolute left-1/2 top-0 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rotate-45 border-l border-t border-slate-200/80 bg-white",
+                dark && "border-blue-300/20 bg-[rgb(9,17,45)]",
+              )}
+            />
             {children}
           </motion.div>
         </div>
@@ -1230,6 +1389,63 @@ export const SiteHeaderV1: React.FC = () => {
     </>
   );
 
+  const ChallengeDropdown = () => (
+    <>
+      <div className="mb-2 flex items-start gap-3 rounded-2xl bg-slate-50 p-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-violet-600 shadow-sm shadow-violet-200/70">
+          <Trophy className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <span className="min-w-0">
+          <span className="block text-sm font-black text-slate-950">
+            Challenge
+          </span>
+          <span className="mt-0.5 block text-xs font-semibold leading-4 text-slate-500">
+            Explore activities and earn rewards
+          </span>
+        </span>
+      </div>
+      <div className="space-y-2">
+        {challengeMenuItems.map((item) => {
+          const ItemIcon = item.icon;
+
+          return (
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => goTo(item.to)}
+              className="group grid min-h-[70px] w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] p-3 text-left text-slate-950 transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)] focus:outline-none focus:ring-2 focus:ring-violet-400/60"
+              role="menuitem"
+            >
+              <span
+                className={cn(
+                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border transition-all duration-200 group-hover:scale-[1.02]",
+                  item.accent === "orange"
+                    ? "border-violet-100 bg-violet-50 text-violet-600 shadow-[0_0_18px_rgba(124,58,237,0.10)]"
+                    : item.accent === "purple"
+                      ? "border-amber-100 bg-[linear-gradient(135deg,#faf5ff,#fff7ed)] text-violet-600 shadow-[0_0_18px_rgba(168,85,247,0.12)]"
+                      : item.accent === "rose"
+                        ? "border-fuchsia-100 bg-fuchsia-50 text-fuchsia-600 shadow-[0_0_18px_rgba(217,70,239,0.10)]"
+                      : "border-cyan-100 bg-cyan-50 text-cyan-600 shadow-[0_0_18px_rgba(6,182,212,0.10)]",
+                )}
+              >
+                <ItemIcon className="h-5 w-5" />
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-black text-slate-950">
+                  {item.label}
+                </span>
+                <span className="mt-0.5 block text-xs font-semibold leading-4 text-slate-500">
+                  {item.description}
+                </span>
+              </span>
+              <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-violet-500" />
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+
   const AccountHeader = ({ compact = false }: { compact?: boolean }) => (
     <div
       className={cn(
@@ -1338,25 +1554,20 @@ export const SiteHeaderV1: React.FC = () => {
     );
   };
 
-  const aiCoinsBalance = 2450;
+  const walletSummary = {
+    aiCoins: 2450,
+    // TODO: replace with trusted wallet API data when Special Coins backend support is available.
+    specialCoins: 320,
+  };
+
+  const aiCoinsBalance = walletSummary.aiCoins;
+  const specialCoinsBalance = walletSummary.specialCoins;
 
   const AiCoinsTrigger = ({ compact = false }: { compact?: boolean }) => (
     <button
       type="button"
       onClick={(event) => {
-        const trigger = event.currentTarget;
-        const rect = trigger.getBoundingClientRect();
-
-        coinsTriggerRef.current = trigger;
-        setCoinAnchorRect({
-          left: rect.left,
-          right: rect.right,
-          top: rect.top,
-          bottom: rect.bottom,
-          width: rect.width,
-          height: rect.height,
-        });
-
+        coinsTriggerRef.current = event.currentTarget;
         setCoinsOpen((open) => !open);
         setUserOpen(false);
         setActiveDropdown(null);
@@ -1411,323 +1622,190 @@ export const SiteHeaderV1: React.FC = () => {
     </button>
   );
 
-  const AiCoinsDropdown = () => {
-    const rect = coinAnchorRect;
+  const SpecialCoinsTrigger = ({ compact = false }: { compact?: boolean }) => (
+    <div
+      className={cn(
+        "group relative shrink-0 overflow-hidden rounded-full border border-violet-300/40 bg-[linear-gradient(135deg,rgba(33,20,69,0.92),rgba(13,21,48,0.96))] text-left text-violet-50 shadow-[0_0_22px_rgba(147,51,234,0.15),inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-200/70 hover:shadow-[0_0_30px_rgba(168,85,247,0.23)]",
+        compact
+          ? "flex h-11 w-11 items-center justify-center min-[420px]:w-auto min-[420px]:gap-2 min-[420px]:px-2.5"
+          : "hidden h-11 items-center gap-2.5 px-2.5 pr-2 xl:flex",
+      )}
+      aria-label={`${specialCoinsBalance.toLocaleString("en-US")} Special Coins`}
+    >
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -left-6 -top-7 h-16 w-16 rounded-full bg-fuchsia-400/20 blur-2xl"
+      />
+      <span className="relative flex h-8 w-8 items-center justify-center rounded-full text-violet-100 ">
+        <img
+          src={coinImage}
+          alt=""
+          draggable={false}
+          className="h-7 w-7  object-contain"
+        />
+      </span>
+      <span
+        className={cn(
+          "relative min-w-0 leading-tight",
+          compact && "hidden min-[420px]:block",
+        )}
+      >
+        <span className="block text-sm font-black tabular-nums text-white">
+          {specialCoinsBalance.toLocaleString("en-US")}
+        </span>
+        <span className="block text-[10px] font-black text-fuchsia-200">
+          Special Coins
+        </span>
+      </span>
+      {!compact && (
+        <button
+          type="button"
+          onClick={() => {
+            setCoinsOpen(false);
+            setUserOpen(false);
+            setOpenCategory(null);
+            setIsSecondaryNavCollapsed(false);
+            setActiveDropdown((current) =>
+              current === "challenge" ? null : "challenge",
+            );
+          }}
+          className="relative flex h-7 w-7 items-center justify-center rounded-full border border-violet-200/25 bg-slate-950/25 text-violet-100 transition hover:border-violet-100/50 hover:bg-violet-500/20 focus:outline-none focus:ring-2 focus:ring-violet-300/70"
+          aria-label="Phần thưởng Special Coins"
+          title="Phần thưởng Special Coins"
+        >
+          <Gift className="h-4 w-4" />
+        </button>
+      )}
+    </div>
+  );
 
-    const viewportWidth =
-      typeof window === "undefined" ? 680 : window.innerWidth;
 
-    const viewportHeight =
-      typeof window === "undefined" ? 768 : window.innerHeight;
 
-    const horizontalPadding = 16;
-    const dropdownWidth = Math.min(640, viewportWidth - horizontalPadding * 2);
+  const AccountDropdown = () => {
+    if (!accountDropdownPosition) return null;
 
-    const anchorCenter = rect ? rect.left + rect.width / 2 : viewportWidth / 2;
-
-    const idealLeft = anchorCenter - dropdownWidth / 2;
-
-    const left = Math.max(
-      horizontalPadding,
-      Math.min(idealLeft, viewportWidth - dropdownWidth - horizontalPadding),
-    );
-
-    const top = rect ? rect.bottom + 10 : 86;
-
-    const maxHeight = Math.min(680, Math.max(360, viewportHeight - top - 16));
+    const closeDropdown = () => {
+      setUserOpen(false);
+      setAccountDropdownPosition(null);
+      setIsAccountPositionReady(false);
+      requestAnimationFrame(() => userTriggerRef.current?.focus());
+    };
 
     return (
       <>
         <button
           type="button"
-          className="fixed inset-0 z-[2190] cursor-default bg-transparent"
-          onClick={() => {
-            setCoinsOpen(false);
-            setCoinAnchorRect(null);
-            coinsTriggerRef.current?.focus();
-          }}
-          aria-label="Close AI Coins menu"
+          className="fixed inset-0 z-[1190] cursor-default bg-transparent"
+          onClick={closeDropdown}
+          aria-label="Close user menu"
         />
+
         <motion.div
-          id="site-header-v1-ai-coins-menu"
+          id="site-header-v1-account-menu"
           role="menu"
-          initial={{ opacity: 0, y: -4, scale: 0.985 }}
+          aria-label="Account menu"
+          initial={{ opacity: 0, y: -8, scale: 0.985 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -4, scale: 0.985 }}
+          exit={{ opacity: 0, y: -6, scale: 0.985 }}
           transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-          className="fixed z-[2200] flex overflow-hidden rounded-[24px] border border-slate-200/80 bg-white text-slate-900 shadow-[0_30px_80px_rgba(15,23,42,0.22),0_8px_24px_rgba(15,23,42,0.10)] ring-1 ring-slate-900/5"
+          className="fixed z-[1200] grid overflow-hidden rounded-[22px] border border-slate-200/90 bg-white text-slate-900 shadow-[0_30px_80px_rgba(15,23,42,0.22),0_8px_24px_rgba(15,23,42,0.10)] ring-1 ring-slate-900/5"
           style={{
-            top,
-            left,
-            width: dropdownWidth,
-            maxHeight,
-            transformOrigin: "top center",
+            top: accountDropdownPosition.top,
+            left: accountDropdownPosition.left,
+            width: accountDropdownPosition.width,
+            maxHeight: accountDropdownPosition.maxHeight,
+            gridTemplateRows: "auto auto minmax(0, 1fr) auto",
+            transformOrigin: "top right",
           }}
         >
-          <div className="flex min-h-0 w-full flex-col overflow-hidden">
-            <div className="grid shrink-0 gap-4 border-b border-slate-100 p-4 md:grid-cols-[minmax(0,1fr)_220px]">
-              <div className="flex min-w-0 items-center gap-3">
-                <img
-                  src={coinImage}
-                  alt=""
-                  draggable={false}
-                  className="h-20 w-20 shrink-0 object-contain"
-                />
-                <div className="min-w-0">
-                  <p className="text-3xl font-black tabular-nums tracking-tight text-slate-950">
-                    {aiCoinsBalance.toLocaleString("en-US")}
-                  </p>
-                  <p className="mt-1 text-base font-bold text-slate-500">
-                    AI Coins
-                  </p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  disabled
-                  className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 text-sm font-black text-white opacity-80 shadow-[0_12px_26px_rgba(37,99,235,0.24)] disabled:cursor-not-allowed"
-                  role="menuitem"
-                  title="AI Coins top-up is coming soon"
-                >
-                  Mua them AI Coins
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-                <div className="flex items-start gap-3 rounded-2xl bg-blue-50 p-2.5 text-blue-700">
-                  <Sparkles className="mt-0.5 h-4 w-4 shrink-0" />
-                  <div>
-                    <p className="text-sm font-black">
-                      Nap coin - Mo khoa trai nghiem
-                    </p>
-                    <p className="mt-0.5 text-xs font-semibold text-slate-500">
-                      Thanh toan nhanh, nhan uu dai hon!
-                    </p>
-                  </div>
-                </div>
-              </div>
+          <div className="shrink-0 border-b border-slate-100 bg-white p-3.5">
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-black text-white shadow-lg shadow-blue-500/25">
+                {initials}
+              </span>
+
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-black text-slate-950">
+                  {displayName}
+                </span>
+                <span className="mt-0.5 block truncate text-xs font-medium text-slate-500">
+                  {user?.email}
+                </span>
+                <span className="mt-1 inline-flex min-h-6 items-center rounded-full border border-violet-500/25 bg-violet-50 px-2 py-0.5 text-[11px] font-black text-violet-700">
+                  {membershipSummary.tier}
+                </span>
+              </span>
+
+              <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-blue-700 shadow-sm ring-1 ring-blue-100">
+                {isProvider ? "Provider" : "Member"}
+              </span>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden [scrollbar-color:rgba(148,163,184,0.45)_transparent] [scrollbar-width:thin]">
-              <div className="grid border-b border-slate-100 md:grid-cols-3">
-                {[
-                  {
-                    label: "Lich su giao dich",
-                    to: "/payments/history",
-                    icon: CreditCard,
-                  },
-                  {
-                    label: "Uu dai & su kien",
-                    to: "/search?sort=deals",
-                    icon: Gift,
-                  },
-                  {
-                    label: "Cach kiem AI Coins",
-                    to: "/ai/planner",
-                    icon: HelpCircle,
-                  },
-                ].map((item) => (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={() => goTo(item.to)}
-                    className="flex min-h-12 min-w-0 items-center gap-2.5 border-slate-100 px-3 text-left text-sm font-bold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400/50 md:border-r md:last:border-r-0"
-                    role="menuitem"
-                  >
-                    <item.icon className="h-5 w-5 shrink-0 text-blue-600" />
-                    <span className="min-w-0 flex-1 truncate">
-                      {item.label}
-                    </span>
-                    <ChevronDown className="-rotate-90 h-4 w-4 shrink-0 text-slate-400" />
-                  </button>
-                ))}
-              </div>
+            <button
+              type="button"
+              onClick={() => goTo("/profile")}
+              className="mt-3 flex h-9 w-full items-center justify-between rounded-xl border border-blue-100 bg-white px-3 text-xs font-black text-blue-700 shadow-sm transition-colors hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              role="menuitem"
+            >
+              View profile
+              <ChevronDown className="-rotate-90 h-4 w-4" />
+            </button>
+          </div>
 
-              <div className="p-4">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="text-base font-black text-slate-950">
-                    Chon goi phu hop voi ban
-                  </p>
-                  <button
-                    type="button"
-                    disabled
-                    className="text-sm font-bold text-blue-600 disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    Xem tat ca
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-5 pt-3 min-[560px]:grid-cols-3 min-[1260px]:grid-cols-5">
-                  {aiCoinPackages.map((pack) => {
-                    const hasBadge = Boolean(pack.badge);
-                    const isBestValue = pack.badge === "Best value";
+          <button
+            type="button"
+            onClick={() => goTo("/membership")}
+            className="mx-3 mt-3 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] border border-violet-500/25 bg-[linear-gradient(135deg,rgba(245,243,255,0.96),rgba(239,246,255,0.96))] p-3 text-left transition hover:border-violet-400/45 hover:shadow-[0_8px_20px_rgba(124,58,237,0.10)] focus:outline-none focus:ring-2 focus:ring-violet-500"
+            role="menuitem"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
+              <Crown className="h-5 w-5" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[11px] font-bold uppercase tracking-wide text-violet-700">
+                Current membership
+              </span>
+              <strong className="mt-0.5 block truncate text-sm font-black text-slate-950">
+                {membershipSummary.tier}
+              </strong>
+              <small className="mt-0.5 block truncate text-xs font-medium text-slate-600">
+                {membershipSummary.benefitsLabel}
+              </small>
+            </span>
+            <ChevronDown className="-rotate-90 h-4 w-4 text-violet-500" />
+          </button>
 
-                    return (
-                      <button
-                        key={pack.amount}
-                        type="button"
-                        disabled
-                        className={cn(
-                          "relative min-w-0 overflow-visible rounded-2xl border bg-white px-2.5 pb-2.5 pt-4 text-center shadow-sm transition-all",
-                          "hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed",
-                          hasBadge
-                            ? "z-10 border-violet-300 shadow-[0_8px_24px_rgba(124,58,237,0.12)]"
-                            : "border-slate-200 hover:border-blue-200",
-                        )}
-                      >
-                        {pack.badge && (
-                          <span
-                            className={cn(
-                              "absolute left-1/2 top-0 z-20",
-                              "-translate-x-1/2 -translate-y-1/2",
-                              "inline-flex h-5 items-center justify-center",
-                              "whitespace-nowrap rounded-md px-2.5",
-                              "text-[8px] font-black uppercase tracking-wide text-white",
-                              isBestValue
-                                ? "bg-gradient-to-r from-violet-700 to-purple-500 shadow-[0_4px_12px_rgba(109,40,217,0.35)]"
-                                : "bg-gradient-to-r from-fuchsia-600 to-violet-500 shadow-[0_4px_12px_rgba(192,38,211,0.30)]",
-                            )}
-                          >
-                            {pack.badge}
-                          </span>
-                        )}
+          <div className="min-h-0 overflow-y-auto overscroll-contain px-2 py-2 [scrollbar-color:rgba(148,163,184,0.5)_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin]">
+            <AccountSection title="Travel" items={travelLinks} accent="blue" />
+            <AccountSection
+              title="Provider"
+              items={providerLinks}
+              accent="emerald"
+            />
+            <AccountSection
+              title="Account"
+              items={accountUtilityLinks}
+              accent="slate"
+            />
+          </div>
 
-                        <img
-                          src={coinGoldImage}
-                          alt={`${pack.amount} AI Coins`}
-                          draggable={false}
-                          className="mx-auto h-10 w-10 object-contain"
-                        />
-
-                        <p className="mt-2 text-xl font-black tabular-nums text-slate-950">
-                          {pack.amount.toLocaleString("en-US")}
-                        </p>
-
-                        <p className="text-xs font-bold text-slate-500">
-                          AI Coins
-                        </p>
-
-                        <span className="mt-2 inline-flex rounded-full bg-blue-50 px-2 py-1 text-[11px] font-black text-blue-600">
-                          {pack.bonus}
-                        </span>
-
-                        <p className="mt-2 whitespace-nowrap text-sm font-black text-slate-700">
-                          {pack.price}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="mt-3 flex items-center justify-between gap-4 rounded-2xl bg-gradient-to-r from-violet-50 to-blue-50 p-3">
-                  <div>
-                    <p className="text-base font-black text-violet-800">
-                      Tiet kiem hon voi goi lon hon!
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-slate-600">
-                      Nhan bonus hap dan khi mua goi tu 2,500 AI Coins tro len.
-                    </p>
-                  </div>
-                  <img
-                    src={coinGoldImage}
-                    alt=""
-                    draggable={false}
-                    className="hidden h-16 w-16 object-contain sm:block"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => goTo("/ai-coins")}
-                  className="mt-4 flex h-11 items-center gap-2 rounded-full text-sm font-black text-slate-800 transition hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
-                >
-                  Xem tat ca goi AI Coins
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
+          <div className="shrink-0 border-t border-slate-100 bg-white p-2">
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex min-h-[50px] w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-black text-red-600 transition-colors hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-300"
+              role="menuitem"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-50">
+                <LogOut className="h-4 w-4" />
+              </span>
+              Log out
+            </button>
           </div>
         </motion.div>
       </>
     );
   };
-
-  const AccountDropdown = () => (
-    <>
-      <button
-        className="fixed inset-0 z-30 cursor-default"
-        onClick={() => setUserOpen(false)}
-        aria-label="Close user menu"
-      />
-
-      <motion.div
-        initial={{ opacity: 0, y: -8, scale: 0.96 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: -6, scale: 0.98 }}
-        transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-        className="absolute right-0 top-full z-[100] mt-3 w-[min(420px,calc(100vw-32px))] origin-top-right overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/14 ring-1 ring-slate-900/5 lg:w-[372px]"
-      >
-        <div className="bg-white p-4">
-          <div className="flex items-center gap-3">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-black text-white shadow-lg shadow-blue-500/25">
-              {initials}
-            </span>
-
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-black text-slate-950">
-                {displayName}
-              </span>
-              <span className="mt-0.5 block truncate text-xs font-medium text-slate-500">
-                {user?.email}
-              </span>
-            </span>
-
-            <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-blue-700 shadow-sm ring-1 ring-blue-100">
-              {isProvider ? "Provider" : "Member"}
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => goTo("/profile")}
-            className="mt-3 flex h-9 w-full items-center justify-between rounded-2xl border border-blue-100 bg-white px-3 text-xs font-black text-blue-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-blue-50 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            View profile
-            <ChevronDown className="-rotate-90 h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="hidden grid-cols-4 gap-2 border-b border-slate-100 p-4 md:grid lg:hidden">
-          {accountLinks.map((item) => (
-            <AccountMenuItem key={item.label} item={item} compact />
-          ))}
-        </div>
-
-        <div className="p-2 md:hidden lg:block">
-          <AccountSection title="Travel" items={travelLinks} accent="blue" />
-          <AccountSection
-            title="Provider"
-            items={providerLinks}
-            accent="emerald"
-          />
-          <AccountSection
-            title="Account"
-            items={accountUtilityLinks}
-            accent="slate"
-          />
-        </div>
-
-        <div className="border-t border-slate-100 p-2">
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 text-left text-sm font-black text-red-600 transition-colors hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-300"
-          >
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-50">
-              <LogOut className="h-4 w-4" />
-            </span>
-            Log out
-          </button>
-        </div>
-      </motion.div>
-    </>
-  );
 
   const MobileAccountSheet = () => (
     <motion.div
@@ -1851,96 +1929,167 @@ export const SiteHeaderV1: React.FC = () => {
           )}
         </div>
 
-        <div className="grid flex-1 grid-cols-1 gap-3 overflow-y-auto p-4 min-[420px]:grid-cols-2 min-[420px]:gap-4">
-          <div className="space-y-1">
-            {primaryNav.slice(0, 7).map((item) => {
-              const section = megaMenuSections.find(
-                (menuSection) => menuSection.key === item.menuKey,
-              );
-              const expanded = Boolean(
-                item.menuKey && openCategory === item.menuKey,
-              );
-
-              return (
-                <div key={item.label}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const nextKey = item.menuKey;
-
-                      if (section && nextKey) {
-                        setOpenCategory((current) =>
-                          current === nextKey ? null : nextKey,
-                        );
-                        return;
-                      }
-
-                      goTo(item.to);
-                    }}
-                    className="flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 text-left text-sm font-bold text-slate-800 hover:bg-blue-50 hover:text-blue-700"
-                    aria-expanded={section ? expanded : undefined}
-                  >
-                    {item.icon && <item.icon className="h-4 w-4" />}
-                    <span className="flex-1">{item.label}</span>
-                    {section && (
-                      <ChevronDown
-                        className={cn(
-                          "h-4 w-4 text-slate-400 transition-transform",
-                          expanded && "rotate-180 text-blue-600",
-                        )}
-                      />
-                    )}
-                  </button>
-
-                  {section && expanded && (
-                    <div className="ml-4 mt-1 space-y-1 border-l border-blue-100 pl-3">
-                      {section.items.map((subItem) => (
-                        <button
-                          key={subItem.label}
-                          type="button"
-                          onClick={() => goTo(subItem.to)}
-                          className="flex min-h-10 w-full items-center gap-2 rounded-xl px-3 text-left text-xs font-bold text-slate-600 hover:bg-blue-50 hover:text-blue-700"
-                        >
-                          <subItem.icon className="h-3.5 w-3.5 text-blue-600" />
-                          {subItem.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="mb-4 grid gap-3 min-[420px]:grid-cols-2">
+            <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+              <div className="flex items-center gap-3">
+                <Coins className="h-6 w-6" />
+                <div>
+                  <p className="text-lg font-black">
+                    {aiCoinsBalance.toLocaleString("en-US")}
+                  </p>
+                  <p className="text-xs font-bold">AI Coins</p>
                 </div>
-              );
-            })}
+              </div>
+            </div>
+            <div className="rounded-3xl border border-violet-200 bg-violet-50 p-4 text-violet-900">
+              <div className="flex items-center gap-3">
+                <Star className="h-6 w-6 fill-violet-300 text-violet-600" />
+                <div>
+                  <p className="text-lg font-black">
+                    {specialCoinsBalance.toLocaleString("en-US")}
+                  </p>
+                  <p className="text-xs font-bold">Special Coins</p>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-1 border-t border-slate-100 pt-3 min-[420px]:border-l min-[420px]:border-t-0 min-[420px]:pl-4 min-[420px]:pt-0">
-            {[primaryNav[7], ...accountLinks].map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                onClick={() => goTo(item.to)}
-                className="relative flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 text-left text-sm font-bold text-slate-800 hover:bg-blue-50 hover:text-blue-700"
-              >
-                {item.icon && <item.icon className="h-4 w-4" />}
-                {item.label}
+          <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 min-[420px]:gap-4">
+            <div className="space-y-1">
+              {primaryNav.slice(0, 7).map((item) => {
+                const section = megaMenuSections.find(
+                  (menuSection) => menuSection.key === item.menuKey,
+                );
+                const expanded = Boolean(
+                  item.menuKey && openCategory === item.menuKey,
+                );
 
-                {item.badge && (
-                  <span className="ml-auto rounded-full bg-violet-100 px-2 py-0.5 text-[10px] text-violet-700">
-                    {item.badge}
-                  </span>
+                return (
+                  <div key={item.label}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextKey = item.menuKey;
+
+                        if (section && nextKey) {
+                          setOpenCategory((current) =>
+                            current === nextKey ? null : nextKey,
+                          );
+                          return;
+                        }
+
+                        goTo(item.to);
+                      }}
+                      className="flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 text-left text-sm font-bold text-slate-800 hover:bg-blue-50 hover:text-blue-700"
+                      aria-expanded={section ? expanded : undefined}
+                    >
+                      {item.icon && <item.icon className="h-4 w-4" />}
+                      <span className="flex-1">{item.label}</span>
+                      {section && (
+                        <ChevronDown
+                          className={cn(
+                            "h-4 w-4 text-slate-400 transition-transform",
+                            expanded && "rotate-180 text-blue-600",
+                          )}
+                        />
+                      )}
+                    </button>
+
+                    {section && expanded && (
+                      <div className="ml-4 mt-1 space-y-1 border-l border-blue-100 pl-3">
+                        {section.items.map((subItem) => (
+                          <button
+                            key={subItem.label}
+                            type="button"
+                            onClick={() => goTo(subItem.to)}
+                            className="flex min-h-10 w-full items-center gap-2 rounded-xl px-3 text-left text-xs font-bold text-slate-600 hover:bg-blue-50 hover:text-blue-700"
+                          >
+                            <subItem.icon className="h-3.5 w-3.5 text-blue-600" />
+                            {subItem.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="space-y-1 border-t border-slate-100 pt-3 min-[420px]:border-l min-[420px]:border-t-0 min-[420px]:pl-4 min-[420px]:pt-0">
+              <div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenCategory(null);
+                    setActiveDropdown((current) =>
+                      current === "challenge" ? null : "challenge",
+                    );
+                  }}
+                  className="relative flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 text-left text-sm font-bold text-slate-800 hover:bg-violet-50 hover:text-violet-700"
+                  aria-expanded={activeDropdown === "challenge"}
+                  aria-controls="mobile-challenge-submenu"
+                >
+                  <Trophy className="h-4 w-4 text-violet-600" />
+                  <span className="flex-1">Challenge</span>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 text-slate-400 transition-transform",
+                      activeDropdown === "challenge" &&
+                        "rotate-180 text-violet-600",
+                    )}
+                  />
+                </button>
+
+                {activeDropdown === "challenge" && (
+                  <div
+                    id="mobile-challenge-submenu"
+                    className="ml-4 mt-1 space-y-1 border-l border-violet-100 pl-3"
+                  >
+                    {challengeMenuItems.map((item) => (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={() => goTo(item.to)}
+                        className="flex min-h-10 w-full items-center gap-2 rounded-xl px-3 text-left text-xs font-bold text-slate-600 hover:bg-violet-50 hover:text-violet-700"
+                      >
+                        <item.icon className="h-3.5 w-3.5 text-violet-600" />
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
                 )}
-              </button>
-            ))}
+              </div>
 
-            {isAuthenticated && (
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 text-left text-sm font-bold text-slate-800 hover:bg-red-50 hover:text-red-600"
-              >
-                <LogOut className="h-4 w-4" />
-                Log out
-              </button>
-            )}
+              {[primaryNav[7], ...accountLinks].map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => goTo(item.to)}
+                  className="relative flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 text-left text-sm font-bold text-slate-800 hover:bg-blue-50 hover:text-blue-700"
+                >
+                  {item.icon && <item.icon className="h-4 w-4" />}
+                  {item.label}
+
+                  {item.badge && (
+                    <span className="ml-auto rounded-full bg-violet-100 px-2 py-0.5 text-[10px] text-violet-700">
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              ))}
+
+              {isAuthenticated && (
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 text-left text-sm font-bold text-slate-800 hover:bg-red-50 hover:text-red-600"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Log out
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -2040,7 +2189,10 @@ export const SiteHeaderV1: React.FC = () => {
               </nav>
 
               <div className="ml-auto flex shrink-0 items-center gap-2">
-                <AiCoinsTrigger />
+                <div className="hidden shrink-0 items-center gap-2 xl:flex">
+                  <AiCoinsTrigger />
+                  <SpecialCoinsTrigger />
+                </div>
 
                 <Button
                   variant="outline"
@@ -2070,14 +2222,33 @@ export const SiteHeaderV1: React.FC = () => {
                 {isAuthenticated && user ? (
                   <div className="relative">
                     <button
+                      ref={userTriggerRef}
                       type="button"
                       onClick={() => {
                         setCoinsOpen(false);
-                        setUserOpen((open) => !open);
+                        if (userOpen) {
+                          setUserOpen(false);
+                          setAccountDropdownPosition(null);
+                          setIsAccountPositionReady(false);
+                          return;
+                        }
+
+                        if (import.meta.env.DEV) {
+                          console.debug("[AccountDropdown]", {
+                            phase: "trigger-click",
+                            isOpen: false,
+                            triggerRect:
+                              userTriggerRef.current?.getBoundingClientRect(),
+                          });
+                        }
+
+                        setIsAccountPositionReady(false);
+                        setUserOpen(true);
                       }}
                       className="flex h-11 items-center gap-2 rounded-full border border-white/[0.10] bg-white/[0.035] py-1 pl-1 pr-3 text-sm font-semibold text-slate-100 shadow-sm transition-all duration-200 hover:bg-white/[0.08] hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-400"
                       aria-expanded={userOpen}
                       aria-haspopup="menu"
+                      aria-controls="site-header-v1-account-menu"
                     >
                       <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-xs font-black text-white shadow-sm shadow-blue-500/20">
                         {initials}
@@ -2087,10 +2258,6 @@ export const SiteHeaderV1: React.FC = () => {
                       </span>
                       <ChevronDown className="h-4 w-4 text-slate-300" />
                     </button>
-
-                    <AnimatePresence>
-                      {userOpen && <AccountDropdown />}
-                    </AnimatePresence>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
@@ -2145,6 +2312,7 @@ export const SiteHeaderV1: React.FC = () => {
                   />
 
                   <AiCoinsTrigger compact />
+                  <SpecialCoinsTrigger compact />
 
                   <button
                     type="button"
@@ -2296,6 +2464,19 @@ export const SiteHeaderV1: React.FC = () => {
                   <AllCategoriesDropdown />
                 </CompactDropdown>
               </div>
+
+              <div className="relative shrink-0 overflow-visible">
+                <SecondaryNavItem
+                  item={secondaryNavItems[4]}
+                  dropdown="challenge"
+                />
+                <CompactDropdown
+                  dropdown="challenge"
+                  className="w-[min(92vw,340px)] border-slate-200/90 bg-white p-3 shadow-[0_20px_55px_rgba(15,23,42,0.18),0_4px_14px_rgba(15,23,42,0.08)]"
+                >
+                  <ChallengeDropdown />
+                </CompactDropdown>
+              </div>
             </nav>
 
             <button
@@ -2344,7 +2525,14 @@ export const SiteHeaderV1: React.FC = () => {
 
       {mounted &&
         createPortal(
-          <AnimatePresence>{coinsOpen && <AiCoinsDropdown />}</AnimatePresence>,
+          <AiCoinsModal
+            isOpen={coinsOpen}
+            onClose={() => {
+              setCoinsOpen(false);
+              coinsTriggerRef.current?.focus();
+            }}
+            currentBalance={aiCoinsBalance}
+          />,
           document.body,
         )}
 
@@ -2359,7 +2547,22 @@ export const SiteHeaderV1: React.FC = () => {
       {mounted &&
         createPortal(
           <AnimatePresence>
-            {userOpen && isAuthenticated && <MobileAccountSheet />}
+            {userOpen &&
+              isAuthenticated &&
+              isDesktopAccountMenu &&
+              isAccountPositionReady && (
+                <AccountDropdown />
+              )}
+          </AnimatePresence>,
+          document.body,
+        )}
+
+      {mounted &&
+        createPortal(
+          <AnimatePresence>
+            {userOpen && isAuthenticated && !isDesktopAccountMenu && (
+              <MobileAccountSheet />
+            )}
           </AnimatePresence>,
           document.body,
         )}

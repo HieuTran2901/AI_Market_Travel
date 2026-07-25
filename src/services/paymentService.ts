@@ -1,6 +1,6 @@
 import api from './api';
 import { ApiResponse } from '@/types';
-import { Payment, PaymentMethod, Refund, Settlement } from '@/types/payment';
+import { Payment, PaymentDetail, PaymentMethod, Refund, Settlement } from '@/types/payment';
 
 export const paymentService = {
   async createPayment(orderId: number, paymentMethod: PaymentMethod, idempotencyKey: string) {
@@ -12,8 +12,34 @@ export const paymentService = {
     return response.data;
   },
 
+  async purchaseAiCoins(payload: {
+    packageId: string;
+    packageCode: string;
+    coinAmount: number;
+    bonusCoins: number;
+    amount: number;
+    paymentMethod: PaymentMethod;
+    promoCode: string | null;
+    purpose: string;
+  }) {
+    const response = await api.post<ApiResponse<any>>('/ai-coins/purchases/payments', {
+      packageId: payload.packageId,
+      paymentMethod: payload.paymentMethod,
+      promoCode: payload.promoCode,
+      idempotencyKey: crypto.randomUUID()
+    });
+    return response.data;
+  },
+
   async getPayment(id: number) {
-    const response = await api.get<ApiResponse<Payment>>(`/payments/${id}`);
+    const response = await api.get<ApiResponse<PaymentDetail>>(`/payments/${id}`);
+    return response.data;
+  },
+
+  async getMomoPaymentStatus(orderId: string) {
+    const response = await api.get<ApiResponse<Payment>>('/payments/momo/status', {
+      params: { orderId },
+    });
     return response.data;
   },
 
@@ -26,7 +52,47 @@ export const paymentService = {
     const response = await api.post<ApiResponse<Payment>>(`/payments/${id}/cancel`);
     return response.data;
   },
+
+  async getAiCoinPaymentStatus(paymentId: number, signal?: AbortSignal) {
+    const response = await api.get<ApiResponse<AiCoinPaymentStatusResponse>>(
+      `/ai-coins/payments/${paymentId}/status`,
+      { signal }
+    );
+    return response.data;
+  },
+
+  async processMoMoReturn(payload: {
+    paymentId: number;
+    orderId?: string;
+    requestId?: string;
+    resultCode?: number;
+    message?: string;
+    transId?: number;
+    amount?: number;
+    extraData?: string;
+  }) {
+    const response = await api.post<ApiResponse<AiCoinPaymentStatusResponse>>(
+      '/ai-coins/payments/momo/return',
+      payload
+    );
+    return response.data;
+  },
 };
+
+export interface AiCoinPaymentStatusResponse {
+  paymentId: number;
+  purchaseId: number;
+  status: string;
+  purchaseStatus: string;
+  credited: boolean;
+  amount: number;
+  currency: string;
+  gatewayResultCode: number | null;
+  baseCoins: number;
+  bonusCoins: number;
+  totalCoins: number;
+  updatedAt: string;
+}
 
 export const refundService = {
   async requestRefund(paymentId: number, amount: number, reason: string, method: string, requestedBy?: number) {

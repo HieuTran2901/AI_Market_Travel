@@ -4,12 +4,17 @@ import { MapPin, Star } from 'lucide-react';
 import { ListingResponse } from '@/types/listing';
 import { Card, CardContent } from './Card';
 import { Badge } from './Badge';
+import coinGoldImage from '@/assets/images/coin-gold.png';
+import { getListingAiCoinPrice } from './listingCoinFare';
+import './ListingCard.css';
 
 interface ListingCardProps {
   listing: ListingResponse;
 }
 
 export const ListingCard: React.FC<ListingCardProps> = ({ listing }) => {
+  const aiCoinPrice = getListingAiCoinPrice(listing);
+
   return (
     <Link to={`/listings/${listing.slug}`} className="group block">
       <Card className="h-full overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:hover:shadow-slate-950/40">
@@ -49,14 +54,37 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing }) => {
             </div>
           </div>
           
-          <div className="mt-4 flex items-end justify-between">
-            <div>
+          <div className="mt-3">
+            <div className="listing-card__pricing">
+              <div className="listing-card__cash-price">
               <p className="text-xs text-gray-500 dark:text-slate-400">Starting from</p>
               <p className="font-bold text-gray-900 dark:text-slate-100">
                 {listing.basePrice.toLocaleString()} {listing.currency}
               </p>
+              </div>
+
+              {aiCoinPrice !== null && (
+                <>
+                  <div className="listing-card__price-divider" aria-hidden="true">
+                    <span>or</span>
+                  </div>
+                  <div
+                    className="listing-card__coin-price"
+                    aria-label={`${aiCoinPrice.toLocaleString('en-US')} AI Coins coin fare`}
+                  >
+                    <img src={coinGoldImage} alt="" aria-hidden="true" />
+                    <div>
+                      <strong>{aiCoinPrice.toLocaleString('en-US')}</strong>
+                      <span>AI Coins</span>
+                    </div>
+                    <small>Coin fare</small>
+                  </div>
+                </>
+              )}
             </div>
-            <p className="max-w-[45%] truncate text-right text-xs text-gray-400 dark:text-slate-500">by {listing.providerName}</p>
+            <p className="listing-card__provider truncate text-right text-xs text-gray-400 dark:text-slate-500">
+              by {listing.providerName}
+            </p>
           </div>
         </CardContent>
       </Card>

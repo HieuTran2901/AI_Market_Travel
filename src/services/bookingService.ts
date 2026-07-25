@@ -11,6 +11,16 @@ export interface CartItemRequest {
   timeSlot?: string;
 }
 
+export interface CartExtraItemRequest {
+  extraServiceId: number;
+  quantity: number;
+}
+
+export interface CartExtrasRequest {
+  listingId: number;
+  items: CartExtraItemRequest[];
+}
+
 export interface AvailabilityCalendar {
   id: number;
   date: string;
@@ -35,6 +45,11 @@ export const bookingService = {
 
   async removeCartItem(itemId: number) {
     const response = await api.delete<ApiResponse<Cart>>(`/cart/items/${itemId}`);
+    return response.data;
+  },
+
+  async mergeCartItemExtras(itemId: number, request: CartExtrasRequest) {
+    const response = await api.post<ApiResponse<Cart>>(`/cart/items/${itemId}/extras`, request);
     return response.data;
   },
 

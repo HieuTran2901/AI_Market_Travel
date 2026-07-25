@@ -134,7 +134,8 @@ const BAN_REASON_LABELS: Record<string, string> = {
 
 const getBanReasonLabel = (reasonCode?: string, reasonLabel?: string) => {
   if (reasonLabel?.trim()) return reasonLabel.trim();
-  if (reasonCode && BAN_REASON_LABELS[reasonCode]) return BAN_REASON_LABELS[reasonCode];
+  if (reasonCode && BAN_REASON_LABELS[reasonCode])
+    return BAN_REASON_LABELS[reasonCode];
   return "Account restriction";
 };
 
@@ -179,6 +180,44 @@ const formVariants: Variants = {
     filter: "blur(5px)",
     transition: { duration: 0.26, ease: cinematicEase },
   }),
+};
+
+const mobileFormVariants: Variants = {
+  enter: {
+    opacity: 0,
+    x: 0,
+    y: 8,
+    scale: 1,
+    rotate: 0,
+    filter: "none",
+  },
+  center: {
+    opacity: 1,
+    x: 0,
+    y: 0,
+    scale: 1,
+    rotate: 0,
+    filter: "none",
+    transition: { duration: 0.2, ease: smoothEase },
+  },
+  curtainExit: {
+    opacity: 0,
+    x: 0,
+    y: -4,
+    scale: 1,
+    rotate: 0,
+    filter: "none",
+    transition: { duration: 0.12, ease: "easeOut" },
+  },
+  exit: {
+    opacity: 0,
+    x: 0,
+    y: -4,
+    scale: 1,
+    rotate: 0,
+    filter: "none",
+    transition: { duration: 0.12, ease: "easeOut" },
+  },
 };
 
 const fieldContainer: Variants = {
@@ -304,6 +343,38 @@ const useMediaQuery = (query: string) => {
   }, [query]);
 
   return matches;
+};
+
+type AuthPresentationMode = "mobile" | "tablet" | "desktop" | "reduced";
+
+type AuthPresentation = {
+  mode: AuthPresentationMode;
+  isMobile: boolean;
+  isTablet: boolean;
+  isDesktop: boolean;
+  shouldReduceMotion: boolean;
+};
+
+const useAuthPresentationMode = (): AuthPresentation => {
+  const isMobile = useMediaQuery("(max-width: 767px)");
+  const isTablet = useMediaQuery(
+    "(min-width: 768px) and (max-width: 1023px)",
+  );
+  const prefersReduced = useReducedMotion();
+
+  return {
+    mode: prefersReduced
+      ? "reduced"
+      : isMobile
+        ? "mobile"
+        : isTablet
+          ? "tablet"
+          : "desktop",
+    isMobile,
+    isTablet,
+    isDesktop: !isMobile && !isTablet,
+    shouldReduceMotion: Boolean(prefersReduced),
+  };
 };
 
 const usePointerParallax = (enabled: boolean) => {
@@ -444,6 +515,7 @@ const AuthBrandPanel = ({
                   }
                 : { duration: 0.7, ease: cinematicEase }
           }
+          aria-hidden={mode !== sceneMode}
         />
       ))}
       <motion.div
@@ -667,6 +739,158 @@ const AuthBrandPanel = ({
   );
 };
 
+const AuthMobileHero = ({ mode }: { mode: AuthMode }) => {
+  const isRegisterMode = mode === "register";
+
+  return (
+    <section className="auth-mobile-hero" aria-label="AI Marketplace Traveler">
+      <img
+        className="auth-mobile-hero__image"
+        src={brandScenes[mode].image}
+        alt=""
+      />
+      <div className="auth-mobile-hero__topbar">
+        <img
+          src="/brand/ai-marketplace-traveler-logo.png"
+          alt="AI Marketplace Traveler"
+          className="auth-mobile-hero__logo"
+        />
+        <button
+          type="button"
+          className="auth-mobile-hero__language"
+          aria-label="Language: English"
+        >
+          <Globe2 className="h-4 w-4" />
+          English
+          <ChevronDown className="h-4 w-4" />
+        </button>
+      </div>
+      <p className="auth-mobile-hero__copy">
+        {isRegisterMode
+          ? "Your journey starts here, we'll handle the rest."
+          : "Smarter journeys, unforgettable experiences."}
+      </p>
+    </section>
+  );
+};
+
+const AuthFormPresentation = ({
+  isDesktop,
+  motionEnabled,
+  isRegisterMode,
+  children,
+}: {
+  isDesktop: boolean;
+  motionEnabled: boolean;
+  isRegisterMode: boolean;
+  children: React.ReactNode;
+}) => {
+  const panelClassName =
+    "auth-form-panel relative z-10 flex w-full flex-col items-center justify-start overflow-x-hidden overflow-y-visible bg-[#f8fafc] px-[max(16px,env(safe-area-inset-left))] pb-[calc(28px+env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pb-8 md:pt-5 lg:absolute lg:left-0 lg:top-0 lg:h-screen lg:min-h-0 lg:w-1/2 lg:justify-center lg:overflow-hidden lg:px-8 lg:py-4 xl:px-12 2xl:px-16";
+
+  if (!isDesktop) {
+    return <section className={panelClassName}>{children}</section>;
+  }
+
+  if (!motionEnabled) {
+    return (
+      <section
+        className={panelClassName}
+        style={{ left: isRegisterMode ? "0%" : "50%" }}
+      >
+        {children}
+      </section>
+    );
+  }
+
+  return (
+    <motion.section
+      className={panelClassName}
+      initial={false}
+      animate={{ left: isRegisterMode ? "0%" : "50%" }}
+      transition={panelTransition}
+      style={{ willChange: "left", transform: "translateZ(0)", zIndex: 10 }}
+    >
+      {children}
+    </motion.section>
+  );
+};
+
+const AuthCardPositioner = ({
+  isDesktop,
+  motionEnabled,
+  isRegisterFormMode,
+  children,
+}: {
+  isDesktop: boolean;
+  motionEnabled: boolean;
+  isRegisterFormMode: boolean;
+  children: React.ReactNode;
+}) => {
+  const className =
+    "relative mx-auto w-full max-w-[520px] md:max-w-[560px] lg:w-[88%] lg:max-w-[640px] xl:max-w-[660px] 2xl:max-w-[720px]";
+
+  if (!isDesktop || !motionEnabled) {
+    return <div className={className}>{children}</div>;
+  }
+
+  return (
+    <motion.div
+      layout
+      animate={{ y: isRegisterFormMode ? -6 : 0 }}
+      transition={{ duration: 0.45, ease: smoothEase }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+};
+
+const AuthCardSurface = ({
+  isDesktop,
+  motionEnabled,
+  ambientActive,
+  children,
+}: {
+  isDesktop: boolean;
+  motionEnabled: boolean;
+  ambientActive: boolean;
+  children: React.ReactNode;
+}) => {
+  const className =
+    "auth-mobile-sheet traveler-auth-card relative overflow-visible rounded-[22px] border bg-white lg:rounded-[30px]";
+
+  if (!isDesktop || !motionEnabled) {
+    return <div className={className}>{children}</div>;
+  }
+
+  return (
+    <motion.div
+      layout
+      className={className}
+      animate={
+        ambientActive
+          ? {
+              boxShadow: [
+                "0 22px 70px rgba(15,23,42,0.10)",
+                "0 26px 82px rgba(37,99,235,0.12)",
+                "0 22px 70px rgba(15,23,42,0.10)",
+              ],
+            }
+          : { boxShadow: "0 22px 70px rgba(15,23,42,0.10)" }
+      }
+      transition={{
+        duration: 8,
+        repeat: ambientActive ? Infinity : 0,
+        repeatType: "mirror",
+        ease: "easeInOut",
+      }}
+    >
+      {children}
+    </motion.div>
+  );
+};
+
 type AuthInputProps = React.InputHTMLAttributes<HTMLInputElement> & {
   icon: React.ElementType;
   error?: string;
@@ -744,7 +968,7 @@ const AuthInput = React.forwardRef<HTMLInputElement, AuthInputProps>(
               setFocused(false);
               onBlur?.(event);
             }}
-            className={`${compact ? "h-[50px]" : "h-[52px]"} w-full rounded-2xl border bg-slate-50 pl-16 pr-5 text-sm font-semibold tracking-tight text-slate-900 outline-none transition placeholder:font-semibold placeholder:tracking-normal placeholder:text-slate-500 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100 ${
+            className={`${compact ? "h-[50px]" : "h-[52px]"} w-full rounded-2xl border bg-slate-50 pl-16 pr-5 text-base font-semibold tracking-tight text-slate-900 outline-none transition placeholder:font-semibold placeholder:tracking-normal placeholder:text-slate-500 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100 sm:text-sm ${
               error
                 ? "border-red-300 focus:border-red-400 focus:ring-red-100"
                 : "border-[#dbe3ee]"
@@ -805,19 +1029,11 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
 
 PasswordInput.displayName = "PasswordInput";
 
-const Divider = ({ compact = false }: { compact?: boolean }) => (
+const SocialButtons = ({ compact = false }: { compact?: boolean }) => (
   <motion.div
     variants={fieldItem}
-    className={`flex items-center ${compact ? "gap-4" : "gap-6"} text-xs font-bold text-slate-500`}
+    className="auth-social-grid grid gap-3 sm:grid-cols-3"
   >
-    <span className="h-px flex-1 bg-slate-200" />
-    or continue with
-    <span className="h-px flex-1 bg-slate-200" />
-  </motion.div>
-);
-
-const SocialButtons = ({ compact = false }: { compact?: boolean }) => (
-  <motion.div variants={fieldItem} className="grid gap-3 sm:grid-cols-3">
     {[
       ["G", "Google", "text-red-500"],
       ["A", "Apple", "text-slate-950"],
@@ -846,11 +1062,13 @@ const SubmitButton = ({
   label,
   loadingLabel,
   compact = false,
+  motionEnabled = true,
 }: {
   loading: boolean;
   label: string;
   loadingLabel: string;
   compact?: boolean;
+  motionEnabled?: boolean;
 }) => (
   <motion.button
     variants={fieldItem}
@@ -858,27 +1076,37 @@ const SubmitButton = ({
     disabled={loading}
     whileHover={{ y: -2 }}
     whileTap={{ scale: 0.98 }}
-    animate={{
-      backgroundPosition: loading
-        ? ["0% 50%", "100% 50%"]
-        : ["0% 50%", "100% 50%", "0% 50%"],
-    }}
-    transition={{
-      duration: loading ? 1.4 : 5,
-      repeat: Infinity,
-      ease: "linear",
-    }}
+    animate={
+      motionEnabled
+        ? {
+            backgroundPosition: loading
+              ? ["0% 50%", "100% 50%"]
+              : ["0% 50%", "100% 50%", "0% 50%"],
+          }
+        : undefined
+    }
+    transition={
+      motionEnabled
+        ? {
+            duration: loading ? 1.4 : 5,
+            repeat: Infinity,
+            ease: "linear",
+          }
+        : undefined
+    }
     className={`group relative flex ${compact ? "h-[52px]" : "h-[54px]"} w-full overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 bg-[length:200%_100%] text-base font-bold tracking-tight text-white shadow-lg shadow-blue-500/20 transition disabled:cursor-not-allowed disabled:opacity-60`}
   >
-    <motion.span
-      className="absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-white/20 to-transparent blur-sm"
-      animate={{ x: loading ? [0, 560] : [0, 440] }}
-      transition={{
-        duration: loading ? 1.1 : 3.2,
-        repeat: Infinity,
-        ease: "linear",
-      }}
-    />
+    {motionEnabled && (
+      <motion.span
+        className="absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-white/20 to-transparent blur-sm"
+        animate={{ x: loading ? [0, 560] : [0, 440] }}
+        transition={{
+          duration: loading ? 1.1 : 3.2,
+          repeat: Infinity,
+          ease: "linear",
+        }}
+      />
+    )}
     <AnimatePresence mode="wait" initial={false}>
       <motion.span
         key={loading ? "loading" : "idle"}
@@ -1077,12 +1305,42 @@ const AuthFlightTransition = ({
   );
 };
 
+const CompassMark = ({ className = "h-9 w-9" }: { className?: string }) => (
+  <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
+    <circle
+      cx="24"
+      cy="24"
+      r="20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    />
+    <path
+      d="M24 7v6M24 35v6M7 24h6M35 24h6"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeWidth="2"
+    />
+    <path
+      d="M30.8 14.4 25.7 28.5 17.2 33.6 22.3 19.5l8.5-5.1Z"
+      fill="currentColor"
+    />
+    <path d="m22.3 19.5 3.4 9" stroke="white" strokeWidth="1.4" />
+  </svg>
+);
+
 export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
   const { login, register: registerApi } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const prefersReduced = useReducedMotion();
-  const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const authPresentation = useAuthPresentationMode();
+  const { presentationMode, isMobile, isTablet, isDesktop, prefersReduced } = {
+    presentationMode: authPresentation.mode,
+    isMobile: authPresentation.isMobile,
+    isTablet: authPresentation.isTablet,
+    isDesktop: authPresentation.isDesktop,
+    prefersReduced: authPresentation.shouldReduceMotion,
+  };
   const [visualMode, setVisualMode] = React.useState<AuthMode>(initialMode);
   const [displayedFormMode, setDisplayedFormMode] =
     React.useState<AuthMode>(initialMode);
@@ -1138,6 +1396,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
   }, []);
 
   React.useEffect(() => {
+    if (isDesktop) return;
+
+    transitionTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    transitionTimersRef.current = [];
+    setTransitionPhase("idle");
+    setIsTransitioning(false);
+    setIsFormVisible(true);
+    setDisplayedFormMode(visualMode);
+    setDisplayedSceneMode(visualMode);
+  }, [isDesktop, presentationMode, visualMode]);
+
+  React.useEffect(() => {
     if (!bannedAccountDialog?.open) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1175,10 +1445,32 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
     },
   });
 
+  React.useEffect(() => {
+    (["login", "register"] as AuthMode[]).forEach((mode) => {
+      const image = new Image();
+      image.src = brandScenes[mode].image;
+    });
+  }, []);
+
   const isRegisterMode = visualMode === "register";
   const isRegisterFormMode = displayedFormMode === "register";
   const activeError = isRegisterFormMode ? registerError : loginError;
-  const ambientActive = isDesktop && !prefersReduced && !isTransitioning;
+  const desktopMotionEnabled = isDesktop && !prefersReduced;
+  const ambientActive = desktopMotionEnabled && !isTransitioning;
+  const activeFormVariants = desktopMotionEnabled
+    ? formVariants
+    : mobileFormVariants;
+  const authLayoutMode = isMobile ? "mobile" : isTablet ? "tablet" : "desktop";
+  const passwordValue = registerForm.watch("password") || "";
+  const passwordStrength = Math.min(
+    4,
+    [
+      passwordValue.length >= 8,
+      /[A-Z]/.test(passwordValue),
+      /[0-9]/.test(passwordValue),
+      /[^A-Za-z0-9]/.test(passwordValue),
+    ].filter(Boolean).length,
+  );
 
   const changeMode = (nextMode: AuthMode) => {
     if (nextMode === visualMode || isTransitioning) return;
@@ -1192,21 +1484,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
     setVisualMode(nextMode);
     setSweepKey((key) => key + 1);
 
-    if (!isDesktop || prefersReduced) {
+    if (!desktopMotionEnabled) {
       setDisplayedFormMode(nextMode);
       setDisplayedSceneMode(nextMode);
       setIsFormVisible(true);
-      window.setTimeout(
-        () => {
-          pendingRouteModeRef.current = nextMode;
-          navigate(nextMode === "register" ? "/register" : "/login", {
-            replace: true,
-          });
-          setTransitionPhase("idle");
-          setIsTransitioning(false);
-        },
-        prefersReduced ? 0 : 560,
+      pendingRouteModeRef.current = nextMode;
+      window.history.replaceState(
+        window.history.state,
+        "",
+        nextMode === "register" ? "/register" : "/login",
       );
+      setTransitionPhase("idle");
+      setIsTransitioning(false);
       return;
     }
 
@@ -1230,29 +1519,27 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
         setIsFormVisible(true);
         setTransitionPhase("idle");
         pendingRouteModeRef.current = nextMode;
-        navigate(nextMode === "register" ? "/register" : "/login", {
-          replace: true,
-        });
+        window.history.replaceState(
+          window.history.state,
+          "",
+          nextMode === "register" ? "/register" : "/login",
+        );
         setIsTransitioning(false);
       }, 1350),
     ];
   };
 
-  const handlePanelAnimationComplete = () => {
-    if (!isTransitioning) return;
-    if (isDesktop && !prefersReduced) return;
-    transitionTimersRef.current.forEach((timer) => window.clearTimeout(timer));
-    transitionTimersRef.current = [];
-    setDisplayedFormMode(visualMode);
-    setDisplayedSceneMode(visualMode);
-    setIsFormVisible(true);
-    setTransitionPhase("idle");
-    pendingRouteModeRef.current = visualMode;
-    navigate(visualMode === "register" ? "/register" : "/login", {
-      replace: true,
+  React.useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    console.debug("[AuthResponsive]", {
+      width: window.innerWidth,
+      isMobile,
+      isTablet,
+      isDesktop,
+      shouldReduceMotion: prefersReduced,
+      presentationMode,
     });
-    setIsTransitioning(false);
-  };
+  }, [isDesktop, isMobile, isTablet, presentationMode]);
 
   const onLoginSubmit = async (data: LoginFormData) => {
     setLoginError(null);
@@ -1264,7 +1551,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
     } catch (err: unknown) {
       const error = err as AuthApiError;
       if (error?.errorCode === "ACCOUNT_BANNED") {
-        const reason = getStringDetail(error.details?.reason) || fallbackBanReason;
+        const reason =
+          getStringDetail(error.details?.reason) || fallbackBanReason;
         const reasonCode = getStringDetail(error.details?.reasonCode);
         const reasonLabel = getStringDetail(error.details?.reasonLabel);
         setBannedAccountDialog({
@@ -1277,12 +1565,19 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
           reasonCode,
           reasonLabel: getBanReasonLabel(reasonCode, reasonLabel),
           bannedAt: getStringDetail(error.details?.bannedAt),
-          bannedByDisplayName: getStringDetail(error.details?.bannedByDisplayName),
+          bannedByDisplayName: getStringDetail(
+            error.details?.bannedByDisplayName,
+          ),
         });
         setLoginError(null);
         return;
       }
-      setLoginError(getAuthErrorMessage(error, "Invalid email or password. Please try again."));
+      setLoginError(
+        getAuthErrorMessage(
+          error,
+          "Invalid email or password. Please try again.",
+        ),
+      );
     } finally {
       setIsLoginSubmitting(false);
     }
@@ -1314,7 +1609,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
   };
 
   return (
-    <main className="relative h-screen min-h-screen overflow-hidden bg-[#f8fafc] font-sans antialiased">
+    <main
+      className={`auth-page auth-page--${authLayoutMode} relative min-h-screen min-h-[100dvh] overflow-x-hidden bg-[#f8fafc] font-sans antialiased lg:h-screen lg:overflow-hidden`}
+    >
       <style>
         {`
           .auth-form-panel {
@@ -1326,34 +1623,565 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
             display: none;
           }
 
+          .traveler-auth-card {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            --auth-workspace-background: #f8fafc;
+            --ticket-notch-y: 29%;
+            background:
+              linear-gradient(180deg, rgba(255,255,255,0.99), rgba(250,252,252,0.98));
+            border-color: rgba(94, 170, 174, 0.32);
+            box-shadow:
+              0 26px 70px rgba(15, 23, 42, 0.12),
+              0 6px 18px rgba(15, 23, 42, 0.05),
+              inset 0 1px 0 rgba(255,255,255,0.9);
+          }
+
+          .traveler-auth-card::-webkit-scrollbar {
+            display: none;
+          }
+
+          .traveler-auth-card::before,
+          .traveler-auth-card::after {
+            content: "";
+            position: absolute;
+            top: var(--ticket-notch-y);
+            z-index: 25;
+            width: 34px;
+            height: 68px;
+            border-radius: 999px;
+            background: var(--auth-workspace-background);
+            border: 1px solid rgba(94, 170, 174, 0.28);
+            box-shadow:
+              inset 0 0 0 1px rgba(255,255,255,0.72),
+              0 10px 24px rgba(15, 23, 42, 0.06);
+          }
+
+          .traveler-auth-card::before {
+            left: -18px;
+          }
+
+          .traveler-auth-card::after {
+            right: -18px;
+          }
+
+          .traveler-auth-layer {
+            position: absolute;
+            inset: 12px;
+            border-radius: 30px;
+            pointer-events: none;
+            box-shadow: 0 18px 42px rgba(15, 23, 42, 0.05);
+          }
+
+          .traveler-auth-layer-one {
+            transform: rotate(-4deg) translate(-16px, 7px);
+            background: rgba(224, 250, 247, 0.68);
+            border: 1px solid rgba(45, 212, 191, 0.18);
+          }
+
+          .traveler-auth-layer-two {
+            transform: rotate(4deg) translate(16px, 11px);
+            background: rgba(255, 247, 222, 0.72);
+            border: 1px solid rgba(245, 158, 11, 0.16);
+          }
+
+          .traveler-auth-stamp {
+            position: absolute;
+            right: 18px;
+            bottom: 18px;
+            z-index: 3;
+            width: 84px;
+            height: 84px;
+            border-radius: 999px;
+            border: 2px dashed rgba(14, 116, 144, 0.34);
+            color: rgba(14, 116, 144, 0.34);
+            pointer-events: none;
+            transform: rotate(-12deg);
+          }
+
+          .traveler-auth-stamp::before {
+            content: "AI MARKETPLACE";
+            position: absolute;
+            inset: 10px;
+            display: grid;
+            place-items: center;
+            border-radius: inherit;
+            border: 1px solid rgba(14, 116, 144, 0.25);
+            font-size: 9px;
+            font-weight: 900;
+            letter-spacing: 0.12em;
+            text-align: center;
+          }
+
+          .traveler-auth-route-line {
+            position: absolute;
+            left: 24px;
+            top: 30%;
+            bottom: 18%;
+            z-index: 1;
+            width: 1px;
+            border-left: 2px dashed rgba(20, 184, 166, 0.34);
+            pointer-events: none;
+          }
+
+          .traveler-auth-route-line::before,
+          .traveler-auth-route-line::after {
+            content: "";
+            position: absolute;
+            left: -6px;
+            width: 12px;
+            height: 12px;
+            border-radius: 999px;
+          }
+
+          .traveler-auth-route-line::before {
+            top: 0;
+            background: rgb(13, 148, 136);
+          }
+
+          .traveler-auth-route-line::after {
+            bottom: 0;
+            background: rgb(248, 113, 113);
+          }
+
+          .traveler-auth-header::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0.28;
+            background:
+              radial-gradient(circle at 18% 18%, rgba(20, 184, 166, 0.16) 0 1px, transparent 1.5px),
+              radial-gradient(circle at 76% 30%, rgba(37, 99, 235, 0.14) 0 1px, transparent 1.5px),
+              repeating-radial-gradient(ellipse at 72% 0%, transparent 0 13px, rgba(14, 116, 144, 0.1) 14px 15px);
+          }
+
+          .auth-page--mobile,
+          .auth-page--tablet {
+            width: 100%;
+            max-width: 480px;
+            min-height: 100vh;
+            min-height: 100dvh;
+            height: auto;
+            margin: 0 auto;
+            padding: 0;
+            overflow-x: clip;
+            overflow-y: auto;
+            background: #f8fbff;
+          }
+
+          .auth-page--tablet {
+            max-width: 640px;
+          }
+
+          .auth-mobile-hero {
+            position: relative;
+            z-index: 1;
+            height: clamp(180px, 27dvh, 220px);
+            overflow: hidden;
+            border-radius: 0 0 28px 28px;
+            background: #0f274d;
+          }
+
+          .auth-mobile-hero::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(4,17,42,.42), rgba(4,17,42,.72));
+            pointer-events: none;
+          }
+
+          .auth-mobile-hero__image {
+            position: absolute;
+            inset: 0;
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center 40%;
+          }
+
+          .auth-mobile-hero__topbar {
+            position: absolute;
+            z-index: 2;
+            inset: max(20px, env(safe-area-inset-top)) 20px auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+          }
+
+          .auth-mobile-hero__logo {
+            width: auto;
+            height: 38px;
+            max-width: 180px;
+            object-fit: contain;
+            filter: brightness(0) invert(1) drop-shadow(0 2px 8px rgba(2,6,23,.45));
+          }
+
+          .auth-mobile-hero__language {
+            display: inline-flex;
+            min-height: 40px;
+            align-items: center;
+            gap: 6px;
+            border: 0;
+            border-radius: 12px;
+            padding: 8px 10px;
+            background: rgba(2, 6, 23, .16);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 700;
+          }
+
+          .auth-mobile-hero__language:focus-visible {
+            outline: 2px solid #fff;
+            outline-offset: 2px;
+          }
+
+          .auth-mobile-hero__copy {
+            position: absolute;
+            z-index: 2;
+            left: 20px;
+            right: 20px;
+            bottom: 34px;
+            max-width: 280px;
+            margin: 0;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            line-height: 1.45;
+            text-shadow: 0 2px 12px rgba(2,6,23,.55);
+          }
+
+          .auth-page--mobile .auth-form-panel,
+          .auth-page--tablet .auth-form-panel {
+            display: block;
+            position: relative;
+            z-index: 3;
+            inset: auto;
+            width: 100%;
+            min-width: 0;
+            height: auto;
+            min-height: calc(100dvh - 154px);
+            margin: -26px 0 0;
+            transform: none;
+            background-image: none;
+            background: transparent;
+            padding: 0;
+          }
+
+          .auth-page--mobile .auth-form-panel > *,
+          .auth-page--mobile .traveler-auth-card,
+          .auth-page--mobile .traveler-auth-header,
+          .auth-page--mobile .traveler-auth-body,
+          .auth-page--mobile .traveler-auth-body > *,
+          .auth-page--mobile .traveler-auth-body form {
+            min-width: 0;
+            max-width: 100%;
+          }
+
+          .auth-page--mobile .traveler-auth-card,
+          .auth-page--tablet .traveler-auth-card {
+            width: 100%;
+            max-width: none;
+            margin: 0 auto;
+            border: 0;
+            border-radius: 28px 28px 0 0;
+            box-shadow: 0 -8px 30px rgba(15,23,42,.08);
+            transform: none;
+          }
+
+          .auth-page--mobile .traveler-auth-intro h2,
+          .auth-page--mobile .traveler-auth-intro p {
+            overflow-wrap: anywhere;
+          }
+
+          .auth-page--mobile .traveler-auth-body,
+          .auth-page--tablet .traveler-auth-body {
+            padding: 30px 24px max(24px, env(safe-area-inset-bottom)) !important;
+          }
+
+          .auth-page--mobile .traveler-auth-intro > p:first-child,
+          .auth-page--tablet .traveler-auth-intro > p:first-child {
+            display: none;
+          }
+
+          .auth-page--mobile .traveler-auth-intro h2,
+          .auth-page--tablet .traveler-auth-intro h2 {
+            margin-top: 0;
+            margin-bottom: 0;
+            font-size: clamp(30px, 8vw, 38px) !important;
+            line-height: 1.04;
+            letter-spacing: -0.03em;
+          }
+
+          .auth-page--mobile .traveler-auth-intro > p:last-child,
+          .auth-page--tablet .traveler-auth-intro > p:last-child {
+            margin-top: 12px;
+            font-size: 15px;
+            line-height: 1.45;
+          }
+
+          .auth-page--mobile .auth-mode-switch,
+          .auth-page--tablet .auth-mode-switch {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            margin-top: 22px;
+            padding: 4px;
+            border-radius: 16px;
+          }
+
+          .auth-page--mobile .auth-mode-switch__option,
+          .auth-page--tablet .auth-mode-switch__option {
+            min-height: 46px;
+            height: 46px;
+            padding: 10px 8px;
+            font-size: 14px;
+          }
+
+          .auth-page--mobile .auth-stepper,
+          .auth-page--tablet .auth-stepper {
+            margin-top: 14px;
+            gap: 4px;
+          }
+
+          .auth-page--mobile .auth-stepper__circle,
+          .auth-page--tablet .auth-stepper__circle {
+            width: 30px;
+            height: 30px;
+          }
+
+          .auth-page--mobile .auth-stepper__label,
+          .auth-page--tablet .auth-stepper__label {
+            margin-top: 4px;
+            font-size: 11px;
+          }
+
+          .auth-page--mobile .auth-social-grid,
+          .auth-page--tablet .auth-social-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+          }
+
+          .auth-page--mobile .auth-social-grid button,
+          .auth-page--tablet .auth-social-grid button {
+            gap: 6px;
+            padding-inline: 8px;
+          }
+
+          .auth-page--mobile .auth-mobile-footer-switch,
+          .auth-page--tablet .auth-mobile-footer-switch {
+            margin: 18px -24px -24px;
+            padding: 22px 20px max(24px, env(safe-area-inset-bottom));
+            border-top: 1px dashed rgba(14, 116, 144, .18);
+            background: linear-gradient(180deg, rgba(239,250,255,.45), rgba(231,248,252,.92));
+          }
+
+          .auth-page--mobile::before,
+          .auth-page--mobile::after,
+          .auth-page--tablet::before,
+          .auth-page--tablet::after,
+          .auth-page--mobile .auth-form-panel::before,
+          .auth-page--mobile .auth-form-panel::after,
+          .auth-page--tablet .auth-form-panel::before,
+          .auth-page--tablet .auth-form-panel::after {
+            content: none;
+            display: none;
+          }
+
+          .auth-page--mobile .traveler-auth-body input,
+          .auth-page--mobile .traveler-auth-body button {
+            max-width: 100%;
+          }
+
           @media (min-width: 1024px) and (max-height: 700px) {
             .auth-form-panel {
               align-items: flex-start !important;
               overflow-y: auto !important;
             }
           }
+
+          @media (max-height: 860px) and (min-width: 1024px) {
+            .auth-form-panel {
+              padding-block: 12px !important;
+            }
+
+            .traveler-auth-card {
+              max-height: calc(100dvh - 24px);
+              overflow-y: auto;
+              --ticket-notch-y: 28%;
+            }
+
+            .traveler-auth-header {
+              padding-block: 12px !important;
+            }
+
+            .traveler-auth-body {
+              padding-block: 15px !important;
+            }
+
+            .traveler-auth-intro h2 {
+              font-size: clamp(24px, 2.4vw, 32px) !important;
+            }
+
+            .traveler-auth-protected {
+              display: none !important;
+            }
+          }
+
+          @media (max-width: 1023px) {
+            .auth-form-panel,
+            .traveler-auth-card {
+              transform: none;
+              inset: auto;
+            }
+
+            .auth-form-panel {
+              position: relative !important;
+              left: auto !important;
+              top: auto !important;
+              width: 100% !important;
+              min-height: 0;
+              height: auto;
+              overflow: visible !important;
+            }
+
+            .traveler-auth-layer,
+            .traveler-auth-stamp,
+            .traveler-auth-route-line {
+              display: none !important;
+            }
+
+            .traveler-auth-card::before,
+            .traveler-auth-card::after {
+              display: none;
+            }
+
+            .traveler-auth-card {
+              max-height: none;
+              overflow: visible;
+              box-shadow:
+                0 18px 44px rgba(15, 23, 42, 0.10),
+                0 4px 14px rgba(15, 23, 42, 0.04) !important;
+            }
+
+            .traveler-auth-header {
+              padding: 14px 18px !important;
+            }
+
+            .traveler-auth-body {
+              padding: 18px !important;
+            }
+          }
+
+          @media (max-width: 767px) {
+            .traveler-auth-intro h2 {
+              font-size: clamp(28px, 8vw, 32px) !important;
+            }
+
+            .traveler-auth-header {
+              gap: 12px;
+            }
+
+            .traveler-auth-body {
+              padding: 18px !important;
+            }
+
+            .auth-page--mobile .traveler-auth-body {
+              padding: 30px 24px max(24px, env(safe-area-inset-bottom)) !important;
+            }
+
+            .auth-page--mobile .auth-mobile-footer-switch {
+              margin-inline: -24px;
+            }
+          }
+
+          @media (max-width: 767px) and (max-height: 700px) {
+            .auth-page--mobile .auth-form-panel {
+              min-height: calc(100dvh - 132px);
+            }
+
+            .auth-page--mobile .traveler-auth-intro h2 {
+              font-size: 27px !important;
+            }
+
+            .auth-page--mobile .auth-stepper {
+              margin-top: 12px;
+            }
+
+            .auth-page--mobile .auth-mobile-hero {
+              height: 168px;
+            }
+          }
+
+          @media (max-width: 389px) {
+            .auth-mobile-hero__topbar,
+            .auth-mobile-hero__copy {
+              left: 18px;
+              right: 18px;
+            }
+
+            .auth-mobile-hero__logo {
+              height: 34px;
+              max-width: 152px;
+            }
+
+            .auth-mobile-hero__language {
+              padding-inline: 7px;
+              font-size: 13px;
+            }
+
+            .auth-page--mobile .traveler-auth-body {
+              padding-inline: 18px !important;
+            }
+
+            .auth-page--mobile .auth-mobile-footer-switch {
+              margin-inline: -18px;
+            }
+          }
+
+          @media (max-width: 339px) {
+            .auth-page--mobile .auth-social-grid {
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .auth-page--mobile .auth-social-grid > :last-child {
+              grid-column: span 2;
+            }
+          }
+
+          @media (max-width: 1023px) {
+            body:has(.auth-page--mobile) [aria-label="Open Travel AI Concierge"],
+            body:has(.auth-page--tablet) [aria-label="Open Travel AI Concierge"] {
+              display: none !important;
+            }
+          }
+
         `}
       </style>
-      <AuthBrandPanel
-        mode={displayedSceneMode}
-        layoutMode={visualMode}
-        transitionPhase={transitionPhase}
-        isDesktop={isDesktop}
-        isTransitioning={isDesktop && isTransitioning && !prefersReduced}
-        direction={direction}
-      />
-      <AnimatePresence>
-        <AuthFlightTransition
-          key={sweepKey}
+      {isDesktop && (
+        <AuthBrandPanel
+          mode={displayedSceneMode}
+          layoutMode={visualMode}
+          transitionPhase={transitionPhase}
+          isDesktop={isDesktop}
+          isTransitioning={desktopMotionEnabled && isTransitioning}
           direction={direction}
-          active={
-            isDesktop &&
-            isTransitioning &&
-            !prefersReduced &&
-            (transitionPhase === "cinematic" || transitionPhase === "revealing")
-          }
         />
-      </AnimatePresence>
+      )}
+      {isDesktop && (
+        <AnimatePresence>
+          <AuthFlightTransition
+            key={sweepKey}
+            direction={direction}
+            active={
+              desktopMotionEnabled &&
+              isTransitioning &&
+              (transitionPhase === "cinematic" ||
+                transitionPhase === "revealing")
+            }
+          />
+        </AnimatePresence>
+      )}
 
       <AnimatePresence>
         {bannedAccountDialog?.open && (
@@ -1379,17 +2207,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
         )}
       </AnimatePresence>
 
-      <motion.section
-        className="auth-form-panel relative z-10 flex min-h-screen w-full flex-col items-center justify-center overflow-x-hidden overflow-y-auto bg-[#f8fafc] px-4 py-8 sm:px-6 lg:absolute lg:left-0 lg:top-0 lg:h-screen lg:min-h-0 lg:w-1/2 lg:overflow-hidden lg:px-8 lg:py-4 xl:px-12 2xl:px-16"
-        initial={false}
-        animate={{
-          left: isDesktop && isRegisterMode ? "0%" : isDesktop ? "50%" : "0%",
-        }}
-        transition={prefersReduced ? { duration: 0 } : panelTransition}
-        onAnimationComplete={handlePanelAnimationComplete}
-        style={{ willChange: "left", transform: "translateZ(0)", zIndex: 10 }}
+      {!isDesktop && <AuthMobileHero mode={displayedFormMode} />}
+
+      <AuthFormPresentation
+        isDesktop={isDesktop}
+        motionEnabled={desktopMotionEnabled}
+        isRegisterMode={isRegisterMode}
       >
-        <motion.span
+        {desktopMotionEnabled && (
+          <motion.span
           className="pointer-events-none absolute right-[8%] top-[14%] hidden h-56 w-56 rounded-full bg-blue-500/8 blur-3xl lg:block"
           animate={
             ambientActive
@@ -1402,8 +2228,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
             repeatType: "mirror",
             ease: "easeInOut",
           }}
-        />
-        <motion.span
+          />
+        )}
+        {desktopMotionEnabled && (
+          <motion.span
           className="pointer-events-none absolute bottom-[12%] left-[10%] hidden h-48 w-48 rounded-full bg-violet-500/7 blur-3xl lg:block"
           animate={
             ambientActive
@@ -1416,49 +2244,43 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
             repeatType: "mirror",
             ease: "easeInOut",
           }}
-        />
-        <div className="mb-6 flex justify-center lg:hidden">
-          <img
-            src="/brand/ai-marketplace-traveler-logo.png"
-            alt="AI Marketplace Traveler"
-            className="h-14 w-auto max-w-[210px] object-contain"
           />
-        </div>
-
-        <motion.div
-          layout
-          animate={{ y: isDesktop && isRegisterFormMode ? -6 : 0 }}
-          transition={
-            prefersReduced
-              ? { duration: 0 }
-              : { duration: 0.45, ease: smoothEase }
-          }
-          className="relative mx-auto w-full max-w-[680px] lg:w-[88%] lg:max-w-[640px] xl:max-w-[660px] 2xl:max-w-[720px]"
+        )}
+        <AuthCardPositioner
+          isDesktop={isDesktop}
+          motionEnabled={desktopMotionEnabled}
+          isRegisterFormMode={isRegisterFormMode}
         >
-          <EnergyArcs active={ambientActive} />
-          <motion.div
-            layout
-            className="relative overflow-hidden rounded-[28px] border border-slate-200/90 bg-white shadow-[0_22px_70px_rgba(15,23,42,0.10)] max-md:rounded-[20px] max-md:shadow-none"
-            animate={
-              ambientActive
-                ? {
-                    boxShadow: [
-                      "0 22px 70px rgba(15,23,42,0.10)",
-                      "0 26px 82px rgba(37,99,235,0.12)",
-                      "0 22px 70px rgba(15,23,42,0.10)",
-                    ],
-                  }
-                : { boxShadow: "0 22px 70px rgba(15,23,42,0.10)" }
-            }
-            transition={{
-              duration: 8,
-              repeat: ambientActive ? Infinity : 0,
-              repeatType: "mirror",
-              ease: "easeInOut",
-            }}
+          {desktopMotionEnabled && <EnergyArcs active={ambientActive} />}
+          {desktopMotionEnabled && (
+            <div
+            className="traveler-auth-layer traveler-auth-layer-one"
+            aria-hidden="true"
+            />
+          )}
+          {desktopMotionEnabled && (
+            <div
+            className="traveler-auth-layer traveler-auth-layer-two"
+            aria-hidden="true"
+            />
+          )}
+          <AuthCardSurface
+            isDesktop={isDesktop}
+            motionEnabled={desktopMotionEnabled}
+            ambientActive={ambientActive}
           >
+            {isRegisterFormMode && (
+              <span
+                className="traveler-auth-route-line hidden sm:block"
+                aria-hidden="true"
+              />
+            )}
+            <span
+              className="traveler-auth-stamp hidden sm:block"
+              aria-hidden="true"
+            />
             <AnimatePresence initial={false}>
-              {sweepKey > 0 && !prefersReduced && (
+              {sweepKey > 0 && isDesktop && !prefersReduced && (
                 <motion.span
                   key={sweepKey}
                   className="pointer-events-none absolute -top-12 bottom-0 z-20 w-[30%] rotate-[-12deg] bg-gradient-to-r from-transparent via-blue-500/25 to-violet-500/20 blur-2xl"
@@ -1479,84 +2301,173 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
               )}
             </AnimatePresence>
 
-            <div className="grid grid-cols-[1fr_auto] items-center border-b border-slate-200">
-              <div className="relative grid grid-cols-2">
-                {(["login", "register"] as AuthMode[]).map((tabMode) => {
-                  const active = visualMode === tabMode;
-                  return (
-                    <button
-                      key={tabMode}
-                      type="button"
-                      disabled={isTransitioning}
-                      onClick={() => changeMode(tabMode)}
-                      className={`relative flex h-16 items-center justify-center text-base font-extrabold tracking-tight transition disabled:pointer-events-none lg:h-[68px] ${active ? "text-blue-600" : "text-slate-950"}`}
-                    >
-                      {tabMode === "login" ? "Sign In" : "Sign Up"}
-                      {active && (
-                        <motion.span
-                          layoutId="auth-active-tab"
-                          className="absolute bottom-0 h-[3px] w-44 max-w-[70%] rounded-full bg-blue-600 shadow-[0_0_18px_rgba(37,99,235,0.28)]"
-                        >
-                          <span className="absolute inset-x-4 -top-2 h-5 rounded-full bg-blue-500/20 blur-[10px]" />
-                        </motion.span>
-                      )}
-                    </button>
-                  );
-                })}
+            {isDesktop && (
+              <div className="traveler-auth-header relative flex flex-wrap items-center justify-between gap-4 border-b border-dashed border-teal-500/30 bg-[linear-gradient(180deg,rgba(248,253,253,0.98),rgba(255,255,255,0.95))] px-6 py-4 sm:px-8">
+              <div className="pointer-events-none absolute right-0 top-0 h-28 w-72 opacity-60 [background-image:radial-gradient(circle_at_1px_1px,rgba(37,99,235,0.16)_1px,transparent_0)] [background-size:18px_18px]" />
+              <div className="relative flex items-center gap-4">
+                <span
+                  className={`flex h-[52px] w-[52px] items-center justify-center rounded-full border shadow-sm ${
+                    isRegisterFormMode
+                      ? "border-cyan-100 bg-cyan-50 text-cyan-700"
+                      : "border-slate-200 bg-white text-slate-950"
+                  }`}
+                >
+                  <CompassMark />
+                </span>
+                <div>
+                  <p
+                    className={`text-[15px] font-black uppercase leading-[0.98] tracking-[0.22em] ${
+                      isRegisterFormMode ? "text-cyan-800" : "text-slate-950"
+                    }`}
+                  >
+                    {isRegisterFormMode ? "New" : "Traveler"}
+                  </p>
+                  <p
+                    className={`text-[15px] font-black uppercase leading-[0.98] tracking-[0.22em] ${
+                      isRegisterFormMode ? "text-cyan-800" : "text-slate-950"
+                    }`}
+                  >
+                    {isRegisterFormMode ? "Traveler Pass" : "Access"}
+                  </p>
+                </div>
               </div>
+
+              <p
+                className={`relative hidden text-[11px] font-black uppercase tracking-[0.34em] lg:block ${
+                  isRegisterFormMode ? "text-cyan-800" : "text-slate-700"
+                }`}
+              >
+                {isRegisterFormMode ? "Discover" : "Home"}
+                <span className="mx-2 text-blue-600">•</span>
+                {isRegisterFormMode ? "Create" : "AI"}
+                <span className="mx-2 text-blue-600">•</span>
+                {isRegisterFormMode ? "Go" : "Next"}
+              </p>
 
               <button
                 type="button"
-                className="mr-6 hidden h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold tracking-tight text-slate-800 shadow-sm transition hover:border-blue-200 sm:flex"
+                className={`relative flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-bold tracking-tight text-slate-800 transition focus-visible:outline-none focus-visible:ring-2 ${
+                  isRegisterFormMode
+                    ? "hover:bg-cyan-50 focus-visible:ring-cyan-500"
+                    : "hover:bg-blue-50 focus-visible:ring-blue-500"
+                }`}
               >
-                <Globe2 className="h-4 w-4 text-slate-500" />
+                <Globe2 className="h-4 w-4" />
                 English
                 <ChevronDown className="h-4 w-4 text-slate-500" />
               </button>
-            </div>
+              </div>
+            )}
 
             <motion.div
-              layout="size"
+              layout={desktopMotionEnabled ? "size" : undefined}
               transition={{ layout: { duration: 0.55, ease: smoothEase } }}
-              className={`${isRegisterFormMode ? "px-5 py-4 sm:px-7 sm:py-5 lg:px-9 lg:py-5 xl:px-10" : "px-6 py-6 sm:px-9 sm:py-7 lg:px-10 lg:py-7 xl:px-12"}`}
+              className={`traveler-auth-body relative ${isRegisterFormMode ? "px-5 py-5 sm:px-8 sm:py-6 lg:px-10 lg:py-6" : "px-6 py-6 sm:px-10 sm:py-7 lg:px-12"}`}
             >
               <AnimatePresence mode="sync" initial={false} custom={direction}>
                 <motion.div
                   key={displayedFormMode}
                   custom={direction}
-                  variants={formVariants}
+                  variants={activeFormVariants}
                   initial="enter"
                   animate={isFormVisible ? "center" : "curtainExit"}
                   exit="exit"
-                  layout
+                  layout={desktopMotionEnabled}
                 >
                   <motion.div
                     variants={fieldContainer}
-                    initial="hidden"
-                    animate="show"
+                    initial={desktopMotionEnabled ? "hidden" : false}
+                    animate={desktopMotionEnabled ? "show" : false}
                     className={isRegisterFormMode ? "space-y-3.5" : "space-y-4"}
                   >
                     <motion.div
                       variants={fieldItem}
-                      className={isRegisterFormMode ? "mb-3" : "mb-5"}
+                      className={`traveler-auth-intro ${isRegisterFormMode ? "text-center" : ""}`}
                     >
-                      {/* <p className="mb-3 text-[11px] font-black uppercase tracking-[0.2em] text-blue-600">
-                        {isRegisterFormMode ? "Start your journey" : "Welcome back"}
-                      </p> */}
-                      <h2 className="flex items-start gap-3 text-[30px] font-black leading-tight tracking-tight text-slate-950 sm:text-[34px]">
+                      <p
+                        className={`text-[12px] font-black uppercase tracking-[0.3em] ${
+                          isRegisterFormMode ? "text-cyan-700" : "text-blue-600"
+                        }`}
+                      >
                         {isRegisterFormMode
-                          ? "Create your account"
-                          : "Welcome back"}
-                        {isRegisterFormMode && (
-                          <Sparkles className="mt-1 h-5 w-5 text-blue-600" />
-                        )}
+                          ? "Your journey starts here"
+                          : "Welcome back, traveler"}
+                      </p>
+                      <h2 className="mt-2 text-[clamp(27px,3vw,38px)] font-black leading-tight tracking-[-0.035em] text-slate-950">
+                        {isRegisterFormMode
+                          ? "Create your traveler profile"
+                          : "Ready for your next journey?"}
                       </h2>
-                      <p className="mt-1.5 text-sm font-semibold leading-relaxed text-slate-500 sm:text-base">
+                      <p className="mx-auto mt-2 max-w-[560px] text-sm font-semibold leading-relaxed text-slate-500 sm:text-base">
                         {isRegisterFormMode
-                          ? "Start your adventure with AI Marketplace"
-                          : "Continue your journey with AI Marketplace"}
+                          ? "One account for smarter planning, seamless bookings and memorable trips."
+                          : "Sign in to continue planning, booking and exploring."}
                       </p>
                     </motion.div>
+
+                    <motion.div
+                      variants={fieldItem}
+                      className={`auth-mode-switch grid grid-cols-2 rounded-2xl border border-slate-200 bg-slate-50 p-1 ${
+                        isRegisterFormMode ? "mx-auto max-w-[540px]" : ""
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        disabled={!isRegisterFormMode || isTransitioning}
+                        onClick={() => changeMode("login")}
+                        className={`auth-mode-switch__option flex h-10 items-center justify-center gap-2 rounded-xl text-sm font-extrabold transition disabled:pointer-events-none ${
+                          !isRegisterFormMode
+                            ? "bg-white text-blue-600 shadow-sm ring-1 ring-slate-200"
+                            : "text-slate-600 hover:bg-white hover:text-cyan-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+                        }`}
+                      >
+                        <ArrowRight className="h-4 w-4 -rotate-45" />
+                        Sign in
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isRegisterFormMode || isTransitioning}
+                        onClick={() => changeMode("register")}
+                        className={`auth-mode-switch__option flex h-10 items-center justify-center gap-2 rounded-xl text-sm font-extrabold transition disabled:pointer-events-none ${
+                          isRegisterFormMode
+                            ? "bg-cyan-50 text-cyan-800 shadow-sm ring-1 ring-cyan-100"
+                            : "text-slate-600 hover:bg-white hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                        }`}
+                      >
+                        <User className="h-4 w-4" />
+                        Create account
+                      </button>
+                    </motion.div>
+
+                    {isRegisterFormMode && (
+                      <motion.div
+                        variants={fieldItem}
+                        className="auth-stepper mx-auto grid w-full max-w-[540px] grid-cols-3 items-start gap-2"
+                        aria-label="Sign up progress"
+                      >
+                        {["Profile", "Preferences", "Ready"].map(
+                          (step, index) => (
+                            <div key={step} className="relative text-center">
+                              {index < 2 && (
+                                <span className="absolute left-1/2 top-4 h-px w-full bg-slate-200" />
+                              )}
+                              <span
+                                className={`auth-stepper__circle relative z-10 mx-auto flex h-8 w-8 items-center justify-center rounded-full border text-xs font-black ${
+                                  index === 0
+                                    ? "border-cyan-700 bg-cyan-700 text-white"
+                                    : "border-slate-300 bg-white text-slate-500"
+                                }`}
+                              >
+                                {index + 1}
+                              </span>
+                              <span className="auth-stepper__label mt-1.5 block text-xs font-extrabold text-slate-700">
+                                {step}
+                              </span>
+                            </div>
+                          ),
+                        )}
+                      </motion.div>
+                    )}
 
                     <AnimatePresence>
                       {(justExpired ||
@@ -1597,33 +2508,61 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
                       >
                         <motion.div
                           variants={fieldItem}
-                          className="grid gap-4 sm:grid-cols-2"
+                          className="grid gap-3 min-[390px]:grid-cols-2"
                         >
-                          <AuthInput
-                            compact
-                            {...registerForm.register("firstName")}
-                            icon={User}
-                            placeholder="First name"
-                            autoComplete="given-name"
-                            error={
-                              registerForm.formState.errors.firstName?.message
-                            }
-                          />
-                          <AuthInput
-                            compact
-                            {...registerForm.register("lastName")}
-                            icon={User}
-                            placeholder="Last name"
-                            autoComplete="family-name"
-                            error={
-                              registerForm.formState.errors.lastName?.message
-                            }
-                          />
+                          <div className="space-y-1.5">
+                            <label
+                              htmlFor="traveler-register-first-name"
+                              className="text-xs font-extrabold text-slate-700"
+                            >
+                              First name
+                            </label>
+                            <AuthInput
+                              compact
+                              {...registerForm.register("firstName")}
+                              id="traveler-register-first-name"
+                              icon={User}
+                              placeholder="First name"
+                              autoComplete="given-name"
+                              error={
+                                registerForm.formState.errors.firstName?.message
+                              }
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label
+                              htmlFor="traveler-register-last-name"
+                              className="text-xs font-extrabold text-slate-700"
+                            >
+                              Last name
+                            </label>
+                            <AuthInput
+                              compact
+                              {...registerForm.register("lastName")}
+                              id="traveler-register-last-name"
+                              icon={User}
+                              placeholder="Last name"
+                              autoComplete="family-name"
+                              error={
+                                registerForm.formState.errors.lastName?.message
+                              }
+                            />
+                          </div>
                         </motion.div>
-                        <motion.div variants={fieldItem}>
+                        <motion.div
+                          variants={fieldItem}
+                          className="space-y-1.5"
+                        >
+                          <label
+                            htmlFor="traveler-register-email"
+                            className="text-xs font-extrabold text-slate-700"
+                          >
+                            Email address
+                          </label>
                           <AuthInput
                             compact
                             {...registerForm.register("email")}
+                            id="traveler-register-email"
                             icon={Mail}
                             type="email"
                             placeholder="Email address"
@@ -1631,30 +2570,67 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
                             error={registerForm.formState.errors.email?.message}
                           />
                         </motion.div>
-                        <motion.div variants={fieldItem}>
+                        <motion.div
+                          variants={fieldItem}
+                          className="space-y-1.5"
+                        >
+                          <label
+                            htmlFor="traveler-register-password"
+                            className="text-xs font-extrabold text-slate-700"
+                          >
+                            Password
+                          </label>
                           <PasswordInput
                             compact
                             {...registerForm.register("password")}
+                            id="traveler-register-password"
                             visible={showRegisterPassword}
                             onToggle={() =>
                               setShowRegisterPassword((value) => !value)
                             }
-                            placeholder="Password"
+                            placeholder="Create a password"
                             autoComplete="new-password"
                             error={
                               registerForm.formState.errors.password?.message
                             }
                           />
+                          <div className="flex items-center gap-2 px-1 pt-1">
+                            <div className="flex flex-1 gap-1">
+                              {[0, 1, 2, 3].map((bar) => (
+                                <span
+                                  key={bar}
+                                  className={`h-1.5 flex-1 rounded-full ${
+                                    passwordStrength > bar
+                                      ? "bg-cyan-600"
+                                      : "bg-slate-200"
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                            <span className="text-xs font-bold text-slate-500">
+                              Use 6+ characters
+                            </span>
+                          </div>
                         </motion.div>
-                        <motion.div variants={fieldItem}>
+                        <motion.div
+                          variants={fieldItem}
+                          className="space-y-1.5"
+                        >
+                          <label
+                            htmlFor="traveler-register-confirm-password"
+                            className="text-xs font-extrabold text-slate-700"
+                          >
+                            Confirm password
+                          </label>
                           <PasswordInput
                             compact
                             {...registerForm.register("confirmPassword")}
+                            id="traveler-register-confirm-password"
                             visible={showConfirmPassword}
                             onToggle={() =>
                               setShowConfirmPassword((value) => !value)
                             }
-                            placeholder="Confirm password"
+                            placeholder="Confirm your password"
                             autoComplete="new-password"
                             error={
                               registerForm.formState.errors.confirmPassword
@@ -1663,12 +2639,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
                           />
                         </motion.div>
                         <motion.div variants={fieldItem}>
-                          <label className="flex items-start gap-3 text-xs font-semibold leading-5 text-slate-600 sm:text-sm">
+                          <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold leading-5 text-slate-600 sm:text-sm">
                             <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
                               <input
                                 type="checkbox"
                                 {...registerForm.register("terms")}
-                                className="peer h-5 w-5 appearance-none rounded-md border border-slate-300 bg-white transition checked:border-blue-600 checked:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                                className="peer h-5 w-5 appearance-none rounded-md border border-slate-300 bg-white transition checked:border-cyan-700 checked:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2"
                               />
                               <svg
                                 viewBox="0 0 16 16"
@@ -1686,11 +2662,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
                             </span>
                             <span>
                               I agree to the{" "}
-                              <a className="font-bold text-blue-600" href="#">
+                              <a className="font-bold text-cyan-700" href="#">
                                 Terms of Service
                               </a>{" "}
                               and{" "}
-                              <a className="font-bold text-blue-600" href="#">
+                              <a className="font-bold text-cyan-700" href="#">
                                 Privacy Policy
                               </a>
                             </span>
@@ -1701,58 +2677,113 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
                             </p>
                           )}
                         </motion.div>
-                        <SubmitButton
-                          compact
-                          loading={isRegisterSubmitting}
-                          label="Create Account"
-                          loadingLabel="Creating Account..."
-                        />
-                        <Divider compact />
-                        <SocialButtons compact />
+                        <motion.button
+                          variants={fieldItem}
+                          type="submit"
+                          disabled={isRegisterSubmitting}
+                          whileHover={{ y: -2 }}
+                          whileTap={{ scale: 0.98 }}
+                          className="group relative flex h-[52px] w-full overflow-hidden rounded-2xl bg-gradient-to-r from-cyan-700 via-teal-600 to-blue-600 text-base font-black tracking-tight text-white shadow-lg shadow-cyan-600/20 transition disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2"
+                        >
+                          <span className="absolute bottom-4 right-10 h-px w-24 border-t border-dashed border-white/55 transition group-hover:translate-x-2" />
+                          <span className="relative z-10 flex w-full items-center justify-center gap-3">
+                            {isRegisterSubmitting ? (
+                              <>
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                                Creating Account...
+                              </>
+                            ) : (
+                              <>
+                                Create traveler account
+                                <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                              </>
+                            )}
+                          </span>
+                        </motion.button>
                         <motion.p
                           variants={fieldItem}
-                          className="text-center text-sm font-semibold text-slate-500"
+                          className="flex items-center justify-center gap-2 text-xs font-bold text-slate-500"
                         >
-                          Already have an account?{" "}
-                          <button
-                            type="button"
-                            onClick={() => changeMode("login")}
-                            className="font-bold text-blue-600"
-                          >
-                            Sign in
-                          </button>
+                          <ShieldCheck className="h-4 w-4 text-cyan-700" />
+                          Secure account creation
                         </motion.p>
+                        <motion.div
+                          variants={fieldItem}
+                          className="flex items-center gap-5 text-xs font-bold text-slate-500"
+                        >
+                          <span className="h-px flex-1 bg-slate-200" />
+                          Or begin with
+                          <span className="h-px flex-1 bg-slate-200" />
+                        </motion.div>
+                        <SocialButtons compact />
+                        <motion.div
+                          variants={fieldItem}
+                          className="auth-mobile-footer-switch -mx-5 -mb-5 mt-2 border-t border-dashed border-teal-500/25 bg-[linear-gradient(90deg,rgba(236,253,250,0.78),rgba(239,246,255,0.78))] px-5 py-4 text-center sm:-mx-8 sm:-mb-6 sm:px-8 lg:-mx-10"
+                        >
+                          <p className="text-sm font-semibold text-slate-600">
+                            Already a traveler?{" "}
+                            <button
+                              type="button"
+                              onClick={() => changeMode("login")}
+                              className="font-extrabold text-cyan-700 transition hover:text-cyan-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+                            >
+                              Sign in
+                            </button>
+                          </p>
+                          <p className="mt-2 text-[10px] font-black uppercase tracking-[0.36em] text-slate-400">
+                            Traveler / New / 001
+                          </p>
+                        </motion.div>
                       </form>
                     ) : (
                       <form
                         className="space-y-4"
                         onSubmit={loginForm.handleSubmit(onLoginSubmit)}
                       >
-                        <motion.div variants={fieldItem}>
+                        <motion.div variants={fieldItem} className="space-y-2">
+                          <div className="flex items-center justify-between gap-4">
+                            <label
+                              htmlFor="traveler-login-email"
+                              className="text-sm font-extrabold text-slate-900"
+                            >
+                              Email address
+                            </label>
+                            <span className="text-xs font-bold text-blue-600">
+                              Your travel ID
+                            </span>
+                          </div>
                           <AuthInput
                             {...loginForm.register("email")}
+                            id="traveler-login-email"
                             icon={Mail}
                             type="email"
-                            placeholder="Email address"
+                            placeholder="you@example.com"
                             autoComplete="email"
                             error={loginForm.formState.errors.email?.message}
                           />
                         </motion.div>
-                        <motion.div variants={fieldItem}>
+                        <motion.div variants={fieldItem} className="space-y-2">
+                          <label
+                            htmlFor="traveler-login-password"
+                            className="text-sm font-extrabold text-slate-900"
+                          >
+                            Password
+                          </label>
                           <PasswordInput
                             {...loginForm.register("password")}
+                            id="traveler-login-password"
                             visible={showLoginPassword}
                             onToggle={() =>
                               setShowLoginPassword((value) => !value)
                             }
-                            placeholder="Password"
+                            placeholder="Enter your password"
                             autoComplete="current-password"
                             error={loginForm.formState.errors.password?.message}
                           />
                         </motion.div>
                         <motion.div
                           variants={fieldItem}
-                          className="flex items-center justify-between gap-4 text-sm"
+                          className="flex flex-wrap items-center justify-between gap-3 text-sm"
                         >
                           <label className="flex items-center gap-2 font-semibold text-slate-600">
                             <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
@@ -1777,28 +2808,46 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
                             </span>
                             Remember me
                           </label>
-                          <a href="#" className="font-bold text-blue-600">
+                          <a
+                            href="#"
+                            className="font-bold text-blue-600 transition hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                          >
                             Forgot password?
                           </a>
                         </motion.div>
                         <SubmitButton
                           loading={isLoginSubmitting}
-                          label="Sign In"
+                          label="Continue journey"
                           loadingLabel="Signing In..."
+                          motionEnabled={desktopMotionEnabled}
                         />
-                        <Divider />
+                        <motion.p
+                          variants={fieldItem}
+                          className="flex items-center justify-center gap-2 text-xs font-bold text-slate-500"
+                        >
+                          <ShieldCheck className="h-4 w-4 text-slate-500" />
+                          Secure access to your trips and bookings
+                        </motion.p>
+                        <motion.div
+                          variants={fieldItem}
+                          className="flex items-center gap-5 text-xs font-bold text-slate-500"
+                        >
+                          <span className="h-px flex-1 bg-slate-200" />
+                          Or board with
+                          <span className="h-px flex-1 bg-slate-200" />
+                        </motion.div>
                         <SocialButtons />
                         <motion.p
                           variants={fieldItem}
-                          className="text-center text-sm font-semibold text-slate-500"
+                          className="auth-mobile-footer-switch -mx-6 -mb-6 mt-2 border-t border-dashed border-blue-500/20 bg-[linear-gradient(90deg,rgba(239,246,255,0.8),rgba(236,253,250,0.66))] px-6 py-4 text-center text-sm font-semibold text-slate-500 sm:-mx-10 sm:-mb-7 sm:px-10 lg:-mx-12"
                         >
-                          Don&apos;t have an account?{" "}
+                          New traveler?{" "}
                           <button
                             type="button"
                             onClick={() => changeMode("register")}
-                            className="font-bold text-blue-600"
+                            className="font-extrabold text-blue-600 transition hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                           >
-                            Sign up
+                            Create your account
                           </button>
                         </motion.p>
                       </form>
@@ -1807,9 +2856,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
                 </motion.div>
               </AnimatePresence>
             </motion.div>
-          </motion.div>
-        </motion.div>
-      </motion.section>
+          </AuthCardSurface>
+        </AuthCardPositioner>
+      </AuthFormPresentation>
     </main>
   );
 };
@@ -1844,9 +2893,15 @@ const BannedAccountDialog = ({
         aria-labelledby="banned-account-title"
         aria-describedby="banned-account-description"
         className="relative flex w-[min(1100px,calc(100vw-40px))] max-h-[calc(100dvh-32px)] flex-col overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl shadow-slate-950/25"
-        initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.97, y: 12 }}
-        animate={reducedMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
-        exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.97, y: 12 }}
+        initial={
+          reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.97, y: 12 }
+        }
+        animate={
+          reducedMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }
+        }
+        exit={
+          reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.97, y: 12 }
+        }
         transition={contentTransition}
       >
         <button
@@ -1894,7 +2949,9 @@ const BannedAccountDialog = ({
 
           <div className="mt-5 flex items-center justify-center gap-2 text-center text-sm font-semibold text-slate-500">
             <ShieldCheck className="h-4 w-4 shrink-0 text-slate-400" />
-            <span>For your security, access to this account has been restricted.</span>
+            <span>
+              For your security, access to this account has been restricted.
+            </span>
           </div>
         </div>
       </motion.section>
@@ -1917,21 +2974,35 @@ const BannedAccountHero = ({ reducedMotion }: { reducedMotion: boolean }) => (
         Account Banned
       </span>
     </div>
-    <h2 id="banned-account-title" className="mt-5 max-w-xl text-[30px] font-black leading-tight tracking-tight text-slate-950 sm:text-[38px] lg:text-[44px]">
+    <h2
+      id="banned-account-title"
+      className="mt-5 max-w-xl text-[30px] font-black leading-tight tracking-tight text-slate-950 sm:text-[38px] lg:text-[44px]"
+    >
       Your account has been banned
     </h2>
-    <p id="banned-account-description" className="mt-3 max-w-md text-base font-semibold leading-7 text-slate-500 sm:text-lg">
+    <p
+      id="banned-account-description"
+      className="mt-3 max-w-md text-base font-semibold leading-7 text-slate-500 sm:text-lg"
+    >
       You can no longer access this account or use AI Marketplace Traveler.
     </p>
   </motion.div>
 );
 
-const BannedAccountIllustration = ({ reducedMotion }: { reducedMotion: boolean }) => (
+const BannedAccountIllustration = ({
+  reducedMotion,
+}: {
+  reducedMotion: boolean;
+}) => (
   <motion.div
     className="mx-auto flex h-[170px] w-full max-w-[300px] items-center justify-center overflow-hidden sm:h-[230px] sm:max-w-[340px] lg:h-[280px] lg:max-w-[390px]"
     initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 8 }}
     animate={reducedMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
-    transition={{ duration: reducedMotion ? 0.01 : 0.24, delay: reducedMotion ? 0 : 0.04, ease: smoothEase }}
+    transition={{
+      duration: reducedMotion ? 0.01 : 0.24,
+      delay: reducedMotion ? 0 : 0.04,
+      ease: smoothEase,
+    }}
   >
     <img
       src={bannedAccountIllustration}
@@ -1967,11 +3038,28 @@ const BannedAccountDetails = ({
     transition={{ duration: 0.22, delay: 0.1, ease: smoothEase }}
   >
     <BannedInfoItem icon={User} label="Account" value={email} />
-    <BannedInfoItem icon={AlertCircle} label="Reason" value={reasonLabel || "Account restriction"} tone="rose" />
-    <BannedInfoItem icon={FileText} label="Details" value={reason || fallbackBanReason} />
-    <BannedInfoItem icon={CalendarDays} label="Banned on" value={formatBannedDate(bannedAt)} />
+    <BannedInfoItem
+      icon={AlertCircle}
+      label="Reason"
+      value={reasonLabel || "Account restriction"}
+      tone="rose"
+    />
+    <BannedInfoItem
+      icon={FileText}
+      label="Details"
+      value={reason || fallbackBanReason}
+    />
+    <BannedInfoItem
+      icon={CalendarDays}
+      label="Banned on"
+      value={formatBannedDate(bannedAt)}
+    />
     {bannedByDisplayName && (
-      <BannedInfoItem icon={ShieldCheck} label="Banned by" value={bannedByDisplayName} />
+      <BannedInfoItem
+        icon={ShieldCheck}
+        label="Banned by"
+        value={bannedByDisplayName}
+      />
     )}
   </motion.div>
 );
@@ -1989,12 +3077,16 @@ const BannedInfoItem = ({
 }) => (
   <div className="min-w-0 border-b border-slate-100 px-4 py-3.5 last:border-b-0 sm:px-5 sm:py-4 lg:border-b-0 lg:border-r lg:last:border-r-0">
     <div className="flex items-center gap-2.5">
-      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${tone === "rose" ? "bg-rose-50 text-rose-600" : "bg-blue-50 text-blue-600"}`}>
+      <span
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${tone === "rose" ? "bg-rose-50 text-rose-600" : "bg-blue-50 text-blue-600"}`}
+      >
         <Icon className="h-4 w-4" />
       </span>
       <span className="text-sm font-black text-slate-500">{label}</span>
     </div>
-    <p className={`mt-3 min-w-0 text-sm font-black leading-6 ${tone === "rose" ? "text-rose-600" : "text-slate-950"}`}>
+    <p
+      className={`mt-3 min-w-0 text-sm font-black leading-6 ${tone === "rose" ? "text-rose-600" : "text-slate-950"}`}
+    >
       {value}
     </p>
   </div>
@@ -2010,9 +3102,18 @@ const BannedNextSteps = () => (
     <div>
       <h3 className="text-lg font-black text-slate-950">What you can do</h3>
       <ul className="mt-4 grid gap-4 text-sm font-semibold leading-relaxed text-slate-600 md:grid-cols-3 md:gap-5">
-        <li className="flex items-start gap-3"><MessageCircle className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />Contact our support team for more information.</li>
-        <li className="flex items-start gap-3"><Headphones className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />Submit an appeal if you believe this was a mistake.</li>
-        <li className="flex items-start gap-3"><CalendarCheck className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />Our team will review your case and respond when possible.</li>
+        <li className="flex items-start gap-3">
+          <MessageCircle className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+          Contact our support team for more information.
+        </li>
+        <li className="flex items-start gap-3">
+          <Headphones className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+          Submit an appeal if you believe this was a mistake.
+        </li>
+        <li className="flex items-start gap-3">
+          <CalendarCheck className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+          Our team will review your case and respond when possible.
+        </li>
       </ul>
     </div>
   </motion.div>

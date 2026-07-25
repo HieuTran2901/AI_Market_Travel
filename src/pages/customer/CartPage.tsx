@@ -104,7 +104,7 @@ function getDestination(item: CartItem) {
 }
 
 function getLinePrice(item: CartItem) {
-  return item.priceBreakdown?.subtotal ?? item.basePrice * item.quantity * getDuration(item);
+  return item.priceBreakdown?.finalTotal ?? item.basePrice * item.quantity * getDuration(item);
 }
 
 function getApiErrorMessage(error: unknown, fallback: string) {
@@ -290,6 +290,22 @@ function CartItemCard({
                 Save
               </button>
             </div>
+
+            {item.selectedExtras && item.selectedExtras.length > 0 && (
+              <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
+                <p className="text-xs font-black uppercase tracking-wide text-blue-700">Extras & Services</p>
+                <div className="mt-2 space-y-1.5">
+                  {item.selectedExtras.map(extra => (
+                    <div key={extra.extraServiceId} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="min-w-0 truncate font-semibold text-slate-700">
+                        {extra.name} <span className="text-slate-400">x {extra.quantity}</span>
+                      </span>
+                      <span className="shrink-0 font-black text-slate-900">{formatMoney(extra.lineTotal, extra.currency || currency)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex items-end justify-between border-t border-slate-100 pt-4 sm:col-span-2 lg:col-span-1 lg:flex-col lg:items-end lg:border-t-0 lg:pt-0">
@@ -323,12 +339,14 @@ function OrderSummaryCard({
   onCheckout: () => void;
 }) {
   const subtotal = totals?.subtotal ?? totals?.basePrice ?? 0;
+  const extrasAmount = totals?.extrasAmount ?? 0;
   const tax = totals?.tax ?? 0;
   const platformFee = totals?.serviceFee ?? 0;
-  const finalTotal = totals?.finalTotal ?? subtotal + tax + platformFee;
+  const finalTotal = totals?.finalTotal ?? subtotal + extrasAmount + tax + platformFee;
 
   const rows = [
     [`Subtotal (${itemCount} ${itemCount === 1 ? "item" : "items"})`, subtotal],
+    ["Extras & services", extrasAmount],
     ["Taxes & fees", tax],
     ["Platform fee", platformFee],
   ] as const;

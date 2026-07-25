@@ -10,6 +10,17 @@ type MembershipCoinTopLayoutProps = {
   left: React.ReactNode;
   controls?: React.ReactNode;
   className?: string;
+  visualTab?: MembershipCoinTab;
+  isTransitioning?: boolean;
+  onTabSelect?: (tab: MembershipCoinTab) => void;
+  debugState?: {
+    pathname: string;
+    routeMode: MembershipCoinTab;
+    displayedMode: MembershipCoinTab;
+    targetMode: MembershipCoinTab | null;
+    visualMode: MembershipCoinTab;
+    phase: string;
+  };
 };
 
 export const MembershipCoinTopLayout: React.FC<MembershipCoinTopLayoutProps> = ({
@@ -17,6 +28,10 @@ export const MembershipCoinTopLayout: React.FC<MembershipCoinTopLayoutProps> = (
   left,
   controls,
   className,
+  visualTab,
+  isTransitioning,
+  onTabSelect,
+  debugState,
 }) => (
   <section
     className={cn(
@@ -27,7 +42,14 @@ export const MembershipCoinTopLayout: React.FC<MembershipCoinTopLayoutProps> = (
     <div className="min-w-0 self-start">{left}</div>
 
     <div className="w-full max-w-[430px] self-start lg:justify-self-end">
-      <MembershipCoinSwitcher activeTab={activeTab} className="w-full" />
+      <MembershipCoinSwitcher
+        activeTab={activeTab}
+        visualTab={visualTab}
+        isTransitioning={isTransitioning}
+        onTabSelect={onTabSelect}
+        debugState={debugState}
+        className="w-full"
+      />
       {controls ? <div className="mt-3 w-full">{controls}</div> : null}
     </div>
   </section>

@@ -1,5 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   CreditCard,
   Lock,
@@ -18,6 +19,13 @@ import {
   primaryCoinPackages,
 } from "./coinPackageConfig";
 import { MembershipCoinTopLayout } from "./MembershipCoinTopLayout";
+import {
+  cardContainerVariants,
+  cardItemVariants,
+  UpgradeThemeGlow,
+  UpgradeModeTransition,
+  useUpgradeModeTransition,
+} from "./useUpgradeModeTransition";
 
 const formatVnd = (value: number) =>
   new Intl.NumberFormat("vi-VN", {
@@ -230,7 +238,7 @@ const CosmicPackageGlow = ({ packageId }: { packageId: string }) => {
   );
 };
 
-const AiCoinsHeroTitle = () => (
+export const AiCoinsHeroTitle = () => (
   <div className="flex min-w-0 items-center gap-4">
     <img
       src={coinGoldImage}
@@ -252,34 +260,53 @@ const AiCoinsHeroTitle = () => (
   </div>
 );
 
-const AiCoinsCompactHero = () => (
-  <>
-    <MembershipCoinTopLayout activeTab="coins" left={<AiCoinsHeroTitle />} />
+export const AiCoinsBenefitsPanel = ({ className }: { className?: string }) => (
+  <div
+    className={cn(
+      "mt-5 grid overflow-hidden rounded-3xl border border-blue-400/18 bg-slate-950/56 shadow-inner shadow-blue-950/50 sm:grid-cols-2 lg:grid-cols-4 [@media(max-height:820px)]:mt-4",
+      className,
+    )}
+  >
+    {benefits.map((item, index) => (
+      <div
+        key={item.title}
+        className={cn(
+          "flex min-w-0 items-center gap-3 px-4 py-4 [@media(max-height:820px)]:py-3",
+          index > 0 && "lg:border-l lg:border-white/8",
+          index > 1 && "sm:border-t sm:border-white/8 lg:border-t-0",
+        )}
+      >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] [@media(max-height:820px)]:h-9 [@media(max-height:820px)]:w-9">
+          <item.icon className={cn("h-5 w-5", item.color)} />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-black text-white">
+            {item.title}
+          </span>
+          <span className="block truncate text-xs text-slate-400">
+            {item.description}
+          </span>
+        </span>
+      </div>
+    ))}
+  </div>
+);
 
-    <div className="mt-5 grid overflow-hidden rounded-3xl border border-blue-400/18 bg-slate-950/56 shadow-inner shadow-blue-950/50 sm:grid-cols-2 lg:grid-cols-4 [@media(max-height:820px)]:mt-4">
-      {benefits.map((item, index) => (
-        <div
-          key={item.title}
-          className={cn(
-            "flex min-w-0 items-center gap-3 px-4 py-4 [@media(max-height:820px)]:py-3",
-            index > 0 && "lg:border-l lg:border-white/8",
-            index > 1 && "sm:border-t sm:border-white/8 lg:border-t-0",
-          )}
-        >
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] [@media(max-height:820px)]:h-9 [@media(max-height:820px)]:w-9">
-            <item.icon className={cn("h-5 w-5", item.color)} />
-          </span>
-          <span className="min-w-0">
-            <span className="block truncate text-sm font-black text-white">
-              {item.title}
-            </span>
-            <span className="block truncate text-xs text-slate-400">
-              {item.description}
-            </span>
-          </span>
-        </div>
-      ))}
-    </div>
+const AiCoinsCompactHero = ({
+  transition,
+}: {
+  transition: UpgradeModeTransition;
+}) => (
+  <>
+    <MembershipCoinTopLayout
+      activeTab="coins"
+      visualTab={transition.visualMode}
+      isTransitioning={transition.isTransitioning}
+      onTabSelect={transition.switchMode}
+      left={<AiCoinsHeroTitle />}
+    />
+
+    <AiCoinsBenefitsPanel />
   </>
 );
 
@@ -289,8 +316,17 @@ const PackageBadge = ({
 }: {
   label: string;
   featured: boolean;
-}) => (
-  <span
+}) => {
+  const shouldReduceMotion = useReducedMotion();
+
+  return (
+  <motion.span
+    initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.9 }}
+    animate={{ opacity: 1, scale: 1 }}
+    transition={{
+      duration: shouldReduceMotion ? 0.14 : 0.26,
+      delay: shouldReduceMotion ? 0 : featured ? 0.2 : 0.08,
+    }}
     className={cn(
       "absolute -top-3 right-3 z-10 rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-wide text-white shadow-lg",
       featured
@@ -299,8 +335,9 @@ const PackageBadge = ({
     )}
   >
     {label}
-  </span>
-);
+  </motion.span>
+  );
+};
 
 const PackagePrice = ({ pkg }: { pkg: AiCoinPackage }) => (
   <div className="flex min-w-0 items-baseline justify-center gap-2">
@@ -322,12 +359,18 @@ const PrimaryCoinPackageCard = ({
   pkg: AiCoinPackage;
   onSelect: PackageAction;
 }) => {
+  const shouldReduceMotion = useReducedMotion();
   const featured = pkg.featured || pkg.badge === "BEST VALUE";
   const theme = getPackageTheme(pkg.id);
   const themeStyle = getPackageThemeStyle(theme);
 
   return (
-    <article
+    <motion.article
+      whileHover={
+        shouldReduceMotion ? undefined : { y: -4, scale: 1.008 }
+      }
+      whileTap={shouldReduceMotion ? undefined : { scale: 0.985 }}
+      transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
         "relative flex h-full min-w-0 flex-col overflow-visible rounded-3xl border p-4 text-center transition-[border-color,box-shadow] duration-200 [@media(max-height:820px)]:p-3",
         "hover:shadow-[0_18px_44px_rgba(2,6,23,0.34),0_0_30px_var(--package-glow),inset_0_1px_0_rgba(255,255,255,0.025)]",
@@ -400,7 +443,7 @@ const PrimaryCoinPackageCard = ({
           </button>
         </div>
       </div>
-    </article>
+    </motion.article>
   );
 };
 
@@ -411,11 +454,17 @@ const LargeCoinPackageCard = ({
   pkg: AiCoinPackage;
   onSelect: PackageAction;
 }) => {
+  const shouldReduceMotion = useReducedMotion();
   const theme = getPackageTheme(pkg.id);
   const themeStyle = getPackageThemeStyle(theme);
 
   return (
-    <article
+    <motion.article
+      whileHover={
+        shouldReduceMotion ? undefined : { y: -4, scale: 1.008 }
+      }
+      whileTap={shouldReduceMotion ? undefined : { scale: 0.985 }}
+      transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
       className="group relative flex h-full min-h-0 min-w-0 flex-col overflow-visible rounded-3xl border p-3.5 transition-[border-color,box-shadow] duration-300 hover:shadow-[0_18px_44px_rgba(2,6,23,0.34),0_0_30px_var(--package-glow),inset_0_1px_0_rgba(255,255,255,0.025)] 2xl:p-4 [@media(max-height:820px)]:p-3"
       style={themeStyle}
     >
@@ -471,7 +520,7 @@ const LargeCoinPackageCard = ({
       >
         {pkg.comingSoon ? "Coming soon" : "Chon goi"}
       </button>
-    </article>
+    </motion.article>
   );
 };
 
@@ -482,11 +531,17 @@ const DailyCoinPassCard = ({
   pkg: AiCoinPackage;
   onSelect: PackageAction;
 }) => {
+  const shouldReduceMotion = useReducedMotion();
   const theme = getPackageTheme(pkg.id);
   const themeStyle = getPackageThemeStyle(theme);
 
   return (
-    <article
+    <motion.article
+      whileHover={
+        shouldReduceMotion ? undefined : { y: -4, scale: 1.008 }
+      }
+      whileTap={shouldReduceMotion ? undefined : { scale: 0.985 }}
+      transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
       className="relative flex h-full min-h-0 min-w-0 flex-col overflow-visible rounded-3xl border p-3.5 transition-[border-color,box-shadow] duration-200 hover:shadow-[0_18px_44px_rgba(2,6,23,0.34),0_0_30px_var(--package-glow),inset_0_1px_0_rgba(255,255,255,0.025)] 2xl:p-4 [@media(max-height:820px)]:p-3"
       style={themeStyle}
     >
@@ -530,7 +585,7 @@ const DailyCoinPassCard = ({
       >
         {pkg.comingSoon ? "Coming soon" : "Kich hoat ngay"}
       </button>
-    </article>
+    </motion.article>
   );
 };
 
@@ -566,8 +621,12 @@ const PaymentSecurityPanel = () => (
   </section>
 );
 
-export const AiCoinsPage: React.FC = () => {
+export const AiCoinsUpgradeContent: React.FC<{
+  transition: UpgradeModeTransition;
+  showBenefits?: boolean;
+}> = ({ transition, showBenefits = false }) => {
   const navigate = useNavigate();
+  const shouldReduceMotion = useReducedMotion();
   const { isAuthenticated } = useAuth();
   const [actionMessage, setActionMessage] = React.useState<string | null>(null);
 
@@ -595,68 +654,104 @@ export const AiCoinsPage: React.FC = () => {
   const allLargePackages = largeCoinPackages.filter((pkg) => pkg.active);
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_50%_0%,rgba(50,65,150,0.14),transparent_38%),linear-gradient(180deg,#020817_0%,#031127_55%,#020817_100%)] text-white">
-      <div className="mx-auto w-[min(calc(100%_-_40px),1720px)] pb-8 pt-5 [@media(max-height:820px)]:pb-6 [@media(max-height:820px)]:pt-4">
-        <AiCoinsCompactHero />
+    <>
+      {actionMessage ? (
+        <div className="mt-5 flex items-start gap-3 rounded-3xl border border-blue-300/20 bg-blue-400/10 p-4 text-sm font-bold text-blue-100 [@media(max-height:820px)]:mt-4">
+          <Zap className="mt-0.5 h-5 w-5 shrink-0 text-blue-200" />
+          <span>{actionMessage}</span>
+        </div>
+      ) : null}
 
-        {actionMessage ? (
-          <div className="mt-5 flex items-start gap-3 rounded-3xl border border-blue-300/20 bg-blue-400/10 p-4 text-sm font-bold text-blue-100 [@media(max-height:820px)]:mt-4">
-            <Zap className="mt-0.5 h-5 w-5 shrink-0 text-blue-200" />
-            <span>{actionMessage}</span>
+      <motion.section
+        aria-busy={transition.isTransitioning}
+        className="mt-6 min-w-0 space-y-5 [@media(max-height:820px)]:mt-4 [@media(max-height:820px)]:space-y-4"
+      >
+        {showBenefits ? <AiCoinsBenefitsPanel className="mt-0" /> : null}
+
+        {isLoading ? (
+          <div className="grid gap-3 lg:grid-cols-3 xl:grid-cols-6">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div
+                key={index}
+                className="h-[330px] animate-pulse rounded-3xl border border-blue-400/12 bg-white/[0.04]"
+              />
+            ))}
           </div>
-        ) : null}
-
-        <section className="mt-6 min-w-0 space-y-5 [@media(max-height:820px)]:mt-4 [@media(max-height:820px)]:space-y-4">
-          {isLoading ? (
-            <div className="grid gap-3 lg:grid-cols-3 xl:grid-cols-6">
-              {Array.from({ length: 6 }).map((_, index) => (
-                <div
-                  key={index}
-                  className="h-[330px] animate-pulse rounded-3xl border border-blue-400/12 bg-white/[0.04]"
-                />
-              ))}
-            </div>
-          ) : loadError ? (
-            <section className="rounded-3xl border border-red-300/20 bg-red-500/10 p-6 text-center">
-              <h2 className="text-lg font-black text-red-100">
-                Khong the tai cac goi AI Coins.
-              </h2>
-              <p className="mt-2 text-sm text-red-100/80">Vui long thu lai.</p>
-            </section>
-          ) : allPrimaryPackages.length === 0 ? (
-            <section className="rounded-3xl border border-blue-300/20 bg-white/[0.04] p-6 text-center">
-              <h2 className="text-lg font-black text-white">
-                Hien chua co goi AI Coins kha dung.
-              </h2>
-            </section>
-          ) : (
-            <section className="grid min-w-0 items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 2xl:gap-4">
-              {allPrimaryPackages.map((pkg) => (
+        ) : loadError ? (
+          <section className="rounded-3xl border border-red-300/20 bg-red-500/10 p-6 text-center">
+            <h2 className="text-lg font-black text-red-100">
+              Khong the tai cac goi AI Coins.
+            </h2>
+            <p className="mt-2 text-sm text-red-100/80">Vui long thu lai.</p>
+          </section>
+        ) : allPrimaryPackages.length === 0 ? (
+          <section className="rounded-3xl border border-blue-300/20 bg-white/[0.04] p-6 text-center">
+            <h2 className="text-lg font-black text-white">
+              Hien chua co goi AI Coins kha dung.
+            </h2>
+          </section>
+        ) : (
+          <motion.section
+            variants={cardContainerVariants}
+            initial={shouldReduceMotion ? false : "hidden"}
+            animate="visible"
+            className="grid min-w-0 items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 2xl:gap-4"
+          >
+            {allPrimaryPackages.map((pkg) => (
+              <motion.div
+                key={pkg.id}
+                variants={cardItemVariants}
+                className="h-full min-w-0"
+              >
                 <PrimaryCoinPackageCard
-                  key={pkg.id}
                   pkg={pkg}
                   onSelect={handleSelectPackage}
                 />
-              ))}
-            </section>
-          )}
-
-          <section className="grid min-w-0 items-stretch gap-3 lg:grid-cols-2 min-[1280px]:grid-cols-[repeat(3,minmax(0,1fr))_minmax(280px,1.05fr)] 2xl:gap-4">
-            {allLargePackages.map((pkg) => (
-              <LargeCoinPackageCard
-                key={pkg.id}
-                pkg={pkg}
-                onSelect={handleSelectPackage}
-              />
+              </motion.div>
             ))}
+          </motion.section>
+        )}
+
+        <motion.section
+          variants={cardContainerVariants}
+          initial={shouldReduceMotion ? false : "hidden"}
+          animate="visible"
+          className="grid min-w-0 items-stretch gap-3 lg:grid-cols-2 min-[1280px]:grid-cols-[repeat(3,minmax(0,1fr))_minmax(280px,1.05fr)] 2xl:gap-4"
+        >
+          {allLargePackages.map((pkg) => (
+            <motion.div
+              key={pkg.id}
+              variants={cardItemVariants}
+              className="h-full min-w-0"
+            >
+              <LargeCoinPackageCard pkg={pkg} onSelect={handleSelectPackage} />
+            </motion.div>
+          ))}
+          <motion.div variants={cardItemVariants} className="h-full min-w-0">
             <DailyCoinPassCard
               pkg={dailyCoinPassPackage}
               onSelect={handleSelectPackage}
             />
-          </section>
+          </motion.div>
+        </motion.section>
 
-          <PaymentSecurityPanel />
-        </section>
+        <PaymentSecurityPanel />
+      </motion.section>
+    </>
+  );
+};
+
+export const AiCoinsPage: React.FC = () => {
+  const transition = useUpgradeModeTransition();
+
+  return (
+    <main className="relative min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_50%_0%,rgba(50,65,150,0.14),transparent_38%),linear-gradient(180deg,#020817_0%,#031127_55%,#020817_100%)] text-white">
+      <UpgradeThemeGlow mode={transition.visualMode} phase={transition.phase} />
+      <div className="relative z-10 mx-auto w-[min(calc(100%_-_40px),1720px)] pb-8 pt-5 [@media(max-height:820px)]:pb-6 [@media(max-height:820px)]:pt-4">
+        <motion.div {...transition.pageMotionProps}>
+          <AiCoinsCompactHero transition={transition} />
+          <AiCoinsUpgradeContent transition={transition} />
+        </motion.div>
       </div>
     </main>
   );
