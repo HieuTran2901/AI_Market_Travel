@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
   X,
@@ -22,6 +23,8 @@ import {
   Wallet,
   CalendarDays,
   ChevronRight,
+  Sparkles,
+  Crown,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useAuthenticationGate } from "@/context/AuthenticationGateContext";
@@ -45,6 +48,12 @@ import {
   paymentService,
   AiCoinPaymentStatusResponse,
 } from "@/services/paymentService";
+import {
+  AI_COIN_TRANSACTIONS_QUERY_KEY,
+  AI_COIN_WALLET_QUERY_KEY,
+} from "@/services/aiCoinWalletService";
+
+import PaymentSuccessImageLight from "@/assets/images/success_white_background.png";
 
 export interface AiCoinPackage {
   id: string;
@@ -56,7 +65,6 @@ export interface AiCoinPackage {
   bestValue?: boolean;
   imageUrl?: string;
 }
-
 
 const allCanonicalPackages = [
   ...primaryCoinPackages,
@@ -71,18 +79,19 @@ const mapCanonicalToModalPackage = (pkg: any): AiCoinPackage => {
     coinAmount: pkg.coins,
     bonusCoins: pkg.bonusCoins,
     price: pkg.price,
-    discountPercentage: pkg.badge && pkg.badge.includes("%") ? parseInt(pkg.badge) : undefined,
+    discountPercentage:
+      pkg.badge && pkg.badge.includes("%") ? parseInt(pkg.badge) : undefined,
     bestValue: pkg.featured || pkg.badge === "BEST VALUE",
     imageUrl: pkg.image,
   };
 };
 
 const packageIdMap: Record<string, string> = {
-  "STARTER": "starter",
-  "EXPLORER": "explorer",
-  "TRAVELER": "traveler",
-  "ADVENTURE": "adventure",
-  "PRO": "pro",
+  STARTER: "starter",
+  EXPLORER: "explorer",
+  TRAVELER: "traveler",
+  ADVENTURE: "adventure",
+  PRO: "pro",
 };
 
 const mockPackages: AiCoinPackage[] = [
@@ -183,7 +192,7 @@ const paymentMethods: PaymentMethodOption[] = [
     icon: <Apple className="w-6 h-6" />,
   },
   {
-    value: PaymentMethod.COD,
+    value: PaymentMethod.BANK_TRANSFER,
     label: "Bank Transfer",
     description: "Transfer from your bank",
     icon: <Landmark className="w-6 h-6 text-slate-600 dark:text-slate-400" />,
@@ -208,13 +217,17 @@ interface MomoPaymentSession {
   amount: number;
   currency: string;
   status: string;
+  paymentMethod?: PaymentMethod;
 }
 
 export interface AiCoinsModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentBalance: number;
-  onForceOpen?: (opts?: { packageId?: string; step?: AiCoinPurchaseStep }) => void;
+  onForceOpen?: (opts?: {
+    packageId?: string;
+    step?: AiCoinPurchaseStep;
+  }) => void;
   initialPackageId?: string;
   initialStep?: AiCoinPurchaseStep;
 }
@@ -236,6 +249,7 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
 }) => {
   const navigate = useNavigate();
   const shouldReduceMotion = useReducedMotion();
+  const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
   const { refreshUser } = useAuth();
   const { isOpen: isAuthModalOpen } = useAuthenticationGate();
@@ -244,7 +258,9 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
     useState<AiCoinPurchaseStep>(initialStep);
   const [direction, setDirection] = useState<number>(0);
 
-  const [selectedPackId, setSelectedPackId] = useState<string | null>(initialPackageId || null);
+  const [selectedPackId, setSelectedPackId] = useState<string | null>(
+    initialPackageId || null,
+  );
   const [selectedPaymentMethod, setSelectedPaymentMethod] =
     useState<PaymentMethod>(PaymentMethod.VNPAY);
   const [promoCode, setPromoCode] = useState("");
@@ -257,12 +273,20 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
     useState<AiCoinPaymentStatusResponse | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
+  const refreshAiCoinWallet = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: AI_COIN_WALLET_QUERY_KEY });
+    queryClient.invalidateQueries({ queryKey: AI_COIN_TRANSACTIONS_QUERY_KEY });
+    refreshUser?.();
+  }, [queryClient, refreshUser]);
+
   const selectedPack = (() => {
     const mock = mockPackages.find((p) => p.id === selectedPackId);
     if (mock) return mock;
 
     const canonical = allCanonicalPackages.find(
-      (p) => p.id === selectedPackId || p.id.toUpperCase().replace("-", "_") === selectedPackId?.toUpperCase()
+      (p) =>
+        p.id === selectedPackId ||
+        p.id.toUpperCase().replace("-", "_") === selectedPackId?.toUpperCase(),
     );
     if (canonical) {
       return mapCanonicalToModalPackage(canonical);
@@ -288,13 +312,54 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
               amount: parsed.amount,
               currency: parsed.currency || "VND",
               status: parsed.status || "PENDING",
+              paymentMethod: parsed.paymentMethod,
             };
             setMomoSession(sessionData);
 
-            // Read MoMo return params
+            // Read MoMo & SePay return params
             const params = new URLSearchParams(window.location.search);
             const momoResultCode = params.get("resultCode");
             const momoMessage = params.get("message") ?? "";
+            const sepayResult = params.get("result");
+
+            if (sepayResult) {
+              // Clean up URL
+              window.history.replaceState(
+                {},
+                document.title,
+                window.location.pathname,
+              );
+
+              if (sepayResult === "cancel" || sepayResult === "error") {
+                setPurchaseStep(
+                  sepayResult === "cancel"
+                    ? "payment-cancelled"
+                    : "payment-failed",
+                );
+                setDirection(1);
+
+                setPaymentResult({
+                  paymentId: parsed.paymentId,
+                  purchaseId: parsed.purchaseId,
+                  status: sepayResult === "cancel" ? "CANCELLED" : "FAILED",
+                  purchaseStatus:
+                    sepayResult === "cancel" ? "CANCELLED" : "FAILED",
+                  credited: false,
+                  amount: parsed.amount,
+                  currency: parsed.currency || "VND",
+                  gatewayResultCode: sepayResult === "cancel" ? 1006 : 1000,
+                  baseCoins: 0,
+                  bonusCoins: 0,
+                  totalCoins: 0,
+                  updatedAt: new Date().toISOString(),
+                });
+                return;
+              } else {
+                setPurchaseStep("checking-payment");
+                setDirection(1);
+                return;
+              }
+            }
 
             if (momoResultCode) {
               // Clean up URL
@@ -425,7 +490,7 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
           setPaymentResult(status);
           setDirection(1);
           setPurchaseStep("payment-success");
-          refreshUser?.();
+          refreshAiCoinWallet();
           sessionStorage.removeItem("aiCoinMomoPaymentSession");
         } else if (status.status === "CANCELLED") {
           setPaymentResult(status);
@@ -457,7 +522,7 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
       controller.abort();
       window.clearInterval(intervalId);
     };
-  }, [purchaseStep, momoSession?.paymentId, refreshUser]);
+  }, [purchaseStep, momoSession?.paymentId, refreshAiCoinWallet]);
 
   // Listen for MoMo popup results
   useEffect(() => {
@@ -475,7 +540,7 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
             setPaymentResult(res.data);
             setDirection(1);
             setPurchaseStep("payment-success");
-            refreshUser?.();
+            refreshAiCoinWallet();
             sessionStorage.removeItem("aiCoinMomoPaymentSession");
           } else {
             setPaymentResult(res.data);
@@ -493,7 +558,7 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [momoSession?.paymentId, refreshUser]);
+  }, [momoSession?.paymentId, refreshAiCoinWallet]);
 
   const handleClose = () => {
     abortControllerRef.current?.abort();
@@ -536,7 +601,7 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
         setPaymentResult(res.data);
         setDirection(1);
         setPurchaseStep("payment-success");
-        refreshUser?.();
+        refreshAiCoinWallet();
         sessionStorage.removeItem("aiCoinMomoPaymentSession");
       } else {
         setStatusMessage(
@@ -546,7 +611,7 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
     } catch {
       setStatusMessage("Unable to check payment status. Please try again.");
     }
-  }, [momoSession?.paymentId, refreshUser]);
+  }, [momoSession?.paymentId, refreshAiCoinWallet]);
 
   const handleRetryPayment = () => {
     sessionStorage.removeItem("aiCoinMomoPaymentSession");
@@ -561,16 +626,36 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
   const handleSubmitPayment = async () => {
     if (!selectedPack || !selectedPaymentMethod || isSubmitting) return;
 
-    const backendPackageId = selectedPack.packageCode ? (packageIdMap[selectedPack.packageCode] || selectedPack.id) : selectedPack.id;
+    const backendPackageId = selectedPack.packageCode
+      ? packageIdMap[selectedPack.packageCode] || selectedPack.id
+      : selectedPack.id;
 
     // Safe validation
-    const packageIdNum = parseInt(selectedPack.id.replace("pack_", "")) || (selectedPack.id === "starter" ? 1 : selectedPack.id === "explorer" ? 2 : selectedPack.id === "traveler" ? 3 : selectedPack.id === "adventure" ? 4 : selectedPack.id === "pro" ? 5 : selectedPack.id === "elite" ? 6 : selectedPack.id === "mega" ? 7 : selectedPack.id === "ultimate" ? 8 : selectedPack.id === "galaxy" ? 9 : selectedPack.id === "daily-pass" ? 10 : 0);
+    const packageIdNum =
+      parseInt(selectedPack.id.replace("pack_", "")) ||
+      (selectedPack.id === "starter"
+        ? 1
+        : selectedPack.id === "explorer"
+          ? 2
+          : selectedPack.id === "traveler"
+            ? 3
+            : selectedPack.id === "adventure"
+              ? 4
+              : selectedPack.id === "pro"
+                ? 5
+                : selectedPack.id === "elite"
+                  ? 6
+                  : selectedPack.id === "mega"
+                    ? 7
+                    : selectedPack.id === "ultimate"
+                      ? 8
+                      : selectedPack.id === "galaxy"
+                        ? 9
+                        : selectedPack.id === "daily-pass"
+                          ? 10
+                          : 0);
 
-    if (
-      !selectedPack ||
-      !Number.isInteger(packageIdNum) ||
-      packageIdNum <= 0
-    ) {
+    if (!selectedPack || !Number.isInteger(packageIdNum) || packageIdNum <= 0) {
       setPaymentError("The selected AI Coin package is unavailable.");
       return;
     }
@@ -600,9 +685,35 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
         status: data.status || "PENDING",
         selectedPackageId: backendPackageId,
         modalStep: "momo-pending",
+        originPath:
+          window.location.pathname +
+          window.location.search +
+          window.location.hash,
+        paymentMethod: selectedPaymentMethod,
       };
 
-      if (data.paymentUrl) {
+      if (data.checkoutUrl && data.checkoutFields) {
+        sessionStorage.setItem(
+          "aiCoinMomoPaymentSession",
+          JSON.stringify(sessionData),
+        );
+
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = data.checkoutUrl;
+        form.style.display = "none";
+
+        Object.entries(data.checkoutFields).forEach(([name, value]) => {
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = name;
+          input.value = String(value);
+          form.appendChild(input);
+        });
+
+        document.body.appendChild(form);
+        form.submit();
+      } else if (data.paymentUrl) {
         sessionStorage.setItem(
           "aiCoinMomoPaymentSession",
           JSON.stringify(sessionData),
@@ -721,7 +832,8 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
 
             <motion.div
               layout
-              className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar"
+              data-ai-coins-scroll-container
+              className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
             >
               <AnimatePresence mode="wait" initial={false} custom={direction}>
                 <motion.div
@@ -735,7 +847,7 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
                     duration: 0.24,
                     ease: [0.22, 1, 0.36, 1],
                   }}
-                  className="w-full h-full p-6 md:p-8 overflow-y-auto overscroll-contain ai-coins-result-body"
+                  className="w-full min-h-full p-6 md:p-8 flex flex-col ai-coins-result-body"
                 >
                   {purchaseStep === "package-selection" && (
                     <AiCoinPackageSelectionStep
@@ -774,6 +886,7 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
                     <PaymentSuccessStep
                       result={paymentResult}
                       selectedPack={selectedPack!}
+                      paymentMethod={selectedPaymentMethod}
                       onClose={handleClose}
                     />
                   )}
@@ -831,7 +944,9 @@ const AiCoinPackageSelectionStep: React.FC<AiCoinPackageSelectionStepProps> = ({
     if (mock) return mock;
 
     const canonical = allCanonicalPackages.find(
-      (p) => p.id === selectedPackId || p.id.toUpperCase().replace("-", "_") === selectedPackId?.toUpperCase()
+      (p) =>
+        p.id === selectedPackId ||
+        p.id.toUpperCase().replace("-", "_") === selectedPackId?.toUpperCase(),
     );
     if (canonical) {
       return mapCanonicalToModalPackage(canonical);
@@ -1506,7 +1621,7 @@ const AiCoinPaymentStep: React.FC<AiCoinPaymentStepProps> = ({
                 style={{ color: "var(--ai-coins-text-secondary)" }}
               >
                 <span className="font-bold">Discount</span>
-                <span className="font-bold text-emerald-500">- 0 ₫</span>
+                <span className="font-bold text-emerald-500">0 ₫</span>
               </div>
               <div
                 className="w-full h-px my-2"
@@ -1587,11 +1702,49 @@ const MomoPendingStep: React.FC<MomoPendingStepProps> = ({
   const isRestored =
     !session.qrCodeUrl && !session.paymentUrl && !session.deeplink;
 
+  const getProviderConfig = (method?: PaymentMethod) => {
+    if (method === PaymentMethod.MOMO) {
+      return {
+        label: "MoMo",
+        description: "Verifying transaction with MoMo...",
+        icon: <span className="text-white font-black text-xl">MoMo</span>,
+        bgColor: "bg-[#A50064]",
+        shadowColor: "shadow-pink-500/20",
+        updateText:
+          "This screen will update automatically once MoMo processes your payment.",
+      };
+    }
+    if (method === PaymentMethod.BANK_TRANSFER) {
+      return {
+        label: "Bank Transfer",
+        description: "Verifying your bank transfer...",
+        icon: <Landmark className="w-10 h-10 text-white" />,
+        bgColor: "bg-slate-600",
+        shadowColor: "shadow-slate-500/20",
+        updateText:
+          "This screen will update automatically once your payment is confirmed.",
+      };
+    }
+    return {
+      label: "Payment",
+      description: "Verifying your transaction...",
+      icon: <CreditCard className="w-10 h-10 text-white" />,
+      bgColor: "bg-blue-600",
+      shadowColor: "shadow-blue-500/20",
+      updateText:
+        "This screen will update automatically once your payment is confirmed.",
+    };
+  };
+
+  const config = getProviderConfig(session.paymentMethod);
+
   return (
     <div className="flex flex-col h-full items-center justify-center py-8">
       <div className="max-w-md w-full text-center">
-        <div className="w-20 h-20 bg-[#A50064] rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-pink-500/20">
-          <span className="text-white font-black text-xl">MoMo</span>
+        <div
+          className={`w-20 h-20 ${config.bgColor} rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg ${config.shadowColor}`}
+        >
+          {config.icon}
         </div>
 
         <h2
@@ -1606,8 +1759,7 @@ const MomoPendingStep: React.FC<MomoPendingStepProps> = ({
             className="text-[14px] font-medium mb-8"
             style={{ color: "var(--ai-coins-text-secondary)" }}
           >
-            Scan the QR code below or open the MoMo app to confirm the payment
-            of{" "}
+            Scan the QR code below or open the app to confirm the payment of{" "}
             <strong className="text-[var(--ai-coins-text-primary)]">
               {formatVnd(session.amount)}
             </strong>
@@ -1619,7 +1771,7 @@ const MomoPendingStep: React.FC<MomoPendingStepProps> = ({
           <div className="bg-white p-4 rounded-2xl mx-auto w-fit mb-6 shadow-md border border-[var(--ai-coins-border)]">
             <img
               src={session.qrCodeUrl}
-              alt="MoMo QR Code"
+              alt="QR Code"
               className="w-48 h-48 object-contain"
             />
           </div>
@@ -1666,7 +1818,7 @@ const MomoPendingStep: React.FC<MomoPendingStepProps> = ({
               style={{ color: "var(--ai-coins-text-primary)" }}
             >
               {isRestored
-                ? "Verifying transaction with MoMo..."
+                ? config.description
                 : "Waiting for payment confirmation..."}
             </span>
           </div>
@@ -1674,8 +1826,7 @@ const MomoPendingStep: React.FC<MomoPendingStepProps> = ({
             className="text-[13px] font-medium text-center"
             style={{ color: "var(--ai-coins-text-secondary)" }}
           >
-            This screen will update automatically once MoMo processes your
-            payment.
+            {config.updateText}
           </p>
 
           {statusMessage && (
@@ -1710,134 +1861,278 @@ const MomoPendingStep: React.FC<MomoPendingStepProps> = ({
 interface PaymentSuccessStepProps {
   result: AiCoinPaymentStatusResponse;
   selectedPack: AiCoinPackage;
+  paymentMethod: PaymentMethod;
   onClose: () => void;
 }
 
 const PaymentSuccessStep: React.FC<PaymentSuccessStepProps> = ({
   result,
-  selectedPack,
+  paymentMethod,
   onClose,
 }) => {
+  const navigate = useNavigate();
+
+  const handleViewHistory = () => {
+    onClose();
+    navigate("/payments/history");
+  };
+
+  const handleExplore = () => {
+    onClose();
+    navigate("/search");
+  };
+
+  const formatDate = (isoString?: string) => {
+    const d = isoString ? new Date(isoString) : new Date();
+    const day = d.getDate().toString().padStart(2, "0");
+    const month = (d.getMonth() + 1).toString().padStart(2, "0");
+    const year = d.getFullYear();
+    const hours = d.getHours().toString().padStart(2, "0");
+    const minutes = d.getMinutes().toString().padStart(2, "0");
+    return `${day}/${month}/${year} • ${hours}:${minutes}`;
+  };
+
+  const method = paymentMethods.find((m) => m.value === paymentMethod);
+  const transactionId = result.paymentId ? `#AIMT-${result.paymentId}` : "—";
+
   return (
-    <div className="flex flex-col h-full items-center justify-center py-8 text-center">
-      <div className="w-24 h-24 bg-emerald-500/10 rounded-full flex items-center justify-center mb-6 relative">
+    <div className="flex h-full w-full min-h-0 flex-col text-[var(--ai-coins-text-primary)]">
+      <div className="mx-auto grid w-full max-w-6xl flex-1 items-center gap-6 py-1 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:gap-8 xl:gap-10">
+        {/* Left Column */}
         <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{
-            type: "spring",
-            damping: 15,
-            stiffness: 200,
-            delay: 0.1,
-          }}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3 }}
+          className="mx-auto flex w-full min-w-0 max-w-[520px] flex-col lg:mx-0"
         >
-          <CheckCircle2 className="w-12 h-12 text-emerald-500" />
+          <div className="relative mb-4 flex min-h-0 items-center justify-center overflow-visible">
+            <div className="absolute inset-x-8 inset-y-4 rounded-full bg-emerald-500/5 blur-3xl" />
+            <div className="relative flex w-full max-w-[430px] items-center justify-center overflow-visible rounded-[2rem] bg-[radial-gradient(circle_at_50%_48%,rgba(16,185,129,0.08),transparent_58%)]">
+              <div
+                className="absolute inset-0 z-10 pointer-events-none"
+                style={{
+                  background:
+                    "radial-gradient(circle, transparent 58%, var(--ai-coins-surface) 100%)",
+                }}
+              />
+              <img
+                src={PaymentSuccessImageLight}
+                alt="AI Coins payment completed successfully"
+                className="relative z-0 max-h-[300px] w-full object-contain sm:max-h-[340px] lg:max-h-[360px] xl:max-h-[400px]"
+              />
+            </div>
+          </div>
+
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.1, duration: 0.3 }}
+            className="mb-4 text-center lg:text-left"
+          >
+            <div className="mb-3 flex items-center justify-center gap-3 lg:justify-start">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/20">
+                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+              </div>
+              <h2 className="text-[30px] font-black leading-tight sm:text-[34px] xl:text-[38px]">
+                Payment successful!
+              </h2>
+            </div>
+            <p className="text-[15px] font-medium leading-relaxed text-[var(--ai-coins-text-secondary)] sm:text-[16px]">
+              Thank you for choosing AI Marketplace Traveler.
+              <br />
+              Your AI Coins have been added to your wallet.
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.2, duration: 0.3 }}
+            className="mb-5 grid grid-cols-1 gap-0 overflow-hidden rounded-2xl border border-[var(--ai-coins-border)] bg-[var(--ai-coins-surface-secondary)] sm:grid-cols-[1fr_auto_1fr]"
+          >
+            <div className="flex items-center gap-4 p-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-500/10">
+                <img
+                  src={coinGoldImage}
+                  alt="Coin"
+                  className="h-8 w-8 object-contain"
+                />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[12px] font-bold text-[var(--ai-coins-text-secondary)]">
+                  You received
+                </p>
+                <p className="text-[18px] font-black leading-tight">
+                  {result.baseCoins.toLocaleString("en-US")} AI Coins
+                </p>
+              </div>
+            </div>
+            <div className="hidden w-px bg-[var(--ai-coins-divider)] sm:block" />
+            <div className="flex items-center gap-4 border-t border-[var(--ai-coins-divider)] p-4 sm:border-t-0">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-purple-500/10">
+                <Gift className="h-6 w-6 text-purple-500" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[12px] font-bold text-[var(--ai-coins-text-secondary)]">
+                  Bonus Coins
+                </p>
+                <p className="text-[18px] font-black leading-tight text-purple-500">
+                  +{result.bonusCoins.toLocaleString("en-US")}
+                </p>
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.3, duration: 0.3 }}
+            className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+          >
+            <button
+              onClick={handleViewHistory}
+              className="flex min-h-[54px] items-center justify-center gap-2 rounded-xl border border-[var(--ai-coins-border-strong)] bg-transparent px-5 py-3 text-[14px] font-bold transition-colors hover:bg-[var(--ai-coins-surface-secondary)]"
+            >
+              <Lock className="h-4 w-4" />
+              View transaction history
+            </button>
+            <button
+              onClick={handleExplore}
+              className="flex min-h-[54px] items-center justify-center gap-2 rounded-xl bg-[#8B5CF6] px-5 py-3 text-[14px] font-bold text-white transition-colors hover:bg-[#7C3AED]"
+            >
+              <Sparkles className="h-4 w-4" />
+              Explore now
+            </button>
+          </motion.div>
         </motion.div>
+
+        {/* Right Column */}
         <motion.div
-          className="absolute inset-0 border-2 border-emerald-500 rounded-full"
-          initial={{ scale: 0.8, opacity: 1 }}
-          animate={{ scale: 1.5, opacity: 0 }}
-          transition={{ repeat: Infinity, duration: 2, delay: 0.5 }}
-        />
-      </div>
-
-      <h2
-        className="text-3xl font-black mb-3"
-        style={{ color: "var(--ai-coins-text-primary)" }}
-      >
-        Payment Successful!
-      </h2>
-      <p
-        className="text-[15px] font-medium mb-8 max-w-sm mx-auto"
-        style={{ color: "var(--ai-coins-text-secondary)" }}
-      >
-        Your transaction was completed successfully. The AI Coins have been
-        added to your account.
-      </p>
-
-      <div className="bg-[var(--ai-coins-surface-secondary)] border border-[var(--ai-coins-border)] rounded-[24px] p-6 w-full max-w-md mx-auto mb-8 shadow-sm">
-        <div className="flex items-center justify-center gap-3 mb-6 pb-6 border-b border-[var(--ai-coins-divider)]">
-          <img
-            src={selectedPack.imageUrl || coinGoldImage}
-            alt=""
-            className="w-16 h-16 object-contain"
-          />
-          <div className="text-left">
-            <div
-              className="text-3xl font-black tabular-nums leading-none"
-              style={{ color: "var(--ai-coins-text-primary)" }}
-            >
-              {result.totalCoins.toLocaleString("en-US")}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.1, duration: 0.3 }}
+          className="mx-auto flex w-full min-w-0 max-w-[560px] flex-col gap-4 lg:mx-0"
+        >
+          <div className="flex items-center gap-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-500">
+              <ShieldCheck className="h-6 w-6 text-white" />
             </div>
-            <div className="text-[13px] font-bold text-[var(--ai-coins-text-secondary)] mt-1">
-              AI Coins Received
+            <div className="min-w-0">
+              <h4 className="text-[17px] font-bold leading-tight text-emerald-500">
+                Transaction secured
+              </h4>
+              <p className="mt-1 text-[13px] font-medium leading-snug text-emerald-500/80 sm:text-[14px]">
+                Your payment information is encrypted and fully protected.
+              </p>
             </div>
           </div>
-        </div>
 
-        <div className="space-y-3 text-[14px] text-left">
-          <div className="flex justify-between">
-            <span
-              className="font-medium"
-              style={{ color: "var(--ai-coins-text-secondary)" }}
-            >
-              Base Coins
-            </span>
-            <span
-              className="font-bold tabular-nums"
-              style={{ color: "var(--ai-coins-text-primary)" }}
-            >
-              {result.baseCoins.toLocaleString("en-US")}
-            </span>
+          <div className="rounded-2xl border border-[var(--ai-coins-border)] bg-[var(--ai-coins-surface-secondary)] p-5">
+            <h3 className="mb-4 text-[18px] font-bold">Order details</h3>
+
+            <div className="space-y-3 text-[14px]">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500/10">
+                    <img
+                      src={coinGoldImage}
+                      alt="Coin"
+                      className="h-5 w-5 object-contain"
+                    />
+                  </div>
+                  <span className="font-bold">AI Coins package</span>
+                </div>
+                <span className="text-right font-bold">
+                  {result.baseCoins.toLocaleString("en-US")} AI Coins
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-500/10">
+                    <Gift className="h-4 w-4 text-purple-500" />
+                  </div>
+                  <span className="font-bold">Bonus Coins</span>
+                </div>
+                <span className="text-right font-bold text-purple-500">
+                  +{result.bonusCoins.toLocaleString("en-US")} AI Coins
+                </span>
+              </div>
+
+              <div className="my-2 h-px w-full bg-[var(--ai-coins-divider)]" />
+
+              <div className="flex justify-between items-center text-[var(--ai-coins-text-secondary)]">
+                <span className="font-medium">Subtotal</span>
+                <span className="font-bold">{formatVnd(result.amount)}</span>
+              </div>
+              <div className="flex justify-between items-center text-[var(--ai-coins-text-secondary)]">
+                <span className="font-medium">Discount</span>
+                <span className="font-bold text-emerald-500">0 ₫</span>
+              </div>
+
+              <div className="my-2 h-px w-full bg-[var(--ai-coins-divider)]" />
+
+              <div className="mb-4 flex items-center justify-between">
+                <span className="text-[16px] font-bold">Total paid</span>
+                <span className="text-right text-[22px] font-black leading-tight text-[#8B5CF6]">
+                  {formatVnd(result.amount)}
+                </span>
+              </div>
+
+              <div className="space-y-3 pt-1">
+                <div className="flex justify-between items-center text-[var(--ai-coins-text-secondary)]">
+                  <span className="font-medium">Payment method</span>
+                  <div className="flex items-center gap-2 text-right font-bold text-[var(--ai-coins-text-primary)]">
+                    {method?.icon}
+                    <span>{method?.label || "Bank Transfer"}</span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center text-[var(--ai-coins-text-secondary)]">
+                  <span className="font-medium">Transaction ID</span>
+                  <span className="max-w-[240px] truncate text-right text-[13px] font-bold text-[var(--ai-coins-text-primary)]">
+                    {transactionId}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[var(--ai-coins-text-secondary)]">
+                  <span className="font-medium">Payment time</span>
+                  <span className="text-right font-bold text-[var(--ai-coins-text-primary)]">
+                    {formatDate(result.updatedAt)}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="flex justify-between">
-            <span
-              className="font-medium"
-              style={{ color: "var(--ai-coins-text-secondary)" }}
-            >
-              Bonus Coins
-            </span>
-            <span className="font-bold tabular-nums text-purple-500">
-              +{result.bonusCoins.toLocaleString("en-US")}
-            </span>
+
+          <div className="mt-auto flex items-center justify-between gap-4 rounded-2xl border border-purple-500/20 bg-gradient-to-r from-purple-500/10 to-indigo-500/10 p-4">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-purple-500/20">
+                <Crown className="h-6 w-6 text-purple-500" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="truncate text-[14px] font-bold text-purple-500">
+                  Thank you for being part of AI Marketplace Traveler!
+                </h4>
+                <p className="mt-1 truncate text-[12px] font-medium text-purple-500/80">
+                  Explore premium AI features and discover more rewards.
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 shrink-0 text-purple-500 opacity-50" />
           </div>
-          <div className="flex justify-between">
-            <span
-              className="font-medium"
-              style={{ color: "var(--ai-coins-text-secondary)" }}
-            >
-              Amount Paid
-            </span>
-            <span
-              className="font-bold tabular-nums"
-              style={{ color: "var(--ai-coins-text-primary)" }}
-            >
-              {formatVnd(result.amount)}
-            </span>
-          </div>
-          <div className="flex justify-between pt-2 mt-2 border-t border-[var(--ai-coins-divider)]">
-            <span
-              className="font-medium"
-              style={{ color: "var(--ai-coins-text-secondary)" }}
-            >
-              Transaction ID
-            </span>
-            <span
-              className="font-bold tabular-nums text-[12px] opacity-70"
-              style={{ color: "var(--ai-coins-text-primary)" }}
-            >
-              {result.paymentId}
-            </span>
-          </div>
-        </div>
+        </motion.div>
       </div>
 
-      <button
-        onClick={onClose}
-        className="px-10 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-[15px] font-black rounded-xl shadow-[0_8px_20px_rgba(16,185,129,0.25)] transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+      {/* Footer */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.4 }}
+        className="mt-2 flex w-full items-center justify-center gap-2 text-center text-[12px] font-medium text-[var(--ai-coins-text-secondary)]"
       >
-        Done
-      </button>
+        <ShieldCheck className="h-4 w-4 opacity-50" />
+        Your AI Coins balance has been updated. Check your wallet for the latest
+        balance.
+      </motion.div>
     </div>
   );
 };

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/context/AuthContext";
+import { useAiCoinWallet } from "@/hooks/useAiCoinWallet";
 import { bookingService } from "@/services/bookingService";
 import { cn } from "@/lib/utils";
 
@@ -119,11 +120,13 @@ const AiCoinsCard = ({
   setOpenMenu,
   menuRef,
   onNavigate,
+  balanceLabel,
 }: {
   isOpen: boolean;
   setOpenMenu: React.Dispatch<React.SetStateAction<OpenHeaderMenu>>;
   menuRef: React.RefObject<HTMLDivElement>;
   onNavigate: (path: string) => void;
+  balanceLabel: string;
 }) => {
   return (
     <div ref={menuRef} className="relative hidden shrink-0 md:block">
@@ -141,7 +144,7 @@ const AiCoinsCard = ({
           <img src={COIN_IMAGE_SRC} alt="" className="h-9 w-9 object-contain" />
         </span>
         <span className="relative hidden leading-tight lg:block">
-          <span className="block text-lg font-black tabular-nums text-white">2,450</span>
+          <span className="block text-lg font-black tabular-nums text-white">{balanceLabel}</span>
           <span className="block text-[11px] font-bold text-amber-100/90">AI Coins</span>
         </span>
         <span className="relative flex h-9 w-9 items-center justify-center rounded-full border border-amber-200/30 bg-slate-950/35 text-amber-100 transition group-hover:border-amber-100/50 group-hover:bg-slate-950/55">
@@ -163,7 +166,7 @@ const AiCoinsCard = ({
             <div className="flex items-center gap-4 border-b border-slate-100 bg-gradient-to-br from-white to-amber-50/80 p-5">
               <img src={COIN_IMAGE_SRC} alt="" className="h-20 w-20 shrink-0 object-contain" />
               <div className="min-w-0">
-                <p className="text-3xl font-black tabular-nums tracking-tight text-slate-950">2,450</p>
+                <p className="text-3xl font-black tabular-nums tracking-tight text-slate-950">{balanceLabel}</p>
                 <p className="mt-1 text-base font-bold text-slate-500">AI Coins</p>
               </div>
             </div>
@@ -371,6 +374,7 @@ const HeaderMobileMenu = ({
   initials,
   isAuthenticated,
   displayName,
+  balanceLabel,
   onNavigate,
   onLogout,
 }: {
@@ -380,6 +384,7 @@ const HeaderMobileMenu = ({
   initials: string;
   isAuthenticated: boolean;
   displayName: string;
+  balanceLabel: string;
   onNavigate: (path: string) => void;
   onLogout: () => Promise<void>;
 }) => (
@@ -402,7 +407,7 @@ const HeaderMobileMenu = ({
               <div className="flex items-center gap-3">
                 <Coins className="h-6 w-6" />
                 <div>
-                  <p className="text-lg font-black">2,450</p>
+                  <p className="text-lg font-black">{balanceLabel}</p>
                   <p className="text-xs font-bold">AI Coins - Top-up coming soon</p>
                 </div>
               </div>
@@ -445,6 +450,7 @@ const HeaderMobileMenu = ({
 export const SiteHeaderV2: React.FC = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
+  const aiCoinWalletQuery = useAiCoinWallet();
   const [cartCount, setCartCount] = React.useState(0);
   const [openHeaderMenu, setOpenHeaderMenu] = React.useState<OpenHeaderMenu>(null);
   const [mobileOpen, setMobileOpen] = React.useState(false);
@@ -459,6 +465,8 @@ export const SiteHeaderV2: React.FC = () => {
 
   const displayName = user?.fullName || user?.email || "Traveler";
   const initials = displayName.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "AI";
+  const aiCoinBalance = aiCoinWalletQuery.data?.balance ?? 0;
+  const aiCoinBalanceLabel = aiCoinWalletQuery.isLoading ? "..." : aiCoinBalance.toLocaleString("en-US");
 
   const goTo = React.useCallback((path: string) => {
     setOpenHeaderMenu(null);
@@ -544,7 +552,7 @@ export const SiteHeaderV2: React.FC = () => {
             <div className="relative hidden grid-cols-[auto_minmax(300px,1fr)_auto_auto_auto_minmax(180px,auto)] items-center gap-3 xl:grid">
               <HeaderBrand onNavigate={goTo} />
               <HeaderSearch onNavigate={goTo} inputRef={searchInputRef} />
-              <AiCoinsCard isOpen={openHeaderMenu === "coins"} setOpenMenu={setOpenHeaderMenu} menuRef={coinMenuRef} onNavigate={goTo} />
+              <AiCoinsCard isOpen={openHeaderMenu === "coins"} setOpenMenu={setOpenHeaderMenu} menuRef={coinMenuRef} onNavigate={goTo} balanceLabel={aiCoinBalanceLabel} />
               <ProviderCta onNavigate={goTo} />
               <HeaderQuickActions cartCount={cartCount} onNavigate={goTo} />
               <HeaderAccountMenu isOpen={openHeaderMenu === "profile"} setOpenMenu={setOpenHeaderMenu} menuRef={accountMenuRef} displayName={displayName} initials={initials} user={user} isAuthenticated={isAuthenticated} onNavigate={goTo} onLogout={handleLogout} />
@@ -552,7 +560,7 @@ export const SiteHeaderV2: React.FC = () => {
             <div className="relative hidden items-center gap-3 md:flex xl:hidden">
               <HeaderBrand onNavigate={goTo} />
               <HeaderSearch onNavigate={goTo} inputRef={searchInputRef} />
-              <AiCoinsCard isOpen={openHeaderMenu === "coins"} setOpenMenu={setOpenHeaderMenu} menuRef={coinMenuRef} onNavigate={goTo} />
+              <AiCoinsCard isOpen={openHeaderMenu === "coins"} setOpenMenu={setOpenHeaderMenu} menuRef={coinMenuRef} onNavigate={goTo} balanceLabel={aiCoinBalanceLabel} />
               <ProviderCta onNavigate={goTo} />
               <QuickIconButton label="Cart" icon={ShoppingCart} badge={cartCount} onClick={() => goTo("/cart")} />
               <QuickIconButton label="Notifications" icon={Bell} />
@@ -579,7 +587,7 @@ export const SiteHeaderV2: React.FC = () => {
                         <div className="flex items-center gap-4 border-b border-slate-100 bg-gradient-to-br from-white to-amber-50/80 p-4">
                           <img src={COIN_IMAGE_SRC} alt="" className="h-16 w-16 shrink-0 object-contain" />
                           <div>
-                            <p className="text-2xl font-black tabular-nums tracking-tight text-slate-950">2,450</p>
+                            <p className="text-2xl font-black tabular-nums tracking-tight text-slate-950">{aiCoinBalanceLabel}</p>
                             <p className="text-sm font-bold text-slate-500">AI Coins</p>
                           </div>
                         </div>
@@ -661,7 +669,7 @@ export const SiteHeaderV2: React.FC = () => {
           </AnimatePresence>
         </div>
       </header>
-      <HeaderMobileMenu open={mobileOpen} setOpen={setMobileOpen} cartCount={cartCount} initials={initials} isAuthenticated={isAuthenticated} displayName={displayName} onNavigate={goTo} onLogout={handleLogout} />
+      <HeaderMobileMenu open={mobileOpen} setOpen={setMobileOpen} cartCount={cartCount} initials={initials} isAuthenticated={isAuthenticated} displayName={displayName} balanceLabel={aiCoinBalanceLabel} onNavigate={goTo} onLogout={handleLogout} />
     </>
   );
 };

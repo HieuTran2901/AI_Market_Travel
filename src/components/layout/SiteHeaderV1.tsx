@@ -48,6 +48,7 @@ import { Button } from "@/components/ui/Button";
 
 import { AiCoinsModal } from "@/components/payment/AiCoinsModal";
 import { useAuth } from "@/context/AuthContext";
+import { useAiCoinWallet } from "@/hooks/useAiCoinWallet";
 import { bookingService } from "@/services/bookingService";
 import { cn } from "@/lib/utils";
 import coinImage from "../../assets/images/coin.png";
@@ -508,6 +509,7 @@ export const SiteHeaderV1: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
+  const aiCoinWalletQuery = useAiCoinWallet();
 
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [moreOpen, setMoreOpen] = React.useState(false);
@@ -1551,14 +1553,10 @@ export const SiteHeaderV1: React.FC = () => {
     );
   };
 
-  const walletSummary = {
-    aiCoins: 2450,
-    // TODO: replace with trusted wallet API data when Special Coins backend support is available.
-    specialCoins: 320,
-  };
-
-  const aiCoinsBalance = walletSummary.aiCoins;
-  const specialCoinsBalance = walletSummary.specialCoins;
+  const aiCoinsBalance = aiCoinWalletQuery.data?.balance ?? 0;
+  const aiCoinsBalanceLabel = aiCoinWalletQuery.isLoading ? "..." : aiCoinsBalance.toLocaleString("en-US");
+  // TODO: replace with trusted wallet API data when Special Coins backend support is available.
+  const specialCoinsBalance = 320;
 
   const AiCoinsTrigger = ({ compact = false }: { compact?: boolean }) => (
     <button
@@ -1600,7 +1598,7 @@ export const SiteHeaderV1: React.FC = () => {
         )}
       >
         <span className="block text-sm font-black tabular-nums text-white">
-          {aiCoinsBalance.toLocaleString("en-US")}
+          {aiCoinsBalanceLabel}
         </span>
         <span className="block text-[10px] font-black text-amber-200">
           AI Coins
@@ -1815,7 +1813,7 @@ export const SiteHeaderV1: React.FC = () => {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: -8, scale: 0.98 }}
         transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-        className="fixed inset-x-3 top-[72px] flex max-h-[calc(100dvh-88px)] w-[calc(100vw-24px)] max-w-none origin-top flex-col overflow-hidden rounded-3xl bg-white shadow-xl"
+        className="fixed inset-x-3 top-[72px] flex max-h-[calc(100dvh-88px)] w-auto min-w-0 origin-top flex-col overflow-hidden rounded-3xl bg-white shadow-xl"
       >
         <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
           <p className="text-sm font-black text-slate-950">Account</p>
@@ -1889,7 +1887,7 @@ export const SiteHeaderV1: React.FC = () => {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: -8, scale: 0.98 }}
         transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-        className="fixed inset-x-3 top-[72px] flex max-h-[calc(100dvh-88px)] w-[calc(100vw-24px)] max-w-none flex-col overflow-hidden rounded-3xl bg-white shadow-xl"
+        className="fixed inset-x-3 top-[72px] flex max-h-[calc(100dvh-88px)] w-auto min-w-0 flex-col overflow-hidden rounded-3xl bg-white shadow-xl"
       >
         <div className="flex items-center gap-3 border-b border-slate-100 p-4">
           <button
@@ -1931,7 +1929,7 @@ export const SiteHeaderV1: React.FC = () => {
                 <Coins className="h-6 w-6" />
                 <div>
                   <p className="text-lg font-black">
-                    {aiCoinsBalance.toLocaleString("en-US")}
+                    {aiCoinsBalanceLabel}
                   </p>
                   <p className="text-xs font-bold">AI Coins</p>
                 </div>

@@ -2,9 +2,6 @@ import type { PriceBreakdownDto } from "../../types/payment";
 
 export const DEFAULT_VND_PER_AI_COIN = 1_000;
 
-// TODO: Replace with the authenticated wallet balance when the wallet API exposes AI Coins.
-export const FALLBACK_AI_COIN_BALANCE = 2_450;
-
 export type AiCoinBreakdown = {
   subtotal: number;
   extrasAmount: number;

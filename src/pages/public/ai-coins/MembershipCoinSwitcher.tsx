@@ -53,7 +53,7 @@ export const MembershipCoinSwitcher: React.FC<MembershipCoinSwitcherProps> = ({
       className={cn("flex justify-center lg:justify-end", className)}
       aria-label="Membership and AI Coins packages"
     >
-      <div className="w-full max-w-[430px]">
+      <div className="w-full max-w-none lg:max-w-[430px]">
         <div className="relative grid min-h-[52px] grid-cols-2 items-stretch overflow-hidden rounded-full border border-slate-400/24 bg-[linear-gradient(135deg,rgba(8,18,48,0.98),rgba(15,20,52,0.98))] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_12px_28px_rgba(2,6,23,0.22)]">
           {tabs.map((tab) => {
           const isActive = displayedTab === tab.id;

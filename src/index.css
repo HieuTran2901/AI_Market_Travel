@@ -134,6 +134,28 @@
 }
 
 @layer base {
+  html,
+  body,
+  #root {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    margin: 0;
+    overflow-x: clip;
+  }
+
+  @supports not (overflow: clip) {
+    html,
+    body,
+    #root {
+      overflow-x: hidden;
+    }
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+
   * {
     @apply border-border;
     font-family: var(--font-sans);
@@ -1043,4 +1065,45 @@
     margin-top: -0.5rem; /* slightly upward for emphasis */
     margin-bottom: -0.5rem;
   }
+}
+
+/* AI Coins Modal Scrollbar */
+[data-ai-coins-scroll-container] {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.65) transparent;
+  scrollbar-gutter: stable;
+}
+
+[data-ai-coins-scroll-container]::-webkit-scrollbar {
+  width: 8px;
+}
+
+[data-ai-coins-scroll-container]::-webkit-scrollbar-track {
+  background: transparent;
+  margin-block: 8px;
+}
+
+[data-ai-coins-scroll-container]::-webkit-scrollbar-thumb {
+  min-height: 40px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background:
+    linear-gradient(
+      rgba(148, 163, 184, 0.7),
+      rgba(100, 116, 139, 0.78)
+    )
+    padding-box;
+}
+
+[data-ai-coins-scroll-container]::-webkit-scrollbar-thumb:hover {
+  background:
+    linear-gradient(
+      rgba(100, 116, 139, 0.9),
+      rgba(71, 85, 105, 0.95)
+    )
+    padding-box;
+}
+
+.dark [data-ai-coins-scroll-container] {
+  scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
 }

@@ -1,18 +1,23 @@
 import React from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import {
+  ArrowLeft,
+  ChevronRight,
   CreditCard,
   Lock,
+  MoreHorizontal,
   ShieldCheck,
   Sparkles,
   Star,
   Zap,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useAiCoinsModal } from "@/context/AiCoinsModalContext";
 import { useAuthenticationGate } from "@/context/AuthenticationGateContext";
+import { useAiCoinWallet } from "@/hooks/useAiCoinWallet";
 import { cn } from "@/lib/utils";
-import { coinGoldImage } from "./coinPackageAssets";
+import { adventurePackImage, coinGoldImage } from "./coinPackageAssets";
 import {
   AiCoinPackage,
   dailyCoinPassPackage,
@@ -27,6 +32,7 @@ import {
   UpgradeModeTransition,
   useUpgradeModeTransition,
 } from "./useUpgradeModeTransition";
+import { MembershipCoinSwitcher } from "./MembershipCoinSwitcher";
 
 const formatVnd = (value: number) =>
   new Intl.NumberFormat("vi-VN", {
@@ -71,6 +77,29 @@ const paymentMethods = [
   "ZaloPay",
   "Apple Pay / Google Pay",
   "Bank Transfer",
+];
+
+const mobilePaymentMethods = [
+  {
+    label: "Visa / Mastercard",
+    icon: CreditCard,
+  },
+  {
+    label: "MoMo",
+    mark: "mo",
+  },
+  {
+    label: "ZaloPay",
+    mark: "Zalo",
+  },
+  {
+    label: "Apple Pay",
+    mark: "Apple",
+  },
+  {
+    label: "More",
+    icon: MoreHorizontal,
+  },
 ];
 
 type PackageAction = (pkg: AiCoinPackage) => void;
@@ -214,6 +243,8 @@ const getPackageThemeStyle = (theme: CoinPackageTheme) =>
   }) as React.CSSProperties;
 
 const cosmicPackageIds = new Set(["mega", "ultimate", "galaxy"]);
+
+const getShortVnd = (value: number) => formatVnd(value).replace(/\s/g, "");
 
 const CosmicPackageGlow = ({ packageId }: { packageId: string }) => {
   if (!cosmicPackageIds.has(packageId)) return null;
@@ -627,6 +658,413 @@ const PaymentSecurityPanel = () => (
     </div>
   </section>
 );
+
+const MobileWalletBalance = () => {
+  const walletQuery = useAiCoinWallet();
+  const balance = walletQuery.data?.balance ?? 0;
+
+  return (
+    <div className="flex min-h-16 min-w-0 max-w-[calc(100%_-_68px)] shrink items-center gap-3 rounded-2xl border border-violet-300/28 bg-slate-950/72 px-3 py-2 shadow-[0_12px_28px_rgba(15,23,42,0.22)]">
+      <img
+        src={coinGoldImage}
+        alt=""
+        draggable={false}
+        className="h-11 w-11 shrink-0 object-contain drop-shadow-[0_0_18px_rgba(245,158,11,0.34)]"
+      />
+      <div className="min-w-0">
+        <p className="text-lg font-black leading-none tabular-nums text-amber-100">
+          {walletQuery.isLoading ? "..." : formatNumber(balance)}
+        </p>
+        <p className="mt-1 text-[11px] font-bold leading-none text-amber-100/90">
+          AI Coins
+        </p>
+      </div>
+    </div>
+  );
+};
+
+const MobileHeroSection = () => (
+  <section className="relative mt-6 w-full min-w-0 overflow-hidden rounded-[24px] border border-violet-300/22 bg-[radial-gradient(circle_at_72%_42%,rgba(168,85,247,0.36),transparent_34%),linear-gradient(135deg,rgba(11,18,48,0.96),rgba(26,15,68,0.96)_54%,rgba(6,13,34,0.98))] px-4 py-5 shadow-[0_18px_44px_rgba(2,6,23,0.24)] sm:px-5 md:px-6 md:py-6">
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-[radial-gradient(ellipse_at_center,rgba(251,191,36,0.14),transparent_64%)]" />
+    <div className="relative grid grid-cols-[0.72fr_minmax(0,1.45fr)_0.9fr] items-center gap-3 sm:grid-cols-[0.75fr_minmax(0,1.65fr)_1fr] sm:gap-5 md:grid-cols-[0.62fr_minmax(0,1.9fr)_1fr]">
+      <img
+        src={coinGoldImage}
+        alt=""
+        draggable={false}
+        className="h-14 w-full object-contain drop-shadow-[0_0_22px_rgba(245,158,11,0.36)] min-[375px]:h-16 sm:h-20 md:h-24"
+      />
+      <div className="min-w-0">
+        <h1 className="text-[30px] font-black leading-none tracking-tight text-white min-[375px]:text-[34px] sm:text-[42px] md:text-[50px]">
+          Buy{" "}
+          <span className="bg-gradient-to-r from-sky-300 via-blue-400 to-violet-400 bg-clip-text text-transparent">
+            AI Coins
+          </span>
+        </h1>
+        <p className="mt-2 max-w-[260px] text-[14px] font-semibold leading-snug text-slate-300 min-[375px]:text-[15px] sm:max-w-[360px] sm:text-base md:max-w-[460px] md:text-lg">
+          Choose the perfect pack for your next adventure
+        </p>
+      </div>
+      <img
+        src={adventurePackImage}
+        alt=""
+        draggable={false}
+        className="h-20 w-full object-contain drop-shadow-[0_16px_28px_rgba(245,158,11,0.22)] min-[375px]:h-24 sm:h-32 md:h-40"
+      />
+    </div>
+  </section>
+);
+
+const MobileBenefitsStrip = () => (
+  <section className="mt-5 grid w-full min-w-0 grid-cols-2 overflow-hidden rounded-2xl border border-violet-300/20 bg-slate-950/58 shadow-inner shadow-blue-950/50 sm:grid-cols-4">
+    {benefits.map((item, index) => (
+      <div
+        key={item.title}
+        className={cn(
+          "flex min-w-0 items-center gap-2 px-3 py-3 md:px-4 md:py-4",
+          index % 2 === 1 && "border-l border-white/8 sm:border-l",
+          index >= 2 && "border-t border-white/8 sm:border-t-0",
+          index > 0 && "sm:border-l sm:border-white/8",
+        )}
+      >
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]">
+          <item.icon className={cn("h-4 w-4", item.color)} />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-[11px] font-black leading-tight text-white md:text-sm">
+            {item.title}
+          </span>
+          <span className="mt-0.5 block truncate text-[10px] leading-tight text-slate-400 md:text-xs">
+            {item.description}
+          </span>
+        </span>
+      </div>
+    ))}
+  </section>
+);
+
+const MobilePackageCard = ({
+  pkg,
+  onSelect,
+  isSelected,
+}: {
+  pkg: AiCoinPackage;
+  onSelect: PackageAction;
+  isSelected: boolean;
+}) => {
+  const featured = pkg.featured || pkg.badge === "BEST VALUE";
+  const theme = getPackageTheme(pkg.id);
+
+  return (
+    <article
+      className="relative flex min-h-[246px] min-w-0 max-w-full flex-col overflow-hidden rounded-[18px] border p-3 text-center shadow-[0_14px_32px_rgba(2,6,23,0.25)] md:min-h-[270px] md:p-3.5"
+      style={getPackageThemeStyle(theme)}
+    >
+      <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[18px] bg-[radial-gradient(circle_at_50%_0%,var(--package-glow),transparent_42%)]" />
+      {pkg.badge ? (
+        <span
+          className={cn(
+            "absolute right-2 top-2 z-10 rounded-full px-2.5 py-1 text-[10px] font-black uppercase leading-none text-white shadow-lg",
+            featured
+              ? "bg-gradient-to-r from-orange-500 to-amber-300 shadow-amber-500/30"
+              : "bg-gradient-to-r from-violet-600 to-fuchsia-500 shadow-violet-600/25",
+          )}
+        >
+          {pkg.badge}
+        </span>
+      ) : null}
+
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <h3
+          className={cn(
+            "line-clamp-2 min-h-[34px] text-[14px] font-black leading-tight min-[390px]:text-[15px]",
+            featured ? "text-amber-200" : "text-[var(--package-accent)]",
+          )}
+        >
+          {pkg.name}
+        </h3>
+        <div className="relative isolate mt-1 flex h-16 items-center justify-center min-[390px]:h-20">
+          <span className="pointer-events-none absolute inset-[10%_12%] -z-10 rounded-full bg-[radial-gradient(circle,var(--package-glow)_0%,transparent_70%)] blur-2xl" />
+          <img
+            src={pkg.image}
+            alt={`${pkg.name} AI Coins package`}
+            draggable={false}
+            loading="lazy"
+            className="h-full w-full object-contain"
+          />
+        </div>
+        <p
+          className={cn(
+            "mt-1 text-[24px] font-black leading-none tabular-nums tracking-tight min-[390px]:text-[28px]",
+            featured ? "text-amber-100" : "text-slate-100",
+          )}
+        >
+          {formatNumber(pkg.coins)}
+        </p>
+        <p className="text-[11px] font-semibold leading-tight text-slate-300">
+          AI Coins
+        </p>
+        <p
+          className="mx-auto mt-2 max-w-full rounded-full border px-2 py-1 text-[10px] font-black leading-none"
+          style={{
+            background: "var(--package-bonus-bg)",
+            borderColor: "var(--package-border)",
+            color: "var(--package-bonus-text)",
+          }}
+        >
+          +{formatNumber(pkg.bonusCoins)} Bonus Coins
+        </p>
+        <div className="mt-auto pt-2">
+          <div className="flex min-w-0 items-center justify-center gap-1.5">
+            {pkg.originalPrice ? (
+              <span className="truncate text-[11px] font-bold text-slate-500 line-through">
+                {getShortVnd(pkg.originalPrice)}
+              </span>
+            ) : null}
+            <span className="whitespace-nowrap text-[13px] font-black text-white min-[390px]:text-sm">
+              {getShortVnd(pkg.price)}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => onSelect(pkg)}
+            disabled={pkg.comingSoon || isSelected}
+            aria-label={`Choose ${pkg.name}`}
+            className={cn(
+              "mt-2 h-10 w-full rounded-xl border px-2 text-sm font-black text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70",
+              featured
+                ? "shadow-[0_10px_22px_rgba(245,158,11,0.25)]"
+                : "",
+            )}
+            style={{
+              background: "var(--package-button-bg)",
+              borderColor: "var(--package-button-border)",
+            }}
+          >
+            {pkg.comingSoon ? "Coming soon" : isSelected ? "Selected" : "Choose"}
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+};
+
+const MobileValuePackCard = ({
+  pkg,
+  onSelect,
+  isSelected,
+}: {
+  pkg: AiCoinPackage;
+  onSelect: PackageAction;
+  isSelected: boolean;
+}) => {
+  const theme = getPackageTheme(pkg.id);
+
+  return (
+    <article
+      className="relative flex min-h-[172px] basis-[78%] max-w-[300px] shrink-0 scroll-ml-1 snap-start flex-col overflow-hidden rounded-[18px] border p-3 shadow-[0_14px_32px_rgba(2,6,23,0.25)] sm:basis-[42%] md:basis-[31%]"
+      style={getPackageThemeStyle(theme)}
+    >
+      <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[18px] bg-[radial-gradient(circle_at_24%_10%,var(--package-glow),transparent_42%)]" />
+      {pkg.badge ? (
+        <span className="absolute right-2 top-2 z-10 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 px-2.5 py-1 text-[10px] font-black uppercase leading-none text-white shadow-lg shadow-violet-600/25">
+          {pkg.badge}
+        </span>
+      ) : null}
+      <div className="relative grid flex-1 grid-cols-[42%_minmax(0,1fr)] items-center gap-2">
+        <img
+          src={pkg.image}
+          alt={`${pkg.name} AI Coins package`}
+          draggable={false}
+          loading="lazy"
+          className="h-24 w-full object-contain"
+        />
+        <div className="min-w-0">
+          <h3 className="truncate text-[14px] font-black text-[var(--package-accent)]">
+            {pkg.name}
+          </h3>
+          <p className="mt-1 text-[23px] font-black leading-none tabular-nums text-slate-100">
+            {formatNumber(pkg.coins)}
+          </p>
+          <p className="text-[11px] font-semibold text-slate-300">AI Coins</p>
+          <p
+            className="mt-2 inline-flex max-w-full rounded-full border px-2 py-1 text-[10px] font-black leading-none"
+            style={{
+              background: "var(--package-bonus-bg)",
+              borderColor: "var(--package-border)",
+              color: "var(--package-bonus-text)",
+            }}
+          >
+            +{formatNumber(pkg.bonusCoins)} Bonus Coins
+          </p>
+        </div>
+      </div>
+      <div className="relative mt-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          {pkg.originalPrice ? (
+            <span className="block truncate text-[11px] font-bold text-slate-500 line-through">
+              {getShortVnd(pkg.originalPrice)}
+            </span>
+          ) : null}
+          <span className="block truncate text-sm font-black text-white">
+            {getShortVnd(pkg.price)}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => onSelect(pkg)}
+          disabled={pkg.comingSoon || isSelected}
+          aria-label={`Choose ${pkg.name}`}
+          className="h-9 shrink-0 rounded-xl border px-3 text-xs font-black text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+          style={{
+            background: "var(--package-button-bg)",
+            borderColor: "var(--package-button-border)",
+          }}
+        >
+          {isSelected ? "Selected" : "Choose"}
+        </button>
+      </div>
+    </article>
+  );
+};
+
+const MobilePaymentMethodsSection = () => (
+  <section className="mt-6 w-full min-w-0 max-w-full overflow-hidden">
+    <h2 className="text-base font-black text-white">Payment methods</h2>
+    <div className="mt-3 grid w-full min-w-0 grid-cols-2 gap-2 min-[390px]:grid-cols-3">
+      {mobilePaymentMethods.map((method) => {
+        const Icon = method.icon;
+        return (
+          <div
+            key={method.label}
+            className="flex min-h-12 min-w-0 items-center gap-2 rounded-xl border border-violet-300/24 bg-slate-950/62 px-3 py-2 text-[12px] font-bold text-slate-100"
+          >
+            {Icon ? (
+              <Icon className="h-5 w-5 shrink-0 text-blue-300" />
+            ) : (
+              <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-md bg-white text-[10px] font-black text-slate-900">
+                {method.mark}
+              </span>
+            )}
+            <span className="min-w-0 truncate">{method.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  </section>
+);
+
+const MobileSecurePaymentBanner = () => (
+  <section className="mt-5 w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-violet-300/22 bg-[radial-gradient(circle_at_88%_70%,rgba(124,58,237,0.28),transparent_34%),linear-gradient(135deg,rgba(16,24,56,0.92),rgba(12,16,44,0.98))] p-4 shadow-[0_14px_34px_rgba(2,6,23,0.24)]">
+    <div className="flex items-center gap-4">
+      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-violet-300/30 bg-violet-400/10">
+        <Lock className="h-7 w-7 text-violet-200" />
+      </span>
+      <div className="min-w-0">
+        <h2 className="text-base font-black text-white">100% Secure Payment</h2>
+        <p className="mt-1 text-sm leading-snug text-slate-300">
+          Your information is always protected.
+        </p>
+      </div>
+    </div>
+  </section>
+);
+
+export const AiCoinsMobileExperience: React.FC<{
+  transition: UpgradeModeTransition;
+}> = ({ transition }) => {
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+  const { openAuthenticationModal } = useAuthenticationGate();
+  const { openAiCoinsModal, isOpen: isAiCoinsModalOpen, options: modalOptions } = useAiCoinsModal();
+  const [actionMessage, setActionMessage] = React.useState<string | null>(null);
+  const allPrimaryPackages = primaryCoinPackages.filter((pkg) => pkg.active);
+  const allLargePackages = largeCoinPackages.filter((pkg) => pkg.active);
+
+  const handleSelectPackage = (pkg: AiCoinPackage) => {
+    if (!isAuthenticated) {
+      openAuthenticationModal({ returnTo: "/ai-coins", reason: "payment" });
+      return;
+    }
+
+    if (pkg.comingSoon) {
+      setActionMessage(`${pkg.name} is not enabled yet.`);
+      return;
+    }
+
+    openAiCoinsModal({ packageId: pkg.id, step: "payment" });
+  };
+
+  return (
+    <div className="w-full min-w-0 max-w-full overflow-x-clip pb-24 sm:pb-20">
+      <div className="flex w-full min-w-0 max-w-full items-center justify-between gap-3 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          aria-label="Go back"
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-violet-300/22 bg-slate-950/64 text-white shadow-[0_12px_28px_rgba(15,23,42,0.24)] transition active:scale-95"
+        >
+          <ArrowLeft className="h-6 w-6" />
+        </button>
+        <MobileWalletBalance />
+      </div>
+
+      <MobileHeroSection />
+      <MobileBenefitsStrip />
+
+      <MembershipCoinSwitcher
+        activeTab="coins"
+        visualTab={transition.visualMode}
+        isTransitioning={transition.isTransitioning}
+        onTabSelect={transition.switchMode}
+        className="mt-5"
+      />
+
+      {actionMessage ? (
+        <div className="mt-4 flex items-start gap-3 rounded-2xl border border-blue-300/20 bg-blue-400/10 p-3 text-sm font-bold text-blue-100">
+          <Zap className="mt-0.5 h-5 w-5 shrink-0 text-blue-200" />
+          <span>{actionMessage}</span>
+        </div>
+      ) : null}
+
+      <section className="mt-5 grid w-full min-w-0 grid-cols-2 gap-3 min-[400px]:grid-cols-3 sm:grid-cols-3 md:grid-cols-4">
+        {allPrimaryPackages.map((pkg) => (
+          <MobilePackageCard
+            key={pkg.id}
+            pkg={pkg}
+            onSelect={handleSelectPackage}
+            isSelected={isAiCoinsModalOpen && modalOptions.packageId === pkg.id}
+          />
+        ))}
+      </section>
+
+      <section className="mt-6 w-full min-w-0 overflow-hidden rounded-[22px] border border-violet-300/18 bg-slate-950/48 p-3 shadow-[0_18px_42px_rgba(2,6,23,0.22)]">
+        <div className="flex items-center justify-between gap-3 px-1">
+          <h2 className="text-lg font-black text-white">More Value Packs</h2>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 text-sm font-bold text-slate-300 transition hover:text-white"
+            aria-label="View all value packs"
+          >
+            View all <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-3 flex w-full min-w-0 max-w-full snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {allLargePackages.map((pkg) => (
+            <MobileValuePackCard
+              key={pkg.id}
+              pkg={pkg}
+              onSelect={handleSelectPackage}
+              isSelected={isAiCoinsModalOpen && modalOptions.packageId === pkg.id}
+            />
+          ))}
+        </div>
+      </section>
+
+      <MobilePaymentMethodsSection />
+      <MobileSecurePaymentBanner />
+    </div>
+  );
+};
 
 export const AiCoinsUpgradeContent: React.FC<{
   transition: UpgradeModeTransition;

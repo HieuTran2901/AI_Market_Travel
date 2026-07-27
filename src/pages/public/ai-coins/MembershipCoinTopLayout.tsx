@@ -41,7 +41,7 @@ export const MembershipCoinTopLayout: React.FC<MembershipCoinTopLayoutProps> = (
   >
     <div className="min-w-0 self-start">{left}</div>
 
-    <div className="w-full max-w-[430px] self-start lg:justify-self-end">
+    <div className="w-full max-w-none self-start lg:max-w-[430px] lg:justify-self-end">
       <MembershipCoinSwitcher
         activeTab={activeTab}
         visualTab={visualTab}

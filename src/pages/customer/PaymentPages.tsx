@@ -9,7 +9,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { PaymentTimeline } from '../../components/payment/PaymentTimeline';
 import { PriceBreakdown } from '../../components/payment/PriceBreakdown';
 import { paymentService } from '../../services/paymentService';
-import { Payment, PaymentMethod, PaymentStatus } from '../../types/payment';
+import { Payment, PaymentMethod, PaymentPurpose, PaymentStatus } from '../../types/payment';
 import travelSummaryArt from '../../assets/images/image(468).png';
 import beachFallback from '../../assets/images/01-beginner-tropical-beach.png';
 import mountainFallback from '../../assets/images/02-master-mountain-road.png';
@@ -20,6 +20,11 @@ import galaxyFallback from '../../assets/images/05-galaxy-space.png';
 import goldCoin from '../../assets/images/coin-gold.png';
 import { PaymentDetailsModal } from './PaymentDetailsModal';
 import { AnimatedAmount } from '../../components/payment/AnimatedAmount';
+import {
+  dailyCoinPassPackage,
+  largeCoinPackages,
+  primaryCoinPackages,
+} from '../public/ai-coins/coinPackageConfig';
 import { 
   pageVariants, 
   summaryVariants, 
@@ -169,8 +174,15 @@ const paymentFallbackImages = [
   galaxyFallback,
 ];
 
+const aiCoinHistoryPackages = [
+  ...primaryCoinPackages,
+  ...largeCoinPackages,
+  dailyCoinPassPackage,
+];
+
 const paymentMethodLabels: Record<string, string> = {
   [PaymentMethod.AI_COINS]: 'AI Coins',
+  [PaymentMethod.BANK_TRANSFER]: 'Bank Transfer',
   [PaymentMethod.COD]: 'Cash on Delivery',
   [PaymentMethod.MOCK]: 'Card',
   [PaymentMethod.MOMO]: 'MoMo',
@@ -178,6 +190,42 @@ const paymentMethodLabels: Record<string, string> = {
   [PaymentMethod.STRIPE]: 'Card',
   [PaymentMethod.VNPAY]: 'VNPay',
   [PaymentMethod.ZALOPAY]: 'ZaloPay',
+};
+
+const isAiCoinPurchasePayment = (payment: Payment) =>
+  payment.paymentPurpose === PaymentPurpose.AI_COIN_PURCHASE ||
+  Boolean(payment.aiCoinPackageId || payment.aiCoinPackageCode || payment.totalCoins);
+
+const getAiCoinPackageImage = (payment: Payment) => {
+  const packageId = payment.aiCoinPackageId || '';
+  const packageCode = payment.aiCoinPackageCode || '';
+  return aiCoinHistoryPackages.find((pkg) =>
+    pkg.id === packageId || pkg.id.toUpperCase() === packageCode || packageCode.replace(/_/g, '-').toLowerCase() === pkg.id
+  )?.image;
+};
+
+const getAiCoinPackageName = (payment: Payment) => {
+  const packageId = payment.aiCoinPackageId || '';
+  const packageCode = payment.aiCoinPackageCode || '';
+  return payment.aiCoinPackageName ||
+    aiCoinHistoryPackages.find((pkg) =>
+      pkg.id === packageId || pkg.id.toUpperCase() === packageCode || packageCode.replace(/_/g, '-').toLowerCase() === pkg.id
+    )?.name ||
+    'AI Coin package';
+};
+
+const formatAiCoinRewardSummary = (payment: Payment) => {
+  const baseCoins = payment.baseCoins ?? 0;
+  const bonusCoins = payment.bonusCoins ?? 0;
+  const totalCoins = payment.totalCoins ?? baseCoins + bonusCoins;
+
+  if (baseCoins > 0) {
+    return `${baseCoins.toLocaleString('en-US')} AI Coins + ${bonusCoins.toLocaleString('en-US')} Bonus Coins`;
+  }
+  if (totalCoins > 0) {
+    return `${totalCoins.toLocaleString('en-US')} AI Coins`;
+  }
+  return getAiCoinPackageName(payment);
 };
 
 const paymentStatusConfig = {
@@ -384,7 +432,12 @@ export const PaymentHistoryPage: React.FC = () => {
     return Array.from(pages).filter((page) => page >= 1 && page <= totalPages).sort((a, b) => a - b);
   }, [safeCurrentPage, totalPages]);
 
-  const getThumbnail = (payment: Payment) => payment.listingCoverImageUrl || paymentFallbackImages[payment.id % paymentFallbackImages.length];
+  const getThumbnail = (payment: Payment) => {
+    if (isAiCoinPurchasePayment(payment)) {
+      return getAiCoinPackageImage(payment) || goldCoin;
+    }
+    return payment.listingCoverImageUrl || paymentFallbackImages[payment.id % paymentFallbackImages.length];
+  };
 
   const renderProviderLogo = (method: string) => {
     const normalized = (method || '').toUpperCase();
@@ -418,12 +471,13 @@ export const PaymentHistoryPage: React.FC = () => {
     }
     if (normalized === PaymentMethod.PAYPAL) return <span className="select-none text-sm font-black text-[#003087]">PayPal</span>;
     if (normalized === PaymentMethod.AI_COINS) return <img src={goldCoin} alt="AI Coins" className="h-8 w-8 select-none object-contain drop-shadow-sm" />;
+    if (normalized === PaymentMethod.BANK_TRANSFER) return <Banknote className="h-6 w-6 text-emerald-600" />;
     if (normalized === PaymentMethod.COD) return <Banknote className="h-6 w-6 text-emerald-600" />;
     return <CreditCard className="h-5 w-5 text-slate-500" />;
   };
 
   const renderAmount = (payment: Payment) => {
-    const isCoins = payment.paymentMethod === PaymentMethod.AI_COINS || (payment.currency || '').toUpperCase().includes('AI');
+    const isCoins = !isAiCoinPurchasePayment(payment) && (payment.paymentMethod === PaymentMethod.AI_COINS || (payment.currency || '').toUpperCase().includes('AI'));
     return (
       <span className="flex items-center justify-end gap-1.5">
         {isCoins && <img src={goldCoin} alt="AI Coins" className="h-5 w-5 object-contain" />}
@@ -649,6 +703,11 @@ export const PaymentHistoryPage: React.FC = () => {
                   const statusDisplay = getPaymentStatusDisplay(payment.status);
                   const StatusIcon = statusDisplay.Icon;
                   const methodLabel = paymentMethodLabels[payment.paymentMethod] || payment.paymentMethod;
+                  const isAiCoinPurchase = isAiCoinPurchasePayment(payment);
+                  const cardSubtitle = isAiCoinPurchase
+                    ? `AI Coins purchase · ${methodLabel}`
+                    : `Order: ${payment.orderNumber || payment.orderId} · ${methodLabel}`;
+                  const secondaryInfo = isAiCoinPurchase ? formatAiCoinRewardSummary(payment) : payment.listingTitle;
                   return (
                     <motion.article 
                       key={payment.id} 
@@ -659,14 +718,15 @@ export const PaymentHistoryPage: React.FC = () => {
                     >
                       <div className="flex items-center gap-4 md:contents">
                         <div className="h-20 w-24 shrink-0 overflow-hidden rounded-2xl bg-blue-50 shadow-sm md:h-20 md:w-20 lg:h-20 lg:w-20">
-                          <img src={getThumbnail(payment)} alt={payment.listingTitle || `Payment PAY-${payment.id} travel thumbnail`} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />
+                          <img src={getThumbnail(payment)} alt={isAiCoinPurchase ? `${getAiCoinPackageName(payment)} image` : payment.listingTitle || `Payment PAY-${payment.id} travel thumbnail`} className={`h-full w-full transition duration-500 group-hover:scale-105 ${isAiCoinPurchase ? 'object-contain p-2' : 'object-cover'}`} loading="lazy" />
                         </div>
                         <div className="flex min-w-0 flex-1 items-center gap-3 lg:contents">
                           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white p-2 shadow-sm lg:h-16 lg:w-16">{renderProviderLogo(payment.paymentMethod)}</div>
                           <div className="min-w-0">
                             <h3 className="truncate text-base font-black text-slate-950 transition group-hover:text-blue-600">PAY-{payment.id}</h3>
-                            <p className="mt-1 truncate text-xs font-bold text-slate-500">Order: {payment.orderNumber || payment.orderId} · {methodLabel}</p>
+                            <p className="mt-1 truncate text-xs font-bold text-slate-500">{cardSubtitle}</p>
                             <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-slate-400"><Calendar className="h-3.5 w-3.5" />{formatPaymentDate(payment.createdAt)}</p>
+                            {isAiCoinPurchase && <p className="mt-1 hidden truncate text-xs font-semibold text-slate-400 lg:block">{secondaryInfo}</p>}
                           </div>
                         </div>
                       </div>
@@ -675,7 +735,7 @@ export const PaymentHistoryPage: React.FC = () => {
                           <motion.div initial={shouldReduceMotion ? false : { scale: 0.5, opacity: 0 }} animate={shouldReduceMotion ? false : { scale: 1, opacity: 1 }} transition={{ duration: 0.3 }}><StatusIcon className="h-3.5 w-3.5" /></motion.div>
                           {statusDisplay.label}
                         </span>
-                        {payment.listingTitle && <span className="truncate text-xs font-semibold text-slate-400 lg:hidden">{payment.listingTitle}</span>}
+                        {secondaryInfo && <span className="truncate text-xs font-semibold text-slate-400 lg:hidden">{secondaryInfo}</span>}
                       </div>
                       <div className="flex items-center justify-between gap-4 border-t border-slate-100 pt-3 md:col-start-2 lg:col-auto lg:border-t-0 lg:pt-0">
                         <div className="text-left lg:text-right">

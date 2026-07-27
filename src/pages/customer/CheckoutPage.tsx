@@ -43,6 +43,7 @@ import coinGoldImage from "../../assets/images/coin-gold.png";
 import { bookingService } from "../../services/bookingService";
 import { paymentService } from "../../services/paymentService";
 import { useAuth } from "../../context/AuthContext";
+import { useAiCoinWallet } from "../../hooks/useAiCoinWallet";
 import { cn } from "../../lib/utils";
 import {
   Cart,
@@ -53,7 +54,6 @@ import {
   PriceBreakdownDto,
 } from "../../types/payment";
 import {
-  FALLBACK_AI_COIN_BALANCE,
   getAiCoinBreakdown,
   type AiCoinBreakdown,
 } from "./checkoutAiCoins";
@@ -1367,6 +1367,7 @@ function BookingSummaryCard({
 export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const aiCoinWalletQuery = useAiCoinWallet();
   const [step, setStep] = useState<CheckoutStep>("details");
   const [cart, setCart] = useState<Cart | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(
@@ -1459,9 +1460,10 @@ export const CheckoutPage: React.FC = () => {
           0,
         );
       const coinTotal = getAiCoinBreakdown(cart.totalBreakdown, fallbackTotal).finalTotal;
+      const availableAiCoins = aiCoinWalletQuery.data?.balance ?? 0;
       setError(
-        coinTotal > FALLBACK_AI_COIN_BALANCE
-          ? `You need ${(coinTotal - FALLBACK_AI_COIN_BALANCE).toLocaleString("en-US")} more AI Coins to complete this booking.`
+        coinTotal > availableAiCoins
+          ? `You need ${(coinTotal - availableAiCoins).toLocaleString("en-US")} more AI Coins to complete this booking.`
           : "AI Coins checkout is not connected to the payment service yet. Your balance was not changed.",
       );
       moveToStep("payment");
@@ -1530,7 +1532,7 @@ export const CheckoutPage: React.FC = () => {
   const items = cart?.items ?? [];
   const primaryItem = items[0];
   const currency = primaryItem?.currency || "VND";
-  const aiCoinBalance = FALLBACK_AI_COIN_BALANCE;
+  const aiCoinBalance = aiCoinWalletQuery.data?.balance ?? 0;
   const fallbackTotal =
     totals?.finalTotal ??
     items.reduce(

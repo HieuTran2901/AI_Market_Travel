@@ -1,10 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { X, Star, MapPin, Calendar, Users, Building, ShieldCheck, HelpCircle, Receipt } from 'lucide-react';
-import { PaymentDetail, PaymentStatus } from '@/types/payment';
+import { PaymentDetail, PaymentMethod, PaymentPurpose, PaymentStatus } from '@/types/payment';
 import { paymentService } from '@/services/paymentService';
 import { formatDateOnly, resolveImageUrl } from '@/utils/formatters';
 import { motion, useReducedMotion } from 'framer-motion';
 import { backdropVariants, modalVariants, modalContentVariants } from '@/utils/paymentHistoryMotion';
+import goldCoin from '@/assets/images/coin-gold.png';
+import {
+  dailyCoinPassPackage,
+  largeCoinPackages,
+  primaryCoinPackages,
+} from '../public/ai-coins/coinPackageConfig';
 
 interface PaymentDetailsModalProps {
   paymentId: number | null;
@@ -12,6 +18,52 @@ interface PaymentDetailsModalProps {
   onRequestRefund?: (paymentId: number, amount: number) => void;
   onViewRefund?: (refundId: number) => void;
 }
+
+const aiCoinDetailPackages = [
+  ...primaryCoinPackages,
+  ...largeCoinPackages,
+  dailyCoinPassPackage,
+];
+
+const isAiCoinPurchaseDetail = (payment: PaymentDetail) =>
+  payment.paymentPurpose === PaymentPurpose.AI_COIN_PURCHASE ||
+  Boolean(payment.aiCoinPackageId || payment.aiCoinPackageCode || payment.totalCoins);
+
+const getAiCoinDetailPackage = (payment: PaymentDetail) => {
+  const packageId = payment.aiCoinPackageId || '';
+  const packageCode = payment.aiCoinPackageCode || '';
+  return aiCoinDetailPackages.find((pkg) =>
+    pkg.id === packageId || pkg.id.toUpperCase() === packageCode || packageCode.replace(/_/g, '-').toLowerCase() === pkg.id
+  );
+};
+
+const getAiCoinDetailPackageName = (payment: PaymentDetail) =>
+  payment.aiCoinPackageName || getAiCoinDetailPackage(payment)?.name || 'AI Coin package';
+
+const formatMoney = (amount?: number, currency = 'VND') =>
+  `${Number(amount || 0).toLocaleString('en-US')} ${currency}`;
+
+const getPaymentMethodLabel = (method?: string) => {
+  switch (method) {
+    case PaymentMethod.MOMO:
+      return 'MoMo';
+    case PaymentMethod.BANK_TRANSFER:
+      return 'Bank Transfer';
+    case PaymentMethod.VNPAY:
+      return 'VNPay';
+    case PaymentMethod.ZALOPAY:
+      return 'ZaloPay';
+    case PaymentMethod.AI_COINS:
+      return 'AI Coins';
+    case PaymentMethod.PAYPAL:
+      return 'PayPal';
+    case PaymentMethod.STRIPE:
+    case PaymentMethod.MOCK:
+      return 'Card';
+    default:
+      return method || 'Payment';
+  }
+};
 
 export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
   paymentId,
@@ -146,9 +198,16 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
         return <img src="/src/assets/images/momo-logo.png" alt="MoMo Wallet" className="w-6 h-6 object-contain rounded" />;
       case 'VNPAY':
         return <img src="/src/assets/images/vnpay-logo.png" alt="VNPay" className="w-6 h-6 object-contain" />;
+      case 'BANK_TRANSFER':
+        return (
+          <div className="w-6 h-6 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-[10px]">
+            BT
+          </div>
+        );
+      case 'AI_COINS':
+        return <img src={goldCoin} alt="AI Coins" className="w-6 h-6 object-contain" />;
       case 'STRIPE':
       case 'PAYPAL':
-      case 'AI_COINS':
       default:
         return (
           <div className="w-6 h-6 rounded bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-[10px]">
@@ -238,7 +297,13 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                 {/* Listing Header */}
                 <motion.div variants={shouldReduceMotion ? undefined : modalContentVariants} className="flex items-start gap-5">
                   <div className="w-24 h-24 shrink-0 rounded-2xl overflow-hidden bg-slate-100 shadow-sm border border-slate-100">
-                    {payment.booking?.imageUrl ? (
+                    {isAiCoinPurchaseDetail(payment) ? (
+                      <img
+                        src={getAiCoinDetailPackage(payment)?.image || goldCoin}
+                        alt={`${getAiCoinDetailPackageName(payment)} image`}
+                        className="w-full h-full object-contain p-2"
+                      />
+                    ) : payment.booking?.imageUrl ? (
                       <img 
                         src={resolveImageUrl(payment.booking.imageUrl) || ''} 
                         alt="Listing" 
@@ -256,14 +321,19 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                   </div>
                   <div className="min-w-0 pt-1">
                     <span className="inline-block px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-wider mb-2">
-                      {payment.booking?.listingType || 'SERVICE'}
+                      {isAiCoinPurchaseDetail(payment) ? 'AI COINS' : payment.booking?.listingType || 'SERVICE'}
                     </span>
                     <h3 className="text-lg font-black text-slate-900 leading-tight mb-2 truncate">
-                      {payment.booking?.listingTitle || 'Booking details'}
+                      {isAiCoinPurchaseDetail(payment) ? getAiCoinDetailPackageName(payment) : payment.booking?.listingTitle || 'Booking details'}
                     </h3>
                     
                     <div className="flex items-center gap-4 text-xs font-semibold text-slate-500">
-                      {payment.booking?.averageRating !== undefined && payment.booking.averageRating > 0 && (
+                      {isAiCoinPurchaseDetail(payment) ? (
+                        <div className="flex items-center gap-1 text-amber-500">
+                          <img src={goldCoin} alt="AI Coins" className="w-4 h-4 object-contain" />
+                          <span>{Number(payment.totalCoins || 0).toLocaleString('en-US')} AI Coins received</span>
+                        </div>
+                      ) : payment.booking?.averageRating !== undefined && payment.booking.averageRating > 0 && (
                         <div className="flex items-center gap-1 text-amber-500">
                           <Star className="w-3.5 h-3.5 fill-current" />
                           <span>{payment.booking.averageRating} <span className="text-slate-400 font-medium">({payment.booking.reviewCount} reviews)</span></span>
@@ -280,60 +350,93 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                 </motion.div>
 
                 {/* Booking Information Grid */}
-                <motion.div variants={shouldReduceMotion ? undefined : modalContentVariants} className="grid grid-cols-2 gap-y-6 gap-x-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400">
-                      <Calendar className="w-3.5 h-3.5" />
-                      {payment.booking?.listingType === 'TOUR' || payment.booking?.listingType === 'EXPERIENCE' ? 'Start Date' : payment.booking?.listingType === 'VEHICLE_RENTAL' ? 'Pickup Date' : 'Check-in'}
+                {isAiCoinPurchaseDetail(payment) ? (
+                  <motion.div variants={shouldReduceMotion ? undefined : modalContentVariants} className="grid grid-cols-2 gap-y-6 gap-x-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400">
+                        <Receipt className="w-3.5 h-3.5" />
+                        Payment purpose
+                      </div>
+                      <div className="text-sm font-black text-slate-900">AI Coins purchase</div>
                     </div>
-                    <div className="text-sm font-black text-slate-900">
-                      {formatDateOnly(payment.booking?.checkIn)}
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400">
-                      <Calendar className="w-3.5 h-3.5" />
-                      {payment.booking?.listingType === 'TOUR' || payment.booking?.listingType === 'EXPERIENCE' ? 'Duration / End' : payment.booking?.listingType === 'VEHICLE_RENTAL' ? 'Return Date' : 'Check-out'}
-                    </div>
-                    <div className="text-sm font-black text-slate-900">
-                      {formatDateOnly(payment.booking?.checkOut)}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400">
-                      <Users className="w-3.5 h-3.5" />
-                      {payment.booking?.listingType === 'TOUR' || payment.booking?.listingType === 'EXPERIENCE' ? 'Participants' : payment.booking?.listingType === 'VEHICLE_RENTAL' ? 'Passengers' : 'Guests'}
-                    </div>
-                    <div className="text-sm font-black text-slate-900">
-                      {payment.booking?.totalGuests ? `${payment.booking.totalGuests} ${payment.booking.listingType === 'TOUR' ? 'participants' : 'guests'}` : 'Not available'}
-                    </div>
-                  </div>
-
-                  {(!payment.booking?.listingType || payment.booking?.listingType === 'HOTEL') && (
                     <div className="space-y-1">
                       <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400">
                         <ShieldCheck className="w-3.5 h-3.5" />
-                        Room
+                        Package
                       </div>
-                      <div className="text-sm font-black text-slate-900">
-                        {payment.booking?.roomName || payment.booking?.roomType || payment.booking?.listingTitle || 'Not available'}
-                      </div>
+                      <div className="text-sm font-black text-slate-900">{getAiCoinDetailPackageName(payment)}</div>
                     </div>
-                  )}
-                  {(payment.booking?.listingType === 'TOUR' || payment.booking?.listingType === 'EXPERIENCE') && (
                     <div className="space-y-1">
                       <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400">
-                        <ShieldCheck className="w-3.5 h-3.5" />
-                        Selected package
+                        <img src={goldCoin} alt="" className="w-3.5 h-3.5 object-contain" />
+                        Base AI Coins
+                      </div>
+                      <div className="text-sm font-black text-slate-900">{Number(payment.baseCoins || 0).toLocaleString('en-US')}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400">
+                        <Star className="w-3.5 h-3.5" />
+                        Bonus AI Coins
+                      </div>
+                      <div className="text-sm font-black text-slate-900">{Number(payment.bonusCoins || 0).toLocaleString('en-US')}</div>
+                    </div>
+                  </motion.div>
+                ) : (
+                  <motion.div variants={shouldReduceMotion ? undefined : modalContentVariants} className="grid grid-cols-2 gap-y-6 gap-x-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {payment.booking?.listingType === 'TOUR' || payment.booking?.listingType === 'EXPERIENCE' ? 'Start Date' : payment.booking?.listingType === 'VEHICLE_RENTAL' ? 'Pickup Date' : 'Check-in'}
                       </div>
                       <div className="text-sm font-black text-slate-900">
-                        {payment.booking?.roomName || payment.booking?.roomType || 'Not available'}
+                        {formatDateOnly(payment.booking?.checkIn)}
                       </div>
                     </div>
-                  )}
-                </motion.div>
+                    
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {payment.booking?.listingType === 'TOUR' || payment.booking?.listingType === 'EXPERIENCE' ? 'Duration / End' : payment.booking?.listingType === 'VEHICLE_RENTAL' ? 'Return Date' : 'Check-out'}
+                      </div>
+                      <div className="text-sm font-black text-slate-900">
+                        {formatDateOnly(payment.booking?.checkOut)}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400">
+                        <Users className="w-3.5 h-3.5" />
+                        {payment.booking?.listingType === 'TOUR' || payment.booking?.listingType === 'EXPERIENCE' ? 'Participants' : payment.booking?.listingType === 'VEHICLE_RENTAL' ? 'Passengers' : 'Guests'}
+                      </div>
+                      <div className="text-sm font-black text-slate-900">
+                        {payment.booking?.totalGuests ? `${payment.booking.totalGuests} ${payment.booking.listingType === 'TOUR' ? 'participants' : 'guests'}` : 'Not available'}
+                      </div>
+                    </div>
+
+                    {(!payment.booking?.listingType || payment.booking?.listingType === 'HOTEL') && (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400">
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          Room
+                        </div>
+                        <div className="text-sm font-black text-slate-900">
+                          {payment.booking?.roomName || payment.booking?.roomType || payment.booking?.listingTitle || 'Not available'}
+                        </div>
+                      </div>
+                    )}
+                    {(payment.booking?.listingType === 'TOUR' || payment.booking?.listingType === 'EXPERIENCE') && (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400">
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          Selected package
+                        </div>
+                        <div className="text-sm font-black text-slate-900">
+                          {payment.booking?.roomName || payment.booking?.roomType || 'Not available'}
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
 
                 {/* Payment Information Card */}
                 <motion.div variants={shouldReduceMotion ? undefined : modalContentVariants} className="bg-slate-50/80 rounded-2xl p-5 space-y-4 border border-slate-100">
@@ -343,8 +446,8 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                     <span className="font-semibold text-slate-500">Payment ID</span>
                     <span className="font-bold text-slate-900 text-right">PAY-{payment.id}</span>
                     
-                    <span className="font-semibold text-slate-500">Order ID</span>
-                    <span className="font-bold text-slate-900 text-right">{payment.orderNumber || payment.orderId}</span>
+                    <span className="font-semibold text-slate-500">{isAiCoinPurchaseDetail(payment) ? 'Invoice reference' : 'Order ID'}</span>
+                    <span className="font-bold text-slate-900 text-right">{isAiCoinPurchaseDetail(payment) ? payment.invoiceNumber || '—' : payment.orderNumber || payment.orderId}</span>
                     
                     {payment.booking?.bookingId && (
                       <>
@@ -356,8 +459,15 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                     <span className="font-semibold text-slate-500">Payment Method</span>
                     <span className="font-bold text-slate-900 flex items-center justify-end gap-2">
                       {renderProviderLogo(payment.paymentMethod)}
-                      {payment.paymentMethod === 'MOMO' ? 'MoMo Wallet' : payment.paymentMethod}
+                      {getPaymentMethodLabel(payment.paymentMethod)}
                     </span>
+
+                    {isAiCoinPurchaseDetail(payment) && (
+                      <>
+                        <span className="font-semibold text-slate-500">Provider transaction ID</span>
+                        <span className="font-bold text-slate-900 text-right">{payment.providerTransactionId || '—'}</span>
+                      </>
+                    )}
 
                     <span className="font-semibold text-slate-500">Transaction Date</span>
                     <span className="font-bold text-slate-900 text-right">
@@ -385,7 +495,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                 <motion.div variants={shouldReduceMotion ? undefined : modalContentVariants} className="mb-6">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Amount</span>
                   <div className="text-3xl font-black text-slate-900 mt-1">
-                    {payment.amount.toLocaleString('en-US')} {payment.currency}
+                    {formatMoney(payment.amount, payment.currency)}
                   </div>
                   
                   {/* Refund Actions */}
@@ -407,7 +517,38 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                 </motion.div>
 
                 {/* Price Breakdown */}
-                {payment.priceBreakdown && (
+                {isAiCoinPurchaseDetail(payment) ? (
+                  <motion.div variants={shouldReduceMotion ? undefined : modalContentVariants} className="bg-white border border-slate-100 rounded-2xl p-5 mb-6 shadow-sm">
+                    <h4 className="text-sm font-black text-slate-900 mb-4">AI Coins Purchase Details</h4>
+                    <div className="space-y-3 text-sm">
+                      <div className="flex justify-between text-slate-500 font-semibold">
+                        <span>Package name</span>
+                        <span className="text-slate-900 font-bold text-right">{getAiCoinDetailPackageName(payment)}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-500 font-semibold">
+                        <span>Total AI Coins received</span>
+                        <span className="text-slate-900 font-bold">{Number(payment.totalCoins || 0).toLocaleString('en-US')}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-500 font-semibold">
+                        <span>Subtotal</span>
+                        <span className="text-slate-900 font-bold">{formatMoney(payment.subtotal ?? payment.amount, payment.currency)}</span>
+                      </div>
+                      <div className="flex justify-between text-emerald-500 font-semibold">
+                        <span>Discount</span>
+                        <span className="font-bold">{formatMoney(payment.discountAmount ?? 0, payment.currency)}</span>
+                      </div>
+                      <div className="pt-3 border-t border-slate-100 mt-2 flex justify-between items-center">
+                        <span className="font-black text-slate-900">Total paid</span>
+                        <span className="font-black text-lg text-indigo-600">
+                          {formatMoney(payment.totalPaid ?? payment.amount, payment.currency)}
+                        </span>
+                      </div>
+                      <div className="pt-3 border-t border-slate-100 text-xs font-semibold text-slate-500">
+                        Paid time: <span className="font-bold text-slate-900">{payment.paidAt ? new Date(payment.paidAt).toLocaleString('en-US') : '—'}</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                ) : payment.priceBreakdown && (
                   <motion.div variants={shouldReduceMotion ? undefined : modalContentVariants} className="bg-white border border-slate-100 rounded-2xl p-5 mb-6 shadow-sm">
                     <h4 className="text-sm font-black text-slate-900 mb-4">Price Breakdown</h4>
                     <div className="space-y-3 text-sm">

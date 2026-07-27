@@ -2089,7 +2089,7 @@ export const TravelAiChat: React.FC = () => {
         ref={launcherButtonRef}
         type="button"
         onClick={openChat}
-        className={`travel-ai-launcher pointer-events-auto fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 z-[1001] flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 via-indigo-600 to-violet-600 text-white shadow-2xl shadow-blue-950/40 ring-4 ring-blue-400/20 sm:bottom-5 sm:right-5 ${launcherPortalActive ? 'travel-ai-launcher--portal' : ''} ${launcherCompress ? 'travel-ai-launcher--compress' : ''}`}
+        className={`travel-ai-launcher pointer-events-auto fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[max(12px,env(safe-area-inset-right))] z-[1001] flex h-14 w-14 max-w-[calc(100%_-_24px)] items-center justify-center rounded-full bg-gradient-to-br from-blue-500 via-indigo-600 to-violet-600 text-white shadow-2xl shadow-blue-950/40 ring-4 ring-blue-400/20 sm:right-4 md:h-16 md:w-16 lg:bottom-5 lg:right-5 ${launcherPortalActive ? 'travel-ai-launcher--portal' : ''} ${launcherCompress ? 'travel-ai-launcher--compress' : ''}`}
         aria-label="Open Travel AI Concierge"
         aria-expanded={isVisible}
         initial={false}

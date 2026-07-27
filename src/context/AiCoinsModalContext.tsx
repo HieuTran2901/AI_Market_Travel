@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { AiCoinsModal, AiCoinPurchaseStep } from '@/components/payment/AiCoinsModal';
-import { useAuth } from './AuthContext';
+import { useAiCoinWallet } from '@/hooks/useAiCoinWallet';
 
 interface AiCoinsModalOptions {
   packageId?: string;
@@ -19,7 +19,7 @@ const AiCoinsModalContext = createContext<AiCoinsModalContextType | undefined>(u
 export const AiCoinsModalProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [options, setOptions] = useState<AiCoinsModalOptions>({});
-  const { user } = useAuth();
+  const aiCoinWalletQuery = useAiCoinWallet();
 
   const openAiCoinsModal = useCallback((opts?: AiCoinsModalOptions) => {
     setOptions(opts || {});
@@ -41,7 +41,7 @@ export const AiCoinsModalProvider: React.FC<{ children: React.ReactNode }> = ({ 
         isOpen={isOpen}
         onForceOpen={openAiCoinsModal}
         onClose={closeAiCoinsModal}
-        currentBalance={user?.coinBalance || 0}
+        currentBalance={aiCoinWalletQuery.data?.balance ?? 0}
         initialPackageId={options.packageId}
         initialStep={options.step}
       />

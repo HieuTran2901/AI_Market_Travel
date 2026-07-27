@@ -16,7 +16,13 @@ export enum PaymentMethod {
   ZALOPAY = 'ZALOPAY',
   STRIPE = 'STRIPE',
   PAYPAL = 'PAYPAL',
-  AI_COINS = 'AI_COINS'
+  AI_COINS = 'AI_COINS',
+  BANK_TRANSFER = 'BANK_TRANSFER'
+}
+
+export enum PaymentPurpose {
+  BOOKING = 'BOOKING',
+  AI_COIN_PURCHASE = 'AI_COIN_PURCHASE'
 }
 
 export enum RefundStatus {
@@ -44,11 +50,21 @@ export interface Payment {
   currency: string;
   status: PaymentStatus;
   paymentMethod: PaymentMethod;
+  paymentPurpose?: PaymentPurpose;
   listingTitle?: string;
   listingCoverImageUrl?: string;
   listingCategory?: string;
   gatewayOrderId?: string;
   payUrl?: string;
+  aiCoinPackageId?: string;
+  aiCoinPackageCode?: string;
+  aiCoinPackageName?: string;
+  baseCoins?: number;
+  bonusCoins?: number;
+  totalCoins?: number;
+  invoiceNumber?: string;
+  providerTransactionId?: string;
+  paidAt?: string;
   expiresAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -180,6 +196,9 @@ export interface PaymentBookingSummary {
 export interface PaymentDetail extends Payment {
   booking?: PaymentBookingSummary;
   priceBreakdown?: PriceBreakdownDto;
+  subtotal?: number;
+  discountAmount?: number;
+  totalPaid?: number;
   isRefundable?: boolean;
   existingRefundId?: number;
 }
