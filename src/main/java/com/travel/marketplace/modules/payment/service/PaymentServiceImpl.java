@@ -12,13 +12,16 @@ import com.travel.marketplace.modules.booking.service.ReservationLockManager;
 import com.travel.marketplace.modules.payment.dto.PaymentRequest;
 import com.travel.marketplace.modules.payment.dto.PaymentResponse;
 import com.travel.marketplace.modules.payment.dto.WebhookPayload;
+import com.travel.marketplace.modules.payment.entity.AiCoinPurchase;
 import com.travel.marketplace.modules.payment.entity.Payment;
 import com.travel.marketplace.modules.payment.entity.PaymentTransaction;
 import com.travel.marketplace.modules.payment.enums.PaymentMethod;
+import com.travel.marketplace.modules.payment.enums.PaymentPurpose;
 import com.travel.marketplace.modules.payment.enums.PaymentStatus;
 import com.travel.marketplace.modules.payment.gateway.GatewayResponse;
 import com.travel.marketplace.modules.payment.gateway.PaymentGateway;
 import com.travel.marketplace.modules.payment.gateway.PaymentGatewayFactory;
+import com.travel.marketplace.modules.payment.repository.AiCoinPurchaseRepository;
 import com.travel.marketplace.modules.payment.mapper.PaymentMapper;
 import com.travel.marketplace.modules.payment.repository.PaymentRepository;
 import com.travel.marketplace.modules.payment.repository.PaymentTransactionRepository;
@@ -48,6 +51,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final OrderRepository orderRepository;
     private final BookingRepository bookingRepository;
     private final PaymentTransactionRepository transactionRepository;
+    private final AiCoinPurchaseRepository aiCoinPurchaseRepository;
     private final RefundRepository refundRepository;
     private final PaymentMapper paymentMapper;
     private final PaymentStateMachine stateMachine;
@@ -120,11 +124,18 @@ public class PaymentServiceImpl implements PaymentService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Payment not found"));
         authorize(payment, userId);
         
-        boolean isRefundable = payment.getStatus() == PaymentStatus.SUCCESS;
+        Optional<AiCoinPurchase> aiCoinPurchase = resolveAiCoinPurchase(payment);
+        boolean isRefundable = payment.getStatus() == PaymentStatus.SUCCESS
+                && aiCoinPurchase.isEmpty();
         List<Refund> refunds = refundRepository.findByPaymentId(payment.getId());
         Long existingRefundId = refunds.isEmpty() ? null : refunds.get(0).getId();
         
-        return paymentMapper.toDetailResponse(payment, isRefundable, existingRefundId);
+        PaymentDetailResponse response = paymentMapper.toDetailResponse(payment, isRefundable, existingRefundId);
+        enrichAiCoinDetail(payment, response, aiCoinPurchase);
+        transactionRepository
+                .findFirstByPaymentIdAndGatewayOrderIdIsNotNullOrderByCreatedAtDesc(payment.getId())
+                .ifPresent(transaction -> enrichTransactionFields(response, transaction));
+        return response;
     }
 
     @Override
@@ -139,7 +150,7 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional(readOnly = true)
     public List<PaymentResponse> getPaymentsForUser(Long userId) {
-        return paymentRepository.findAllByOrderUserIdOrderByCreatedAtDesc(userId)
+        return paymentRepository.findAllVisibleToUserOrderByCreatedAtDesc(userId, PaymentPurpose.AI_COIN_PURCHASE)
                 .stream()
                 .map(this::toResponse)
                 .toList();
@@ -327,18 +338,134 @@ public class PaymentServiceImpl implements PaymentService {
         return transactionRepository
                 .findFirstByPaymentIdAndGatewayOrderIdIsNotNullOrderByCreatedAtDesc(payment.getId())
                 .map(transaction -> toResponse(payment, transaction))
-                .orElseGet(() -> paymentMapper.toResponse(payment));
+                .orElseGet(() -> enrichAiCoinResponse(payment, paymentMapper.toResponse(payment)));
     }
 
     private PaymentResponse toResponse(Payment payment, PaymentTransaction transaction) {
         PaymentResponse response = paymentMapper.toResponse(payment);
         response.setGatewayOrderId(transaction.getGatewayOrderId());
         response.setPayUrl(transaction.getPayUrl());
-        return response;
+        enrichTransactionFields(response, transaction);
+        return enrichAiCoinResponse(payment, response);
     }
 
     private void authorize(Payment payment, Long userId) {
+        Optional<AiCoinPurchase> aiCoinPurchase = resolveAiCoinPurchase(payment);
+        if (aiCoinPurchase.isPresent()) {
+            AiCoinPurchase purchase = aiCoinPurchase.get();
+            if (userId == null || !userId.equals(purchase.getUserId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "You do not have access to this payment");
+            }
+            return;
+        }
         authorize(payment.getOrder(), userId);
+    }
+
+    private PaymentResponse enrichAiCoinResponse(Payment payment, PaymentResponse response) {
+        Optional<AiCoinPurchase> aiCoinPurchase = resolveAiCoinPurchase(payment);
+        if (aiCoinPurchase.isEmpty()) {
+            return response;
+        }
+
+        aiCoinPurchase.ifPresent(purchase -> {
+            response.setPaymentPurpose(PaymentPurpose.AI_COIN_PURCHASE);
+            response.setAiCoinPackageId(purchase.getPackageId());
+            response.setAiCoinPackageCode(purchase.getPackageCode());
+            response.setAiCoinPackageName(toPackageName(purchase.getPackageId(), purchase.getPackageCode()));
+            response.setBaseCoins(purchase.getBaseCoins());
+            response.setBonusCoins(purchase.getBonusCoins());
+            response.setTotalCoins(purchase.getTotalCoins());
+            response.setInvoiceNumber(purchase.getMerchantOrderId());
+            response.setPaidAt(purchase.getCompletedAt());
+        });
+
+        return response;
+    }
+
+    private void enrichAiCoinDetail(Payment payment, PaymentDetailResponse response) {
+        enrichAiCoinDetail(payment, response, resolveAiCoinPurchase(payment));
+    }
+
+    private void enrichAiCoinDetail(Payment payment, PaymentDetailResponse response, Optional<AiCoinPurchase> aiCoinPurchase) {
+        if (aiCoinPurchase.isEmpty()) {
+            return;
+        }
+
+        aiCoinPurchase.ifPresent(purchase -> {
+            response.setPaymentPurpose(PaymentPurpose.AI_COIN_PURCHASE);
+            response.setAiCoinPackageId(purchase.getPackageId());
+            response.setAiCoinPackageCode(purchase.getPackageCode());
+            response.setAiCoinPackageName(toPackageName(purchase.getPackageId(), purchase.getPackageCode()));
+            response.setBaseCoins(purchase.getBaseCoins());
+            response.setBonusCoins(purchase.getBonusCoins());
+            response.setTotalCoins(purchase.getTotalCoins());
+            response.setSubtotal(purchase.getSubtotal());
+            response.setDiscountAmount(purchase.getDiscountAmount());
+            response.setTotalPaid(purchase.getTotalAmount());
+            response.setInvoiceNumber(purchase.getMerchantOrderId());
+            response.setPaidAt(purchase.getCompletedAt());
+        });
+    }
+
+    private Optional<AiCoinPurchase> resolveAiCoinPurchase(Payment payment) {
+        if (payment == null || payment.getReferenceId() == null) {
+            return Optional.empty();
+        }
+        if (payment.getPurpose() == PaymentPurpose.AI_COIN_PURCHASE || payment.getOrder() == null) {
+            return aiCoinPurchaseRepository.findById(payment.getReferenceId());
+        }
+        return Optional.empty();
+    }
+
+    private void enrichTransactionFields(PaymentResponse response, PaymentTransaction transaction) {
+        response.setGatewayOrderId(transaction.getGatewayOrderId());
+        response.setPayUrl(transaction.getPayUrl());
+        response.setProviderTransactionId(resolveProviderTransactionId(transaction));
+        if (transaction.getPaidAt() != null) {
+            response.setPaidAt(transaction.getPaidAt());
+        }
+    }
+
+    private void enrichTransactionFields(PaymentDetailResponse response, PaymentTransaction transaction) {
+        response.setGatewayOrderId(transaction.getGatewayOrderId());
+        response.setPayUrl(transaction.getPayUrl());
+        response.setProviderTransactionId(resolveProviderTransactionId(transaction));
+        if (transaction.getPaidAt() != null) {
+            response.setPaidAt(transaction.getPaidAt());
+        }
+    }
+
+    private String resolveProviderTransactionId(PaymentTransaction transaction) {
+        if (transaction.getMomoTransId() != null) {
+            return String.valueOf(transaction.getMomoTransId());
+        }
+        if (transaction.getTransactionId() != null && !transaction.getTransactionId().isBlank()) {
+            return transaction.getTransactionId();
+        }
+        if (transaction.getGatewayRequestId() != null && !transaction.getGatewayRequestId().isBlank()) {
+            return transaction.getGatewayRequestId();
+        }
+        return null;
+    }
+
+    private String toPackageName(String packageId, String packageCode) {
+        String value = packageId != null && !packageId.isBlank() ? packageId : packageCode;
+        if (value == null || value.isBlank()) {
+            return "AI Coin package";
+        }
+
+        String[] words = value.toLowerCase().replace('_', '-').split("-");
+        StringBuilder builder = new StringBuilder();
+        for (String word : words) {
+            if (word.isBlank()) {
+                continue;
+            }
+            if (!builder.isEmpty()) {
+                builder.append(' ');
+            }
+            builder.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1));
+        }
+        return builder.isEmpty() ? "AI Coin package" : builder.append(" Pack").toString();
     }
 
     private void authorize(Order order, Long userId) {

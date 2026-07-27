@@ -23,4 +23,24 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     List<Payment> findByStatus(PaymentStatus status);
     
     List<Payment> findAllByOrderUserIdOrderByCreatedAtDesc(Long userId);
+
+    @Query("""
+            SELECT p FROM Payment p
+            WHERE (p.order IS NOT NULL AND p.order.user.id = :userId)
+               OR EXISTS (
+                    SELECT purchase.id
+                    FROM AiCoinPurchase purchase
+                    WHERE purchase.id = p.referenceId
+                      AND purchase.userId = :userId
+                      AND (
+                          p.purpose = :aiCoinPurpose
+                          OR p.order IS NULL
+                      )
+               )
+            ORDER BY p.createdAt DESC
+            """)
+    List<Payment> findAllVisibleToUserOrderByCreatedAtDesc(
+            @Param("userId") Long userId,
+            @Param("aiCoinPurpose") PaymentPurpose aiCoinPurpose
+    );
 }

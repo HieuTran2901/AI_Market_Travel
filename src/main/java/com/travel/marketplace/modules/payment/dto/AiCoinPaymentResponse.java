@@ -21,4 +21,6 @@ public class AiCoinPaymentResponse {
     private String deeplink;
     private String qrCodeUrl;
     private Instant expiresAt;
+    private String checkoutUrl;
+    private java.util.Map<String, String> checkoutFields;
 }

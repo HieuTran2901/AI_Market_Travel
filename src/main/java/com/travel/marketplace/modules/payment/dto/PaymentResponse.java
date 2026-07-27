@@ -1,6 +1,7 @@
 package com.travel.marketplace.modules.payment.dto;
 
 import com.travel.marketplace.modules.payment.enums.PaymentMethod;
+import com.travel.marketplace.modules.payment.enums.PaymentPurpose;
 import com.travel.marketplace.modules.payment.enums.PaymentStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,11 +23,21 @@ public class PaymentResponse {
     private String currency;
     private PaymentStatus status;
     private PaymentMethod paymentMethod;
+    private PaymentPurpose paymentPurpose;
     private String listingTitle;
     private String listingCoverImageUrl;
     private String listingCategory;
     private String gatewayOrderId;
     private String payUrl;
+    private String aiCoinPackageId;
+    private String aiCoinPackageCode;
+    private String aiCoinPackageName;
+    private Integer baseCoins;
+    private Integer bonusCoins;
+    private Integer totalCoins;
+    private String invoiceNumber;
+    private String providerTransactionId;
+    private Instant paidAt;
     private Instant expiresAt;
     private Instant createdAt;
     private Instant updatedAt;

@@ -9,13 +9,16 @@ public class PaymentGatewayFactory {
 
     private final MockPaymentGateway mockPaymentGateway;
     private final ObjectProvider<MomoPaymentGateway> momoPaymentGateway;
+    private final ObjectProvider<SepayPaymentGateway> sepayPaymentGateway;
 
     public PaymentGatewayFactory(
             MockPaymentGateway mockPaymentGateway,
-            ObjectProvider<MomoPaymentGateway> momoPaymentGateway
+            ObjectProvider<MomoPaymentGateway> momoPaymentGateway,
+            ObjectProvider<SepayPaymentGateway> sepayPaymentGateway
     ) {
         this.mockPaymentGateway = mockPaymentGateway;
         this.momoPaymentGateway = momoPaymentGateway;
+        this.sepayPaymentGateway = sepayPaymentGateway;
     }
 
     public PaymentGateway getGateway(PaymentMethod method) {
@@ -23,6 +26,9 @@ public class PaymentGatewayFactory {
             case MOCK -> mockPaymentGateway;
             case MOMO -> momoPaymentGateway.getIfAvailable(() -> {
                 throw new IllegalStateException("MoMo payment gateway is disabled");
+            });
+            case BANK_TRANSFER -> sepayPaymentGateway.getIfAvailable(() -> {
+                throw new IllegalStateException("SePay payment gateway is disabled");
             });
             case COD, VNPAY, ZALOPAY, STRIPE, PAYPAL ->
                 throw new UnsupportedOperationException("Gateway for " + method + " is not yet implemented.");

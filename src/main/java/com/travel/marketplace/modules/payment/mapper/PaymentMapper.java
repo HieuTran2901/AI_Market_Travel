@@ -23,6 +23,7 @@ public class PaymentMapper {
                 .currency(payment.getCurrency())
                 .status(payment.getStatus())
                 .paymentMethod(payment.getPaymentMethod())
+                .paymentPurpose(payment.getPurpose())
                 .expiresAt(payment.getExpiresAt())
                 .createdAt(payment.getCreatedAt())
                 .updatedAt(payment.getUpdatedAt());
@@ -57,6 +58,7 @@ public class PaymentMapper {
                 .currency(payment.getCurrency())
                 .status(payment.getStatus())
                 .paymentMethod(payment.getPaymentMethod())
+                .paymentPurpose(payment.getPurpose())
                 .expiresAt(payment.getExpiresAt())
                 .createdAt(payment.getCreatedAt())
                 .updatedAt(payment.getUpdatedAt())

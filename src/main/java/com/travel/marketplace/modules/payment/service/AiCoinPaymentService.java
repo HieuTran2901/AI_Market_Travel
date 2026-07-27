@@ -15,12 +15,11 @@ import com.travel.marketplace.modules.payment.enums.PaymentMethod;
 import com.travel.marketplace.modules.payment.enums.PaymentPurpose;
 import com.travel.marketplace.modules.payment.enums.PaymentStatus;
 import com.travel.marketplace.modules.payment.gateway.GatewayResponse;
-import com.travel.marketplace.modules.payment.gateway.MomoPaymentGateway;
+import com.travel.marketplace.modules.payment.gateway.PaymentGateway;
+import com.travel.marketplace.modules.payment.gateway.PaymentGatewayFactory;
 import com.travel.marketplace.modules.payment.repository.AiCoinPurchaseRepository;
 import com.travel.marketplace.modules.payment.repository.PaymentRepository;
 import com.travel.marketplace.modules.payment.repository.PaymentTransactionRepository;
-import com.travel.marketplace.modules.user.entity.User;
-import com.travel.marketplace.modules.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -40,14 +39,14 @@ public class AiCoinPaymentService {
 
     private final AiCoinPurchaseRepository aiCoinPurchaseRepository;
     private final PaymentRepository paymentRepository;
-    private final MomoPaymentGateway momoPaymentGateway;
+    private final PaymentGatewayFactory paymentGatewayFactory;
     private final PaymentTransactionRepository paymentTransactionRepository;
-    private final UserRepository userRepository;
+    private final AiCoinWalletService aiCoinWalletService;
 
     @Transactional
     public AiCoinPaymentResponse createPayment(Long userId, AiCoinPaymentRequest request) {
-        if (request.getPaymentMethod() != PaymentMethod.MOMO) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Only MOMO is currently supported for AI Coin purchases");
+        if (request.getPaymentMethod() != PaymentMethod.MOMO && request.getPaymentMethod() != PaymentMethod.BANK_TRANSFER) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Payment method not supported for AI Coin purchases");
         }
 
         AiCoinPackageCatalog.PackageDef pkg = AiCoinPackageCatalog.getPackageById(request.getPackageId())
@@ -113,15 +112,19 @@ public class AiCoinPaymentService {
                 .build();
         payment = paymentRepository.saveAndFlush(payment);
 
-        GatewayResponse gatewayResponse = momoPaymentGateway.processPayment(payment);
+        PaymentGateway gateway = paymentGatewayFactory.getGateway(request.getPaymentMethod());
+        GatewayResponse gatewayResponse = gateway.processPayment(payment);
 
         Map<String, Object> raw = gatewayResponse.getRawResponse();
         String paymentUrl = raw != null && raw.containsKey("payUrl") ? (String) raw.get("payUrl") : null;
         String deeplink = raw != null && raw.containsKey("deeplink") ? (String) raw.get("deeplink") : null;
         String qrCodeUrl = raw != null && raw.containsKey("qrCodeUrl") ? (String) raw.get("qrCodeUrl") : null;
+        String checkoutUrl = raw != null && raw.containsKey("checkoutUrl") ? (String) raw.get("checkoutUrl") : null;
+        @SuppressWarnings("unchecked")
+        Map<String, String> checkoutFields = raw != null && raw.containsKey("checkoutFields") ? (Map<String, String>) raw.get("checkoutFields") : null;
 
-        log.info("AI Coin MoMo payment created: purchaseId={} paymentId={} hasPayUrl={} hasDeeplink={} hasQrCode={}",
-                purchase.getId(), payment.getId(), paymentUrl != null, deeplink != null, qrCodeUrl != null);
+        log.info("AI Coin payment created: method={} purchaseId={} paymentId={} hasPayUrl={} hasCheckoutUrl={}",
+                request.getPaymentMethod(), purchase.getId(), payment.getId(), paymentUrl != null, checkoutUrl != null);
 
         return AiCoinPaymentResponse.builder()
                 .purchaseId(purchase.getId())
@@ -133,6 +136,8 @@ public class AiCoinPaymentService {
                 .paymentUrl(paymentUrl)
                 .deeplink(deeplink)
                 .qrCodeUrl(qrCodeUrl)
+                .checkoutUrl(checkoutUrl)
+                .checkoutFields(checkoutFields)
                 .build();
     }
 
@@ -141,12 +146,18 @@ public class AiCoinPaymentService {
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Payment not found"));
 
-        if (payment.getStatus() == PaymentStatus.SUCCESS || payment.getStatus() == targetStatus) {
-            return; // Already processed
+        boolean statusAlreadyTarget = payment.getStatus() == targetStatus;
+        if (payment.getStatus() == PaymentStatus.SUCCESS && targetStatus != PaymentStatus.SUCCESS) {
+            return;
+        }
+        if (statusAlreadyTarget && targetStatus != PaymentStatus.SUCCESS) {
+            return;
         }
 
-        payment.setStatus(targetStatus);
-        paymentRepository.save(payment);
+        if (!statusAlreadyTarget) {
+            payment.setStatus(targetStatus);
+            paymentRepository.save(payment);
+        }
 
         AiCoinPurchase purchase = aiCoinPurchaseRepository.findById(payment.getReferenceId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "AI Coin Purchase not found"));
@@ -156,14 +167,17 @@ public class AiCoinPaymentService {
         }
 
         if (targetStatus == PaymentStatus.SUCCESS) {
-            User user = userRepository.findById(purchase.getUserId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "User not found"));
-            
-            user.setAiCoinBalance(user.getAiCoinBalance() + purchase.getTotalCoins());
-            userRepository.save(user);
+            aiCoinWalletService.creditPurchase(
+                    purchase.getUserId(),
+                    payment.getId(),
+                    purchase.getId(),
+                    purchase.getBaseCoins(),
+                    purchase.getBonusCoins(),
+                    "AI_COIN_PURCHASE:" + payment.getId()
+            );
 
             purchase.markCredited();
-            log.info("AI Coins credited: purchaseId={} userId={} totalCoins={}", purchase.getId(), user.getId(), purchase.getTotalCoins());
+            log.info("AI Coins credited: purchaseId={} userId={} totalCoins={}", purchase.getId(), purchase.getUserId(), purchase.getTotalCoins());
         } else if (targetStatus == PaymentStatus.FAILED || targetStatus == PaymentStatus.CANCELLED) {
             purchase.markFailed();
         }
