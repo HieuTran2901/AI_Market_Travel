@@ -163,6 +163,11 @@
   body {
     @apply bg-background text-foreground transition-colors duration-300;
   }
+
+  body.ai-coins-all-packs-modal-open .travel-ai-launcher,
+  body.ai-coins-all-packs-modal-open .travel-ai-motion-panel {
+    display: none;
+  }
 }
 
 /* Glassmorphism utility */

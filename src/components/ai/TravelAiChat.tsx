@@ -23,6 +23,9 @@ import {
 } from 'lucide-react';
 import { aiService } from '@/services/aiService';
 import { storageService } from '@/services/storageService';
+import { FlightOfferCard } from './flights/FlightOfferCard';
+import { FlightDealCard } from './flights/FlightDealCard';
+import { FlightSummaryLabels } from './flights/FlightSummaryLabels';
 import { AssistantItineraryCard, AssistantListingRecommendation, AssistantMessage, AssistantResponse, SavedTrip, TripPlanResponse } from '@/types/ai';
 import { useAuth } from '@/context/AuthContext';
 import { getListingDetailPath } from '@/utils/listingRoutes';
@@ -41,7 +44,7 @@ type TravelChatMessage = AssistantMessage & {
   createdAt: Date;
   attachments?: Pick<ChatAttachment, 'id' | 'previewUrl' | 'uploadedUrl'>[];
   status?: 'sent' | 'error';
-  type?: 'TEXT' | 'ITINERARY' | 'RECOMMENDATIONS' | 'CLARIFICATION' | 'ERROR';
+  type?: 'TEXT' | 'ITINERARY' | 'RECOMMENDATIONS' | 'CLARIFICATION' | 'ERROR' | 'FLIGHT_RECOMMENDATIONS' | 'FLIGHT_DATE_RECOMMENDATIONS';
   kind?: 'TEXT' | 'ITINERARY' | 'LISTING_RECOMMENDATIONS' | 'ERROR';
   itinerary?: TripPlanResponse;
   itineraryCard?: ChatItinerary;
@@ -49,9 +52,10 @@ type TravelChatMessage = AssistantMessage & {
   savedTrip?: SavedTrip;
   images?: string[];
   extractedContext?: Record<string, unknown>;
+  flights?: import('@/types/ai').FlightOfferRecommendation[];
+  dateRecommendations?: import('@/types/ai').FlightDealRecommendation[];
+  summaryLabels?: import('@/types/ai').FlightSummaryLabel[];
 };
-
-type NormalizedAssistantType = 'TEXT' | 'LISTING_RESULT' | 'RECOMMENDATIONS' | 'ITINERARY' | 'CLARIFICATION' | 'ERROR';
 
 type ChatTransitionState = 'closed' | 'opening' | 'open' | 'closing';
 type RobotMood = 'idle' | 'thinking' | 'success' | 'error';
@@ -361,6 +365,8 @@ const isDatabaseListing = (listing: Partial<AssistantListingRecommendation> | un
   Boolean(listing?.source === 'DATABASE' && listing.slug && (listing.title || listing.name))
 );
 
+type NormalizedAssistantType = 'TEXT' | 'LISTING_RESULT' | 'RECOMMENDATIONS' | 'ITINERARY' | 'CLARIFICATION' | 'ERROR' | 'FLIGHT_RECOMMENDATIONS' | 'FLIGHT_DATE_RECOMMENDATIONS';
+
 const isTripSaveConfirmation = (text: string) => {
   const normalized = normalizePromptText(text);
   return /save this trip|add to my trips|add this trip|save trip|luu lai|luu chuyen|them chuyen|dong y.*chuyen|them vao danh sach/.test(normalized);
@@ -373,6 +379,8 @@ const normalizeAssistantType = (value?: string): NormalizedAssistantType => {
   if (normalized === 'RECOMMENDATION' || normalized === 'RECOMMENDATIONS') return 'RECOMMENDATIONS';
   if (normalized === 'LISTING_RESULT') return 'LISTING_RESULT';
   if (normalized === 'CLARIFICATION') return 'CLARIFICATION';
+  if (normalized === 'FLIGHT_RECOMMENDATIONS') return 'FLIGHT_RECOMMENDATIONS';
+  if (normalized === 'FLIGHT_DATE_RECOMMENDATIONS') return 'FLIGHT_DATE_RECOMMENDATIONS';
   if (normalized === 'ERROR') return 'ERROR';
   return 'ERROR';
 };
@@ -419,6 +427,17 @@ const normalizeAssistantResponse = (response: AssistantResponse): TravelChatMess
       kind: 'LISTING_RECOMMENDATIONS',
       recommendations: databaseRecommendations,
       images: response.heroImageUrl ? [response.heroImageUrl] : undefined,
+      extractedContext: response.extractedContext,
+    });
+  }
+
+  if (type === 'FLIGHT_RECOMMENDATIONS' || type === 'FLIGHT_DATE_RECOMMENDATIONS') {
+    return createMessage('assistant', text, undefined, {
+      type,
+      kind: 'TEXT',
+      flights: response.flights,
+      dateRecommendations: response.dateRecommendations,
+      summaryLabels: response.summaryLabels,
       extractedContext: response.extractedContext,
     });
   }
@@ -1227,7 +1246,7 @@ const CompactRecommendationCards = ({ recommendations }: { recommendations: Assi
                 <span className="truncate font-semibold text-white">{price}</span>
                 <span className="shrink-0 text-blue-100/75">{rating}</span>
               </div>
-              {recommendation.reasoning || listing.shortDescription ? <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-blue-50/75">{recommendation.reasoning || listing.shortDescription}</p> : null}
+              {recommendation.reasoning || listing.shortDescription ? <p className="mt-1 text-[11px] leading-4 text-blue-50/75">✨ {recommendation.reasoning || listing.shortDescription}</p> : null}
             </div>
           </>
         );
@@ -1317,6 +1336,51 @@ const TravelMessage = ({
     );
   }
 
+  if (!isUser && message.type === 'FLIGHT_RECOMMENDATIONS' && message.flights?.length) {
+    return (
+      <div className="motion-fade-up flex w-full min-w-0 justify-start">
+        <div className="w-full min-w-0 max-w-full">
+          {message.content ? (
+            <div className="mb-3 max-w-[92%] rounded-2xl rounded-tl-md border border-white/10 bg-white/10 px-4 py-3 text-sm leading-6 text-blue-50 shadow-sm backdrop-blur">
+              <p className="whitespace-pre-wrap">{message.content}</p>
+            </div>
+          ) : null}
+          {message.summaryLabels && <FlightSummaryLabels labels={message.summaryLabels} />}
+          <div className="flex flex-col gap-3">
+            {message.flights.map((flight, idx) => (
+              <FlightOfferCard key={idx} flight={flight} language={(message.extractedContext?.language as string) || 'en'} />
+            ))}
+          </div>
+          <div className="mt-1 flex items-center gap-1 text-[10px] text-blue-200/70">
+            <span>{formatTime(message.createdAt)}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isUser && message.type === 'FLIGHT_DATE_RECOMMENDATIONS' && message.dateRecommendations?.length) {
+    return (
+      <div className="motion-fade-up flex w-full min-w-0 justify-start">
+        <div className="w-full min-w-0 max-w-full">
+          {message.content ? (
+            <div className="mb-3 max-w-[92%] rounded-2xl rounded-tl-md border border-white/10 bg-white/10 px-4 py-3 text-sm leading-6 text-blue-50 shadow-sm backdrop-blur">
+              <p className="whitespace-pre-wrap">{message.content}</p>
+            </div>
+          ) : null}
+          <div className="flex flex-col gap-3">
+            {message.dateRecommendations.map((deal, idx) => (
+              <FlightDealCard key={idx} deal={deal} language={(message.extractedContext?.language as string) || 'en'} />
+            ))}
+          </div>
+          <div className="mt-1 flex items-center gap-1 text-[10px] text-blue-200/70">
+            <span>{formatTime(message.createdAt)}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`motion-fade-up flex w-full min-w-0 ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div className={`min-w-0 ${isUser ? 'ml-auto max-w-[84%]' : 'mr-auto w-full max-w-full sm:max-w-[92%]'}`}>
@@ -1356,6 +1420,7 @@ export const TravelAiChat: React.FC = () => {
   const queryClient = useQueryClient();
   const accountOwnerId = user?.id ?? null;
   const accountOwnerKey = getChatStorageKey(accountOwnerId);
+  const rootRef = useRef<HTMLDivElement>(null);
   const accountOwnerRef = useRef(accountOwnerKey);
   const previousOwnerKeyRef = useRef<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);

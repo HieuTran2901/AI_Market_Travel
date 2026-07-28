@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Upload Test Cannon Bullet Explosion</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: #06172d;
+        overflow: hidden;
+        font-family: Arial, sans-serif;
+        color: white;
+      }
+
+      #game {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        background:
+          radial-gradient(
+            circle at 50% 20%,
+            rgba(60, 180, 255, 0.25),
+            transparent 35%
+          ),
+          linear-gradient(#082b4d, #03101f);
+      }
+
+      .panel {
+        position: fixed;
+        left: 16px;
+        top: 16px;
+        width: 330px;
+        max-height: calc(100vh - 32px);
+        overflow-y: auto;
+        padding: 14px;
+        background: rgba(0, 0, 0, 0.45);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 16px;
+        backdrop-filter: blur(8px);
+        z-index: 10;
+        font-size: 13px;
+      }
+
+      .panel h3 {
+        margin: 0 0 10px;
+        font-size: 15px;
+      }
+
+      .row {
+        display: grid;
+        gap: 6px;
+        margin-bottom: 10px;
+      }
+
+      .row label {
+        opacity: 0.9;
+      }
+
+      input[type="file"],
+      input[type="number"],
+      select {
+        width: 100%;
+        padding: 7px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.08);
+        color: white;
+      }
+
+      select option {
+        color: black;
+      }
+
+      input[type="file"]::file-selector-button {
+        border: 0;
+        border-radius: 6px;
+        padding: 6px 8px;
+        margin-right: 8px;
+        cursor: pointer;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .hint {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.14);
+        line-height: 1.45;
+        opacity: 0.9;
+      }
+    </style>
+  </head>
+
+  <body>
+    <canvas id="game"></canvas>
+
+    <div class="panel">
+      <h3>Upload asset để test</h3>
+
+      <div class="row">
+        <label>Ảnh súng</label>
+        <input id="uploadCannon" type="file" accept="image/*" />
+      </div>
+
+      <div class="row">
+        <label>Ảnh đạn 1</label>
+        <input id="uploadBullet1" type="file" accept="image/*" />
+      </div>
+
+      <div class="row">
+        <label>Ảnh đạn 2</label>
+        <input id="uploadBullet2" type="file" accept="image/*" />
+      </div>
+
+      <div class="row">
+        <label>Sprite sheet hiệu ứng nổ</label>
+        <input id="uploadExplosion" type="file" accept="image/*" />
+      </div>
+
+      <div class="grid">
+        <div class="row">
+          <label>Explosion frame width</label>
+          <input id="frameWidth" type="number" value="144" min="1" />
+        </div>
+
+        <div class="row">
+          <label>Explosion frame height</label>
+          <input id="frameHeight" type="number" value="128" min="1" />
+        </div>
+
+        <div class="row">
+          <label>Số frame nổ</label>
+          <input id="frameCount" type="number" value="6" min="1" />
+        </div>
+
+        <div class="row">
+          <label>FPS nổ</label>
+          <input id="explosionFps" type="number" value="14" min="1" />
+        </div>
+
+        <div class="row">
+          <label>Góc ảnh đạn</label>
+          <select id="bulletAngle">
+            <option value="-90" selected>-90</option>
+            <option value="0">0</option>
+            <option value="90">90</option>
+            <option value="180">180</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label>Đạn ngang?</label>
+          <select id="rotateBulletImage">
+            <option value="false" selected>Không</option>
+            <option value="true">Có</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label>Kích thước nổ</label>
+          <input
+            id="explosionScale"
+            type="number"
+            value="1.2"
+            min="0.1"
+            step="0.05"
+          />
+        </div>
+
+        <div class="row">
+          <label>Test nổ ở frame cuối?</label>
+          <select id="useLastExplosionFrame">
+            <option value="true" selected>Có</option>
+            <option value="false">Không</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="hint">
+        Click chuột để bắn<br />
+        Space để bắn thẳng<br />
+        Phím 1 / 2 để đổi đạn<br />
+        Phím E để test nổ tại chuột
+      </div>
+    </div>
+
+    <script>
+      const canvas = document.getElementById("game");
+      const ctx = canvas.getContext("2d");
+
+      const uploadCannon = document.getElementById("uploadCannon");
+      const uploadBullet1 = document.getElementById("uploadBullet1");
+      const uploadBullet2 = document.getElementById("uploadBullet2");
+      const uploadExplosion = document.getElementById("uploadExplosion");
+
+      const frameWidthInput = document.getElementById("frameWidth");
+      const frameHeightInput = document.getElementById("frameHeight");
+      const frameCountInput = document.getElementById("frameCount");
+      const explosionFpsInput = document.getElementById("explosionFps");
+      const bulletAngleInput = document.getElementById("bulletAngle");
+      const rotateBulletImageInput =
+        document.getElementById("rotateBulletImage");
+      const explosionScaleInput = document.getElementById("explosionScale");
+      const useLastExplosionFrameInput = document.getElementById(
+        "useLastExplosionFrame",
+      );
+
+      const images = {
+        cannon: null,
+        bullet1: null,
+        bullet2: null,
+        explosion: null,
+      };
+
+      const bullets = [];
+      const explosions = [];
+      let explosionFrames = [];
+      let explosionStableCenter = { x: 0, y: 0 };
+
+      let selectedBullet = "bullet1";
+      let mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+      let lastTime = performance.now();
+
+      const cannon = {
+        x: 0,
+        y: 0,
+        angle: -Math.PI / 2,
+        recoil: 0,
+      };
+
+      const CONFIG = {
+        cannon: {
+          width: 120,
+          height: 160,
+          pivotX: 0.5,
+          pivotY: 0.9,
+        },
+
+        bullet: {
+          width: 42,
+          height: 72,
+          speed: 720,
+        },
+
+        explosion: {
+          frameWidth: 144,
+          frameHeight: 128,
+          frameCount: 6,
+          fps: 14,
+          scale: 1.2,
+        },
+      };
+
+      function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        cannon.x = canvas.width / 2;
+        cannon.y = canvas.height - 70;
+      }
+
+      window.addEventListener("resize", resize);
+      resize();
+
+      function loadUploadedImage(input, key) {
+        input.addEventListener("change", () => {
+          const file = input.files && input.files[0];
+          if (!file) return;
+
+          const img = new Image();
+          const url = URL.createObjectURL(file);
+
+          img.onload = () => {
+            images[key] = img;
+            URL.revokeObjectURL(url);
+
+            console.log(`${key} loaded:`, img.width, img.height);
+
+            if (key === "explosion") {
+              autoConfigureExplosion(img);
+            }
+          };
+
+          img.onerror = () => {
+            console.error("Không đọc được ảnh:", file.name);
+            URL.revokeObjectURL(url);
+          };
+
+          img.src = url;
+        });
+      }
+
+      function autoConfigureExplosion(img) {
+        const detectedFrameCount = 6;
+        const detectedFrameWidth = Math.floor(img.width / detectedFrameCount);
+        const detectedFrameHeight = img.height;
+
+        frameWidthInput.value = detectedFrameWidth;
+        frameHeightInput.value = detectedFrameHeight;
+        frameCountInput.value = detectedFrameCount;
+        explosionFpsInput.value = 14;
+        explosionScaleInput.value = 1.2;
+
+        console.log("Explosion auto config:", {
+          imageWidth: img.width,
+          imageHeight: img.height,
+          frameWidth: detectedFrameWidth,
+          frameHeight: detectedFrameHeight,
+          frameCount: detectedFrameCount,
+          fps: 14,
+          scale: 1.2,
+        });
+
+        buildExplosionFrames();
+      }
+
+      loadUploadedImage(uploadCannon, "cannon");
+      loadUploadedImage(uploadBullet1, "bullet1");
+      loadUploadedImage(uploadBullet2, "bullet2");
+      loadUploadedImage(uploadExplosion, "explosion");
+
+      window.addEventListener("mousemove", (e) => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+      });
+
+      window.addEventListener("click", (e) => {
+        if (isClickInsidePanel(e.clientX, e.clientY)) return;
+        shoot(e.clientX, e.clientY);
+      });
+
+      window.addEventListener("keydown", (e) => {
+        if (e.code === "Space") {
+          shoot(cannon.x, cannon.y - 400);
+        }
+
+        if (e.key === "1") {
+          selectedBullet = "bullet1";
+        }
+
+        if (e.key === "2") {
+          selectedBullet = "bullet2";
+        }
+
+        if (e.key.toLowerCase() === "e") {
+          spawnExplosion(mouse.x, mouse.y);
+        }
+      });
+
+      function isClickInsidePanel(x, y) {
+        const panel = document.querySelector(".panel");
+        const rect = panel.getBoundingClientRect();
+
+        return (
+          x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
+        );
+      }
+
+      function shoot(targetX, targetY) {
+        const bulletImg = images[selectedBullet];
+
+        if (!images.cannon) {
+          alert("Bạn chưa upload ảnh súng.");
+          return;
+        }
+
+        if (!bulletImg) {
+          alert(`Bạn chưa upload ${selectedBullet}.`);
+          return;
+        }
+
+        const dx = targetX - cannon.x;
+        const dy = targetY - cannon.y;
+        const angle = Math.atan2(dy, dx);
+
+        cannon.angle = angle;
+        cannon.recoil = 16;
+
+        const muzzleDistance = 86;
+        const startX = cannon.x + Math.cos(angle) * muzzleDistance;
+        const startY = cannon.y + Math.sin(angle) * muzzleDistance;
+
+        bullets.push({
+          x: startX,
+          y: startY,
+          vx: Math.cos(angle) * CONFIG.bullet.speed,
+          vy: Math.sin(angle) * CONFIG.bullet.speed,
+          angle,
+          life: 1.8,
+          type: selectedBullet,
+        });
+      }
+
+      function spawnExplosion(x, y) {
+        if (!images.explosion) {
+          return;
+        }
+
+        explosions.push({
+          x,
+          y,
+          frame: 0,
+          timer: 0,
+        });
+      }
+
+      function update(dt) {
+        const dx = mouse.x - cannon.x;
+        const dy = mouse.y - cannon.y;
+        cannon.angle = Math.atan2(dy, dx);
+
+        cannon.recoil = Math.max(0, cannon.recoil - dt * 80);
+
+        updateBullets(dt);
+        updateExplosions(dt);
+      }
+
+      function updateBullets(dt) {
+        for (let i = bullets.length - 1; i >= 0; i--) {
+          const b = bullets[i];
+
+          b.x += b.vx * dt;
+          b.y += b.vy * dt;
+          b.life -= dt;
+
+          const out =
+            b.x < -100 ||
+            b.x > canvas.width + 100 ||
+            b.y < -100 ||
+            b.y > canvas.height + 100;
+
+          const hitTestLine = b.y < canvas.height * 0.28;
+
+          if (out || b.life <= 0 || hitTestLine) {
+            spawnExplosion(b.x, b.y);
+            bullets.splice(i, 1);
+          }
+        }
+      }
+
+      function updateExplosions(dt) {
+        const frameCount = getExplosionFrameCount();
+        const fps = Number(explosionFpsInput.value) || CONFIG.explosion.fps;
+        const frameDuration = 1 / fps;
+
+        for (let i = explosions.length - 1; i >= 0; i--) {
+          const ex = explosions[i];
+
+          ex.timer += dt;
+
+          while (ex.timer >= frameDuration) {
+            ex.timer -= frameDuration;
+            ex.frame++;
+          }
+
+          if (ex.frame >= frameCount) {
+            explosions.splice(i, 1);
+          }
+        }
+      }
+
+      function drawBackground() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.save();
+        ctx.globalAlpha = 0.22;
+
+        for (let i = 0; i < 16; i++) {
+          const x = (i * 157 + performance.now() * 0.02) % canvas.width;
+          const y = (i * 89 + performance.now() * 0.035) % canvas.height;
+          const r = 3 + (i % 5) * 2;
+
+          ctx.beginPath();
+          ctx.arc(x, canvas.height - y, r, 0, Math.PI * 2);
+          ctx.strokeStyle = "white";
+          ctx.stroke();
+        }
+
+        ctx.restore();
+
+        ctx.save();
+        ctx.globalAlpha = 0.25;
+        ctx.setLineDash([8, 10]);
+        ctx.strokeStyle = "#fff";
+        ctx.beginPath();
+        ctx.moveTo(0, canvas.height * 0.28);
+        ctx.lineTo(canvas.width, canvas.height * 0.28);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawCannon() {
+        const img = images.cannon;
+        if (!img) return;
+
+        const w = CONFIG.cannon.width;
+        const h = CONFIG.cannon.height;
+
+        const recoilX = Math.cos(cannon.angle) * -cannon.recoil;
+        const recoilY = Math.sin(cannon.angle) * -cannon.recoil;
+
+        ctx.save();
+        ctx.translate(cannon.x + recoilX, cannon.y + recoilY);
+        ctx.rotate(cannon.angle + Math.PI / 2);
+
+        ctx.drawImage(
+          img,
+          -w * CONFIG.cannon.pivotX,
+          -h * CONFIG.cannon.pivotY,
+          w,
+          h,
+        );
+
+        ctx.restore();
+      }
+
+      function drawBullets() {
+        const imageAngleOffsetDeg = Number(bulletAngleInput.value) || 0;
+        const rotateBulletImage = rotateBulletImageInput.value === "true";
+        const offset = degToRad(imageAngleOffsetDeg);
+
+        for (const b of bullets) {
+          const img = images[b.type];
+          if (!img) continue;
+
+          const w = CONFIG.bullet.width;
+          const h = CONFIG.bullet.height;
+
+          ctx.save();
+          ctx.translate(b.x, b.y);
+
+          if (rotateBulletImage) {
+            ctx.rotate(b.angle + offset + Math.PI / 2);
+          } else {
+            ctx.rotate(b.angle + offset);
+          }
+
+          ctx.drawImage(img, -w / 2, -h / 2, w, h);
+
+          ctx.globalAlpha = 0.28;
+          ctx.fillStyle = "#8ee9ff";
+          ctx.beginPath();
+          ctx.arc(-w * 0.35, 0, 10, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.restore();
+        }
+      }
+
+      function drawExplosions() {
+        const img = images.explosion;
+        if (!img) return;
+
+        const frameCount = getExplosionFrameCount();
+        const scale =
+          Number(explosionScaleInput.value) || CONFIG.explosion.scale;
+        const useLastFrame = useLastExplosionFrameInput.value === "true";
+
+        if (!explosionFrames.length) {
+          buildExplosionFrames();
+        }
+
+        for (const ex of explosions) {
+          let frame = Math.min(ex.frame, frameCount - 1);
+
+          if (!useLastFrame) {
+            frame = Math.min(ex.frame, Math.max(0, frameCount - 2));
+          }
+
+          const data = explosionFrames[frame];
+          if (!data) continue;
+
+          const dx = -((explosionStableCenter.x - data.trim.x) * scale);
+          const dy = -((explosionStableCenter.y - data.trim.y) * scale);
+
+          ctx.save();
+          ctx.translate(ex.x, ex.y);
+
+          ctx.globalAlpha = 1;
+
+          ctx.drawImage(
+            img,
+            data.sx,
+            data.sy,
+            data.sw,
+            data.sh,
+            dx,
+            dy,
+            data.sw * scale,
+            data.sh * scale,
+          );
+
+          ctx.restore();
+        }
+      }
+
+      function buildExplosionFrames() {
+        if (!images.explosion) return;
+
+        const img = images.explosion;
+        const fw = getExplosionFrameWidth();
+        const fh = getExplosionFrameHeight();
+        const frameCount = getExplosionFrameCount();
+
+        const temp = document.createElement("canvas");
+        temp.width = fw;
+        temp.height = fh;
+        const tctx = temp.getContext("2d", { willReadFrequently: true });
+
+        const frames = [];
+
+        for (let i = 0; i < frameCount; i++) {
+          const sx = i * fw;
+          const sy = 0;
+
+          tctx.clearRect(0, 0, fw, fh);
+          tctx.drawImage(img, sx, sy, fw, fh, 0, 0, fw, fh);
+
+          const box = findOpaqueBox(tctx, fw, fh, 8);
+          const trim = box || {
+            x: 0,
+            y: 0,
+            w: fw,
+            h: fh,
+          };
+
+          frames.push({
+            sx: sx + trim.x,
+            sy: sy + trim.y,
+            sw: trim.w,
+            sh: trim.h,
+            centerX: trim.x + trim.w / 2,
+            centerY: trim.y + trim.h / 2,
+            trim,
+          });
+        }
+
+        const valid = frames.filter((frame) => frame.sw > 0 && frame.sh > 0);
+
+        explosionStableCenter = valid.length
+          ? {
+              x:
+                valid.reduce((sum, frame) => sum + frame.centerX, 0) /
+                valid.length,
+              y:
+                valid.reduce((sum, frame) => sum + frame.centerY, 0) /
+                valid.length,
+            }
+          : {
+              x: fw / 2,
+              y: fh / 2,
+            };
+
+        explosionFrames = frames;
+
+        console.log("Explosion frames rebuilt:", {
+          frameWidth: fw,
+          frameHeight: fh,
+          frameCount,
+          stableCenter: explosionStableCenter,
+          frames,
+        });
+      }
+
+      function findOpaqueBox(context, width, height, threshold = 8) {
+        const data = context.getImageData(0, 0, width, height).data;
+
+        let minX = width;
+        let minY = height;
+        let maxX = -1;
+        let maxY = -1;
+
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const alpha = data[(y * width + x) * 4 + 3];
+
+            if (alpha > threshold) {
+              if (x < minX) minX = x;
+              if (y < minY) minY = y;
+              if (x > maxX) maxX = x;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+
+        if (maxX < minX || maxY < minY) return null;
+
+        return {
+          x: minX,
+          y: minY,
+          w: maxX - minX + 1,
+          h: maxY - minY + 1,
+        };
+      }
+
+      function drawPlaceholder() {
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.fillStyle = "rgba(255,255,255,0.8)";
+        ctx.font = "18px Arial";
+
+        if (!images.cannon || !images.bullet1 || !images.explosion) {
+          ctx.fillText(
+            "Upload ảnh súng, đạn và sprite sheet nổ để bắt đầu test",
+            canvas.width / 2,
+            canvas.height / 2,
+          );
+        }
+
+        ctx.restore();
+      }
+
+      function drawDebugText() {
+        ctx.save();
+        ctx.fillStyle = "rgba(255,255,255,0.9)";
+        ctx.font = "14px Arial";
+
+        ctx.fillText(`Bullet: ${selectedBullet}`, 16, canvas.height - 92);
+        ctx.fillText(`Bullets: ${bullets.length}`, 16, canvas.height - 72);
+        ctx.fillText(
+          `Explosions: ${explosions.length}`,
+          16,
+          canvas.height - 52,
+        );
+        ctx.fillText(
+          `Explosion: ${getExplosionFrameWidth()}x${getExplosionFrameHeight()} - ${getExplosionFrameCount()} frames`,
+          16,
+          canvas.height - 32,
+        );
+        ctx.fillText(
+          `Cannon: ${images.cannon ? "loaded" : "missing"}`,
+          16,
+          canvas.height - 12,
+        );
+
+        ctx.restore();
+      }
+
+      function getExplosionFrameWidth() {
+        return Number(frameWidthInput.value) || CONFIG.explosion.frameWidth;
+      }
+
+      function getExplosionFrameHeight() {
+        return Number(frameHeightInput.value) || CONFIG.explosion.frameHeight;
+      }
+
+      function getExplosionFrameCount() {
+        const value = Number(frameCountInput.value);
+        return value > 0 ? value : CONFIG.explosion.frameCount;
+      }
+
+      function loop(now) {
+        const dt = Math.min((now - lastTime) / 1000, 0.033);
+        lastTime = now;
+
+        update(dt);
+
+        drawBackground();
+        drawPlaceholder();
+        drawBullets();
+        drawExplosions();
+        drawCannon();
+        drawDebugText();
+
+        requestAnimationFrame(loop);
+      }
+
+      function degToRad(deg) {
+        return (deg * Math.PI) / 180;
+      }
+
+      [frameWidthInput, frameHeightInput, frameCountInput].forEach((input) => {
+        input.addEventListener("change", () => {
+          explosionFrames = [];
+          buildExplosionFrames();
+        });
+      });
+
+      requestAnimationFrame(loop);
+    </script>
+  </body>
+</html>

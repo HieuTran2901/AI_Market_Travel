@@ -52,6 +52,7 @@ import {
   AI_COIN_TRANSACTIONS_QUERY_KEY,
   AI_COIN_WALLET_QUERY_KEY,
 } from "@/services/aiCoinWalletService";
+import { submitSePayCheckout } from "@/utils/submitSePayCheckout";
 
 import PaymentSuccessImageLight from "@/assets/images/success_white_background.png";
 
@@ -698,21 +699,10 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
           JSON.stringify(sessionData),
         );
 
-        const form = document.createElement("form");
-        form.method = "POST";
-        form.action = data.checkoutUrl;
-        form.style.display = "none";
-
-        Object.entries(data.checkoutFields).forEach(([name, value]) => {
-          const input = document.createElement("input");
-          input.type = "hidden";
-          input.name = name;
-          input.value = String(value);
-          form.appendChild(input);
+        submitSePayCheckout({
+          checkoutUrl: data.checkoutUrl,
+          checkoutFields: data.checkoutFields,
         });
-
-        document.body.appendChild(form);
-        form.submit();
       } else if (data.paymentUrl) {
         sessionStorage.setItem(
           "aiCoinMomoPaymentSession",

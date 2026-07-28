@@ -110,6 +110,9 @@ export interface AssistantListingRecommendation {
   ratingText?: string;
   shortDescription?: string;
   providerName?: string;
+  tags?: string[];
+  matchReason?: string;
+  withinBudget?: boolean;
   reasoning?: string;
   rank?: number;
   source?: 'DATABASE';
@@ -239,6 +242,10 @@ export interface AssistantResponse {
     | 'ITINERARY'
     | 'CLARIFICATION'
     | 'ERROR'
+    | 'FLIGHT_RECOMMENDATIONS'
+    | 'FLIGHT_DATE_RECOMMENDATIONS'
+    | 'FLIGHT_NO_RESULTS'
+    | 'FLIGHT_CLARIFICATION'
     | 'text'
     | 'recommendation'
     | 'recommendations'
@@ -258,6 +265,10 @@ export interface AssistantResponse {
   heroImageUrl?: string;
   summary?: string;
   recommendations?: AssistantListingRecommendation[];
+  flights?: FlightOfferRecommendation[];
+  dateRecommendations?: FlightDealRecommendation[];
+  summaryLabels?: FlightSummaryLabel[];
+  membership?: FlightMembership;
   followUpSuggestions?: string[];
   extractedContext?: Record<string, unknown>;
   itineraryCard?: AssistantItineraryCard;
@@ -270,4 +281,44 @@ export interface AssistantResponse {
     alternatives?: string[];
   };
   mockedAi: boolean;
+}
+
+export interface FlightDealRecommendation {
+  departureDate: string;
+  returnDate: string;
+  price: number;
+  currency: string;
+  airlineLogo: string;
+  airlineName: string;
+  durationText: string;
+  routeText: string;
+  rankText: string;
+  bookingUrl?: string;
+}
+
+export interface FlightOfferRecommendation {
+  id: string;
+  departureTime: string;
+  arrivalTime: string;
+  airlineLogo: string;
+  airlineName: string;
+  durationText: string;
+  routeText: string;
+  stopsText: string;
+  price: number;
+  currency: string;
+  badges: string[];
+  bookingUrl: string;
+}
+
+export interface FlightMembership {
+  tierName: string;
+  maxSearchDays: number;
+  limitReachedText: string;
+}
+
+export interface FlightSummaryLabel {
+  title: string;
+  value: string;
+  type: string;
 }

@@ -10,6 +10,7 @@ type MembershipCoinSwitcherProps = {
   className?: string;
   visualTab?: MembershipCoinTab;
   isTransitioning?: boolean;
+  mobileCoinsFirst?: boolean;
   onTabSelect?: (tab: MembershipCoinTab) => void;
   debugState?: {
     pathname: string;
@@ -43,10 +44,12 @@ export const MembershipCoinSwitcher: React.FC<MembershipCoinSwitcherProps> = ({
   className,
   visualTab,
   isTransitioning = false,
+  mobileCoinsFirst = false,
   onTabSelect,
   debugState,
 }) => {
   const displayedTab = visualTab ?? activeTab;
+  const renderedTabs = mobileCoinsFirst ? [...tabs].reverse() : tabs;
 
   return (
     <nav
@@ -54,8 +57,8 @@ export const MembershipCoinSwitcher: React.FC<MembershipCoinSwitcherProps> = ({
       aria-label="Membership and AI Coins packages"
     >
       <div className="w-full max-w-none lg:max-w-[430px]">
-        <div className="relative grid min-h-[52px] grid-cols-2 items-stretch overflow-hidden rounded-full border border-slate-400/24 bg-[linear-gradient(135deg,rgba(8,18,48,0.98),rgba(15,20,52,0.98))] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_12px_28px_rgba(2,6,23,0.22)]">
-          {tabs.map((tab) => {
+        <div className="relative grid min-h-[48px] grid-cols-2 items-stretch overflow-hidden rounded-full border border-slate-400/24 bg-[linear-gradient(135deg,rgba(8,18,48,0.98),rgba(15,20,52,0.98))] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_12px_28px_rgba(2,6,23,0.22)] lg:min-h-[52px]">
+          {renderedTabs.map((tab) => {
           const isActive = displayedTab === tab.id;
           const isMembership = tab.id === "membership";
 
@@ -76,7 +79,7 @@ export const MembershipCoinSwitcher: React.FC<MembershipCoinSwitcherProps> = ({
                 onTabSelect?.(tab.id);
               }}
               className={cn(
-                "group relative z-10 grid min-w-0 cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-full border-0 bg-transparent px-3 py-2 text-left no-underline transition-colors duration-200 pointer-events-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-blue-300 sm:px-4",
+                "group relative z-10 grid min-w-0 cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-full border-0 bg-transparent px-2.5 py-1.5 text-left no-underline transition-colors duration-200 pointer-events-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-blue-300 sm:px-4 lg:px-3 lg:py-2",
                 isActive
                   ? isMembership
                     ? "text-violet-100"
@@ -103,7 +106,7 @@ export const MembershipCoinSwitcher: React.FC<MembershipCoinSwitcherProps> = ({
               ) : null}
               <span
                 className={cn(
-                  "relative z-10 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors",
+                  "relative z-10 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors lg:h-8 lg:w-8",
                   isActive && isMembership
                     ? "bg-violet-400/14 text-violet-200 ring-1 ring-violet-300/34"
                     : isActive
@@ -119,7 +122,7 @@ export const MembershipCoinSwitcher: React.FC<MembershipCoinSwitcherProps> = ({
               <span className="relative z-10 min-w-0">
                 <strong
                   className={cn(
-                    "block truncate text-sm font-black leading-tight",
+                    "block whitespace-nowrap text-[13px] font-black leading-tight lg:text-sm",
                     isActive && isMembership
                       ? "text-violet-200"
                       : isActive

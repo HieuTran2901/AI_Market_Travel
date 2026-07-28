@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowLeft,
@@ -9,6 +10,7 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
+  X,
   Zap,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -17,7 +19,9 @@ import { useAiCoinsModal } from "@/context/AiCoinsModalContext";
 import { useAuthenticationGate } from "@/context/AuthenticationGateContext";
 import { useAiCoinWallet } from "@/hooks/useAiCoinWallet";
 import { cn } from "@/lib/utils";
-import { adventurePackImage, coinGoldImage } from "./coinPackageAssets";
+import aiCoinsHeroImage from "@/assets/images/success.png";
+import heroTreasureChestImage from "@/assets/missions/hero/01-hero-treasure-chest-transparent.png";
+import { coinGoldImage } from "./coinPackageAssets";
 import {
   AiCoinPackage,
   dailyCoinPassPackage,
@@ -245,6 +249,21 @@ const getPackageThemeStyle = (theme: CoinPackageTheme) =>
 const cosmicPackageIds = new Set(["mega", "ultimate", "galaxy"]);
 
 const getShortVnd = (value: number) => formatVnd(value).replace(/\s/g, "");
+
+const getMobileDiscountBadge = (pkg: AiCoinPackage) => {
+  if (pkg.badge && pkg.badge !== "BEST VALUE") {
+    return pkg.badge;
+  }
+
+  if (pkg.originalPrice && pkg.originalPrice > pkg.price) {
+    const discount = Math.round(
+      ((pkg.originalPrice - pkg.price) / pkg.originalPrice) * 100,
+    );
+    return `+${discount}%`;
+  }
+
+  return null;
+};
 
 const CosmicPackageGlow = ({ packageId }: { packageId: string }) => {
   if (!cosmicPackageIds.has(packageId)) return null;
@@ -664,15 +683,15 @@ const MobileWalletBalance = () => {
   const balance = walletQuery.data?.balance ?? 0;
 
   return (
-    <div className="flex min-h-16 min-w-0 max-w-[calc(100%_-_68px)] shrink items-center gap-3 rounded-2xl border border-violet-300/28 bg-slate-950/72 px-3 py-2 shadow-[0_12px_28px_rgba(15,23,42,0.22)]">
+    <div className="flex min-h-[50px] w-[112px] shrink-0 items-center gap-2 rounded-2xl border border-violet-300/28 bg-slate-950/72 px-2.5 py-2 shadow-[0_12px_28px_rgba(15,23,42,0.22)] min-[430px]:w-[132px] min-[430px]:gap-2.5">
       <img
         src={coinGoldImage}
         alt=""
         draggable={false}
-        className="h-11 w-11 shrink-0 object-contain drop-shadow-[0_0_18px_rgba(245,158,11,0.34)]"
+        className="h-8 w-8 shrink-0 object-contain drop-shadow-[0_0_18px_rgba(245,158,11,0.34)] min-[430px]:h-9 min-[430px]:w-9"
       />
       <div className="min-w-0">
-        <p className="text-lg font-black leading-none tabular-nums text-amber-100">
+        <p className="truncate text-[15px] font-black leading-none tabular-nums text-amber-100 min-[430px]:text-base">
           {walletQuery.isLoading ? "..." : formatNumber(balance)}
         </p>
         <p className="mt-1 text-[11px] font-bold leading-none text-amber-100/90">
@@ -683,57 +702,62 @@ const MobileWalletBalance = () => {
   );
 };
 
-const MobileHeroSection = () => (
-  <section className="relative mt-6 w-full min-w-0 overflow-hidden rounded-[24px] border border-violet-300/22 bg-[radial-gradient(circle_at_72%_42%,rgba(168,85,247,0.36),transparent_34%),linear-gradient(135deg,rgba(11,18,48,0.96),rgba(26,15,68,0.96)_54%,rgba(6,13,34,0.98))] px-4 py-5 shadow-[0_18px_44px_rgba(2,6,23,0.24)] sm:px-5 md:px-6 md:py-6">
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-[radial-gradient(ellipse_at_center,rgba(251,191,36,0.14),transparent_64%)]" />
-    <div className="relative grid grid-cols-[0.72fr_minmax(0,1.45fr)_0.9fr] items-center gap-3 sm:grid-cols-[0.75fr_minmax(0,1.65fr)_1fr] sm:gap-5 md:grid-cols-[0.62fr_minmax(0,1.9fr)_1fr]">
-      <img
-        src={coinGoldImage}
-        alt=""
-        draggable={false}
-        className="h-14 w-full object-contain drop-shadow-[0_0_22px_rgba(245,158,11,0.36)] min-[375px]:h-16 sm:h-20 md:h-24"
-      />
-      <div className="min-w-0">
-        <h1 className="text-[30px] font-black leading-none tracking-tight text-white min-[375px]:text-[34px] sm:text-[42px] md:text-[50px]">
+const MobileTopSection = ({ onBack }: { onBack: () => void }) => (
+  <section className="grid w-full min-w-0 grid-cols-[48px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 pt-[max(8px,env(safe-area-inset-top))] min-[360px]:grid-cols-[48px_minmax(0,1fr)_112px] min-[390px]:grid-cols-[52px_minmax(0,1fr)_112px] min-[430px]:grid-cols-[52px_minmax(0,1fr)_132px]">
+      <button
+        type="button"
+        onClick={onBack}
+        aria-label="Go back"
+        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-300/24 bg-slate-950/64 text-white shadow-[0_12px_28px_rgba(15,23,42,0.24)] transition active:scale-95 min-[390px]:h-[52px] min-[390px]:w-[52px]"
+      >
+        <ArrowLeft className="h-6 w-6" />
+      </button>
+      <div className="min-w-0 pt-0.5">
+        <h1 className="text-[30px] font-black leading-tight tracking-tight text-white min-[390px]:text-[33px]">
           Buy{" "}
           <span className="bg-gradient-to-r from-sky-300 via-blue-400 to-violet-400 bg-clip-text text-transparent">
             AI Coins
           </span>
         </h1>
-        <p className="mt-2 max-w-[260px] text-[14px] font-semibold leading-snug text-slate-300 min-[375px]:text-[15px] sm:max-w-[360px] sm:text-base md:max-w-[460px] md:text-lg">
-          Choose the perfect pack for your next adventure
-        </p>
       </div>
-      <img
-        src={adventurePackImage}
-        alt=""
-        draggable={false}
-        className="h-20 w-full object-contain drop-shadow-[0_16px_28px_rgba(245,158,11,0.22)] min-[375px]:h-24 sm:h-32 md:h-40"
-      />
+    <div className="col-start-2 row-start-2 justify-self-end min-[360px]:col-start-3 min-[360px]:row-start-1">
+      <MobileWalletBalance />
     </div>
   </section>
 );
 
+const MobileHeroSection = () => (
+  <section className="relative mt-3 aspect-[16/7.25] max-h-[210px] w-full min-w-0 overflow-hidden rounded-[22px] border border-violet-300/34 bg-slate-950 shadow-[0_18px_44px_rgba(2,6,23,0.28)] min-[390px]:mt-4">
+    <img
+      src={aiCoinsHeroImage}
+      alt=""
+      draggable={false}
+      className="h-full w-full object-cover object-[50%_45%]"
+    />
+    <div className="pointer-events-none absolute inset-0 rounded-[24px] bg-[linear-gradient(180deg,rgba(6,10,30,0.04),rgba(6,10,30,0.18))] ring-1 ring-inset ring-white/8" />
+  </section>
+);
+
 const MobileBenefitsStrip = () => (
-  <section className="mt-5 grid w-full min-w-0 grid-cols-2 overflow-hidden rounded-2xl border border-violet-300/20 bg-slate-950/58 shadow-inner shadow-blue-950/50 sm:grid-cols-4">
+  <section className="mt-4 grid w-full min-w-0 grid-cols-2 overflow-hidden rounded-2xl border border-violet-300/20 bg-slate-950/58 shadow-inner shadow-blue-950/50 min-[360px]:grid-cols-4">
     {benefits.map((item, index) => (
       <div
         key={item.title}
         className={cn(
-          "flex min-w-0 items-center gap-2 px-3 py-3 md:px-4 md:py-4",
-          index % 2 === 1 && "border-l border-white/8 sm:border-l",
-          index >= 2 && "border-t border-white/8 sm:border-t-0",
-          index > 0 && "sm:border-l sm:border-white/8",
+          "flex min-w-0 items-center gap-2 px-3 py-2 min-[360px]:flex-col min-[360px]:items-center min-[360px]:justify-center min-[360px]:gap-1 min-[360px]:px-1.5 min-[360px]:py-2.5 min-[360px]:text-center",
+          index % 2 === 1 && "border-l border-white/8 min-[360px]:border-l",
+          index >= 2 && "border-t border-white/8 min-[360px]:border-t-0",
+          index > 0 && "min-[360px]:border-l min-[360px]:border-white/8",
         )}
       >
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] min-[360px]:h-[34px] min-[360px]:w-[34px] min-[430px]:h-9 min-[430px]:w-9">
           <item.icon className={cn("h-4 w-4", item.color)} />
         </span>
         <span className="min-w-0">
-          <span className="block truncate text-[11px] font-black leading-tight text-white md:text-sm">
+          <span className="block whitespace-normal text-[11px] font-black leading-tight text-white min-[360px]:text-[10px] min-[390px]:text-[11px]">
             {item.title}
           </span>
-          <span className="mt-0.5 block truncate text-[10px] leading-tight text-slate-400 md:text-xs">
+          <span className="mt-0.5 hidden text-[10px] leading-tight text-slate-400 min-[430px]:block">
             {item.description}
           </span>
         </span>
@@ -756,7 +780,10 @@ const MobilePackageCard = ({
 
   return (
     <article
-      className="relative flex min-h-[246px] min-w-0 max-w-full flex-col overflow-hidden rounded-[18px] border p-3 text-center shadow-[0_14px_32px_rgba(2,6,23,0.25)] md:min-h-[270px] md:p-3.5"
+      className={cn(
+        "relative flex min-h-[318px] basis-[min(69vw,236px)] max-w-[236px] shrink-0 snap-start flex-col overflow-hidden rounded-[20px] border p-3 text-center shadow-[0_14px_32px_rgba(2,6,23,0.25)] min-[390px]:basis-[min(64vw,240px)]",
+        isSelected && "ring-2 ring-violet-300/70",
+      )}
       style={getPackageThemeStyle(theme)}
     >
       <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[18px] bg-[radial-gradient(circle_at_50%_0%,var(--package-glow),transparent_42%)]" />
@@ -782,7 +809,7 @@ const MobilePackageCard = ({
         >
           {pkg.name}
         </h3>
-        <div className="relative isolate mt-1 flex h-16 items-center justify-center min-[390px]:h-20">
+        <div className="relative isolate mt-2 flex h-24 items-center justify-center min-[390px]:h-[106px]">
           <span className="pointer-events-none absolute inset-[10%_12%] -z-10 rounded-full bg-[radial-gradient(circle,var(--package-glow)_0%,transparent_70%)] blur-2xl" />
           <img
             src={pkg.image}
@@ -794,7 +821,7 @@ const MobilePackageCard = ({
         </div>
         <p
           className={cn(
-            "mt-1 text-[24px] font-black leading-none tabular-nums tracking-tight min-[390px]:text-[28px]",
+            "mt-1 text-[25px] font-black leading-none tabular-nums tracking-tight min-[390px]:text-[29px]",
             featured ? "text-amber-100" : "text-slate-100",
           )}
         >
@@ -804,7 +831,7 @@ const MobilePackageCard = ({
           AI Coins
         </p>
         <p
-          className="mx-auto mt-2 max-w-full rounded-full border px-2 py-1 text-[10px] font-black leading-none"
+          className="mx-auto mt-2 max-w-full rounded-full border px-2.5 py-1 text-[11px] font-black leading-none"
           style={{
             background: "var(--package-bonus-bg)",
             borderColor: "var(--package-border)",
@@ -814,23 +841,23 @@ const MobilePackageCard = ({
           +{formatNumber(pkg.bonusCoins)} Bonus Coins
         </p>
         <div className="mt-auto pt-2">
-          <div className="flex min-w-0 items-center justify-center gap-1.5">
+          <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5">
             {pkg.originalPrice ? (
               <span className="truncate text-[11px] font-bold text-slate-500 line-through">
                 {getShortVnd(pkg.originalPrice)}
               </span>
             ) : null}
-            <span className="whitespace-nowrap text-[13px] font-black text-white min-[390px]:text-sm">
+            <span className="whitespace-nowrap text-[15px] font-black text-white">
               {getShortVnd(pkg.price)}
             </span>
           </div>
           <button
             type="button"
             onClick={() => onSelect(pkg)}
-            disabled={pkg.comingSoon || isSelected}
-            aria-label={`Choose ${pkg.name}`}
+            disabled={pkg.comingSoon}
+            aria-label={`Buy ${pkg.name}`}
             className={cn(
-              "mt-2 h-10 w-full rounded-xl border px-2 text-sm font-black text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70",
+              "mt-3 h-11 w-full rounded-xl border px-2 text-sm font-black text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70",
               featured
                 ? "shadow-[0_10px_22px_rgba(245,158,11,0.25)]"
                 : "",
@@ -840,7 +867,7 @@ const MobilePackageCard = ({
               borderColor: "var(--package-button-border)",
             }}
           >
-            {pkg.comingSoon ? "Coming soon" : isSelected ? "Selected" : "Choose"}
+            {pkg.comingSoon ? "Coming soon" : "Buy Now"}
           </button>
         </div>
       </div>
@@ -858,69 +885,60 @@ const MobileValuePackCard = ({
   isSelected: boolean;
 }) => {
   const theme = getPackageTheme(pkg.id);
+  const discountBadge = getMobileDiscountBadge(pkg);
 
   return (
     <article
-      className="relative flex min-h-[172px] basis-[78%] max-w-[300px] shrink-0 scroll-ml-1 snap-start flex-col overflow-hidden rounded-[18px] border p-3 shadow-[0_14px_32px_rgba(2,6,23,0.25)] sm:basis-[42%] md:basis-[31%]"
+      className={cn(
+        "relative grid min-h-[100px] w-full min-w-0 grid-cols-[76px_minmax(0,1fr)_44px] items-center gap-2.5 overflow-hidden rounded-[18px] border p-3 shadow-[0_12px_28px_rgba(2,6,23,0.22)] min-[390px]:grid-cols-[86px_minmax(0,1fr)_48px]",
+        isSelected && "ring-2 ring-violet-300/70",
+      )}
       style={getPackageThemeStyle(theme)}
     >
       <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[18px] bg-[radial-gradient(circle_at_24%_10%,var(--package-glow),transparent_42%)]" />
-      {pkg.badge ? (
-        <span className="absolute right-2 top-2 z-10 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 px-2.5 py-1 text-[10px] font-black uppercase leading-none text-white shadow-lg shadow-violet-600/25">
-          {pkg.badge}
-        </span>
-      ) : null}
-      <div className="relative grid flex-1 grid-cols-[42%_minmax(0,1fr)] items-center gap-2">
+      <div className="relative min-w-0">
         <img
           src={pkg.image}
           alt={`${pkg.name} AI Coins package`}
           draggable={false}
           loading="lazy"
-          className="h-24 w-full object-contain"
+          className="h-[76px] w-full object-contain min-[390px]:h-20"
         />
-        <div className="min-w-0">
-          <h3 className="truncate text-[14px] font-black text-[var(--package-accent)]">
-            {pkg.name}
-          </h3>
-          <p className="mt-1 text-[23px] font-black leading-none tabular-nums text-slate-100">
-            {formatNumber(pkg.coins)}
-          </p>
-          <p className="text-[11px] font-semibold text-slate-300">AI Coins</p>
-          <p
-            className="mt-2 inline-flex max-w-full rounded-full border px-2 py-1 text-[10px] font-black leading-none"
-            style={{
-              background: "var(--package-bonus-bg)",
-              borderColor: "var(--package-border)",
-              color: "var(--package-bonus-text)",
-            }}
-          >
-            +{formatNumber(pkg.bonusCoins)} Bonus Coins
-          </p>
-        </div>
       </div>
-      <div className="relative mt-2 flex items-center justify-between gap-2">
-        <div className="min-w-0">
+      <div className="relative min-w-0">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          {discountBadge ? (
+            <span className="shrink-0 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 px-2 py-1 text-[10px] font-black uppercase leading-none text-white shadow-lg shadow-violet-600/25">
+              {discountBadge}
+            </span>
+          ) : null}
+          <h3 className="text-[15px] font-black leading-tight text-slate-100 min-[390px]:text-base">
+            {formatNumber(pkg.coins)} AI Coins
+          </h3>
+        </div>
+        <p className="mt-1 text-[13px] font-bold leading-tight text-emerald-300 min-[390px]:text-sm">
+          +{formatNumber(pkg.bonusCoins)} Bonus Coins
+        </p>
+        <div className="mt-2 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
           {pkg.originalPrice ? (
-            <span className="block truncate text-[11px] font-bold text-slate-500 line-through">
+            <span className="text-[11px] font-bold text-slate-500 line-through">
               {getShortVnd(pkg.originalPrice)}
             </span>
           ) : null}
-          <span className="block truncate text-sm font-black text-white">
+          <span className="whitespace-nowrap text-[15px] font-black text-white min-[390px]:text-base">
             {getShortVnd(pkg.price)}
           </span>
         </div>
+      </div>
+      <div className="relative flex shrink-0 items-center justify-end">
         <button
           type="button"
           onClick={() => onSelect(pkg)}
-          disabled={pkg.comingSoon || isSelected}
-          aria-label={`Choose ${pkg.name}`}
-          className="h-9 shrink-0 rounded-xl border px-3 text-xs font-black text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
-          style={{
-            background: "var(--package-button-bg)",
-            borderColor: "var(--package-button-border)",
-          }}
+          disabled={pkg.comingSoon}
+          aria-label={`Buy ${pkg.name}`}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-violet-300/20 bg-white/[0.04] text-white transition active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-70 min-[390px]:h-12 min-[390px]:w-12"
         >
-          {isSelected ? "Selected" : "Choose"}
+          <ChevronRight className="h-5 w-5" />
         </button>
       </div>
     </article>
@@ -929,7 +947,16 @@ const MobileValuePackCard = ({
 
 const MobilePaymentMethodsSection = () => (
   <section className="mt-6 w-full min-w-0 max-w-full overflow-hidden">
-    <h2 className="text-base font-black text-white">Payment methods</h2>
+    <div className="flex items-center justify-between gap-3">
+      <h2 className="text-base font-black text-white">Payment methods</h2>
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 text-sm font-bold text-slate-300 transition hover:text-white"
+        aria-label="View all payment methods"
+      >
+        View all <ChevronRight className="h-4 w-4" />
+      </button>
+    </div>
     <div className="mt-3 grid w-full min-w-0 grid-cols-2 gap-2 min-[390px]:grid-cols-3">
       {mobilePaymentMethods.map((method) => {
         const Icon = method.icon;
@@ -969,6 +996,257 @@ const MobileSecurePaymentBanner = () => (
   </section>
 );
 
+const AllCoinPackageRow: React.FC<{
+  pkg: AiCoinPackage;
+  onBuy: (pkg: AiCoinPackage) => void;
+}> = ({ pkg, onBuy }) => {
+  const theme = getPackageTheme(pkg.id);
+  const discountBadge = getMobileDiscountBadge(pkg);
+  const featured = pkg.featured;
+
+  return (
+    <article
+      className={cn(
+        "relative grid min-w-0 grid-cols-[82px_minmax(0,1fr)] gap-3 overflow-hidden rounded-2xl border bg-slate-950/74 p-2.5 shadow-[0_12px_28px_rgba(2,6,23,0.28)] min-[390px]:grid-cols-[92px_minmax(0,1fr)_112px] min-[390px]:items-center min-[390px]:gap-4",
+        featured ? "border-amber-400/90 shadow-amber-500/20" : "border-violet-300/20",
+      )}
+      style={{
+        background: featured
+          ? "linear-gradient(135deg, rgba(79, 45, 16, 0.92), rgba(6, 13, 34, 0.98))"
+          : "linear-gradient(135deg, rgba(10, 18, 46, 0.94), rgba(4, 10, 28, 0.98))",
+        boxShadow: featured
+          ? "0 16px 34px rgba(245, 158, 11, 0.18), inset 0 0 0 1px rgba(251, 191, 36, 0.34)"
+          : "0 12px 28px rgba(2, 6, 23, 0.28)",
+      }}
+    >
+      {featured ? (
+        <span className="absolute left-0 top-0 z-10 rounded-br-xl bg-gradient-to-r from-orange-500 to-amber-400 px-3 py-1 text-[10px] font-black uppercase text-white">
+          Best Value
+        </span>
+      ) : null}
+
+      <div
+        className="relative flex h-[82px] min-w-0 items-center justify-center overflow-hidden rounded-xl border bg-slate-900/70 min-[390px]:h-[92px]"
+        style={{
+          borderColor: featured ? "rgba(251, 191, 36, 0.54)" : "rgba(139, 92, 246, 0.34)",
+          boxShadow: `inset 0 0 22px ${theme.glow}`,
+        }}
+      >
+        <img
+          src={pkg.image}
+          alt={pkg.name}
+          loading="lazy"
+          className="h-[68px] w-full object-contain min-[390px]:h-[78px]"
+        />
+      </div>
+
+      <div className="min-w-0 py-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <h3
+            className="text-[15px] font-black leading-tight min-[390px]:text-base"
+            style={{ color: featured ? "#fde68a" : theme.accent }}
+          >
+            {pkg.name}
+          </h3>
+          {discountBadge ? (
+            <span className="shrink-0 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 px-2 py-1 text-[10px] font-black uppercase leading-none text-white shadow-lg shadow-violet-600/25">
+              {discountBadge}
+            </span>
+          ) : null}
+        </div>
+        <p className="mt-1 text-xl font-black leading-tight text-white min-[390px]:text-2xl">
+          {formatNumber(pkg.coins)} <span className="text-sm font-semibold text-slate-200">AI Coins</span>
+        </p>
+        <p className="mt-1 text-[13px] font-bold leading-tight text-emerald-300 min-[390px]:text-sm">
+          +{formatNumber(pkg.bonusCoins)} Bonus Coins
+        </p>
+      </div>
+
+      <div className="col-span-2 flex min-w-0 items-center justify-between gap-3 border-t border-white/10 pt-2 min-[390px]:col-auto min-[390px]:block min-[390px]:border-t-0 min-[390px]:pt-0">
+        <div className="min-w-0 text-left min-[390px]:text-right">
+          {pkg.originalPrice ? (
+            <p className="text-[12px] font-bold text-slate-500 line-through">
+              {getShortVnd(pkg.originalPrice)}
+            </p>
+          ) : null}
+          <p className="whitespace-nowrap text-lg font-black text-white min-[390px]:text-xl">
+            {getShortVnd(pkg.price)}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onBuy(pkg)}
+          disabled={pkg.comingSoon}
+          aria-label={`Buy ${pkg.name}`}
+          className={cn(
+            "h-10 shrink-0 rounded-xl px-5 text-sm font-black text-white shadow-lg transition active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 min-[390px]:mt-3 min-[390px]:w-full",
+            featured
+              ? "bg-gradient-to-r from-orange-500 to-amber-500 shadow-orange-600/20"
+              : "bg-gradient-to-r from-violet-700 to-purple-600 shadow-violet-700/24",
+          )}
+        >
+          Buy Now
+        </button>
+      </div>
+    </article>
+  );
+};
+
+const AllCoinPackagesModal: React.FC<{
+  open: boolean;
+  packages: AiCoinPackage[];
+  onClose: () => void;
+  onBuy: (pkg: AiCoinPackage) => void;
+}> = ({ open, packages, onClose, onBuy }) => {
+  const shouldReduceMotion = useReducedMotion();
+  const titleId = React.useId();
+  const closeButtonRef = React.useRef<HTMLButtonElement | null>(null);
+  const previousActiveElementRef = React.useRef<Element | null>(null);
+  const onCloseRef = React.useRef(onClose);
+
+  React.useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  React.useEffect(() => {
+    if (!open || typeof window === "undefined") return;
+
+    previousActiveElementRef.current = document.activeElement;
+    const scrollY = window.scrollY;
+    const previousBodyStyle = {
+      position: document.body.style.position,
+      top: document.body.style.top,
+      left: document.body.style.left,
+      right: document.body.style.right,
+      width: document.body.style.width,
+      overflow: document.body.style.overflow,
+    };
+
+    document.body.classList.add("ai-coins-all-packs-modal-open");
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = "0";
+    document.body.style.right = "0";
+    document.body.style.width = "100%";
+    document.body.style.overflow = "hidden";
+    window.setTimeout(() => closeButtonRef.current?.focus(), 0);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onCloseRef.current();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.position = previousBodyStyle.position;
+      document.body.style.top = previousBodyStyle.top;
+      document.body.style.left = previousBodyStyle.left;
+      document.body.style.right = previousBodyStyle.right;
+      document.body.style.width = previousBodyStyle.width;
+      document.body.style.overflow = previousBodyStyle.overflow;
+      document.body.classList.remove("ai-coins-all-packs-modal-open");
+      window.scrollTo(0, scrollY);
+      if (previousActiveElementRef.current instanceof HTMLElement) {
+        previousActiveElementRef.current.focus();
+      }
+    };
+  }, [open]);
+
+  if (!open || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[1200] flex h-dvh w-full items-center justify-center overflow-hidden bg-black/72 p-[max(10px,env(safe-area-inset-top))_max(10px,env(safe-area-inset-right))_max(10px,env(safe-area-inset-bottom))_max(10px,env(safe-area-inset-left))] backdrop-blur-sm md:hidden"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <motion.section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        initial={shouldReduceMotion ? false : { opacity: 0, y: 18, scale: 0.985 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={shouldReduceMotion ? undefined : { opacity: 0, y: 12, scale: 0.985 }}
+        transition={{ duration: 0.22, ease: "easeOut" }}
+        className="flex h-full max-h-[calc(100dvh-20px)] w-full min-w-0 max-w-[760px] flex-col overflow-hidden rounded-[28px] border border-violet-400/62 bg-[radial-gradient(circle_at_74%_0%,rgba(124,58,237,0.34),transparent_36%),linear-gradient(180deg,#07122f_0%,#030817_100%)] text-white shadow-[0_26px_80px_rgba(0,0,0,0.56),0_0_36px_rgba(124,58,237,0.28)]"
+      >
+        <header className="relative shrink-0 overflow-hidden border-b border-violet-300/14 px-4 pb-3 pt-[max(18px,env(safe-area-inset-top))]">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_42%,rgba(245,158,11,0.20),transparent_24%),radial-gradient(circle_at_61%_25%,rgba(124,58,237,0.28),transparent_34%)]" />
+          <img
+            src={heroTreasureChestImage}
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none absolute right-8 top-6 h-24 w-28 object-contain opacity-95 min-[390px]:right-12 min-[390px]:h-28 min-[390px]:w-36"
+          />
+          <div className="relative grid min-w-0 grid-cols-[68px_minmax(0,1fr)_44px] items-start gap-3">
+            <img src={coinGoldImage} alt="" aria-hidden="true" className="mt-2 h-16 w-16 object-contain" />
+            <div className="min-w-0 py-3 pr-8">
+              <h2 id={titleId} className="text-[30px] font-black leading-none tracking-tight text-white min-[390px]:text-[34px]">
+                All <span className="bg-gradient-to-r from-cyan-300 via-blue-400 to-violet-400 bg-clip-text text-transparent">Coin Packs</span>
+              </h2>
+              <p className="mt-2 max-w-[220px] text-sm font-semibold leading-snug text-slate-300 min-[390px]:text-base">
+                Choose the perfect pack for your next adventure
+              </p>
+            </div>
+            <button
+              ref={closeButtonRef}
+              type="button"
+              onClick={onClose}
+              aria-label="Close all coin packs"
+              className="relative flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/8 text-white shadow-lg shadow-black/20 transition hover:bg-white/14"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+
+          <div className="relative mt-3 grid grid-cols-2 overflow-hidden rounded-2xl border border-violet-300/18 bg-slate-950/42">
+            {[
+              { title: "Best Value", description: "More coins for less", icon: Star, color: "text-amber-300" },
+              { title: "Secure Payment", description: "100% safe & trusted", icon: ShieldCheck, color: "text-cyan-300" },
+            ].map(({ title, description, icon: Icon, color }, index) => (
+              <div key={title} className={cn("flex min-w-0 items-center gap-3 px-3 py-3", index === 1 && "border-l border-violet-300/14")}>
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-300/20 bg-white/[0.04]">
+                  <Icon className={cn("h-5 w-5", color)} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-xs font-black text-white">{title}</span>
+                  <span className="mt-0.5 block text-[11px] font-medium leading-tight text-slate-400">{description}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 [-webkit-overflow-scrolling:touch]">
+          <div className="grid gap-2.5">
+            {packages.map((pkg) => (
+              <AllCoinPackageRow key={pkg.id} pkg={pkg} onBuy={onBuy} />
+            ))}
+          </div>
+        </div>
+
+        <footer className="shrink-0 border-t border-violet-300/14 bg-slate-950/44 px-4 py-3 pb-[max(14px,env(safe-area-inset-bottom))]">
+          <div className="flex items-center justify-center gap-3 text-center text-xs leading-5 text-slate-300">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-300/24 bg-violet-400/10 text-violet-200">
+              <ShieldCheck className="h-5 w-5" />
+            </span>
+            <p>
+              All transactions are secure and encrypted.
+              <br />
+              Your information is always protected.
+            </p>
+          </div>
+        </footer>
+      </motion.section>
+    </div>,
+    document.body,
+  );
+};
+
 export const AiCoinsMobileExperience: React.FC<{
   transition: UpgradeModeTransition;
 }> = ({ transition }) => {
@@ -979,8 +1257,32 @@ export const AiCoinsMobileExperience: React.FC<{
   const [actionMessage, setActionMessage] = React.useState<string | null>(null);
   const allPrimaryPackages = primaryCoinPackages.filter((pkg) => pkg.active);
   const allLargePackages = largeCoinPackages.filter((pkg) => pkg.active);
+  const allCoinPackages = [...allPrimaryPackages, ...allLargePackages].sort(
+    (first, second) => first.sortOrder - second.sortOrder,
+  );
+  const defaultSelectedPackage =
+    allPrimaryPackages.find((pkg) => pkg.featured) ??
+    allPrimaryPackages[0] ??
+    allLargePackages[0] ??
+    null;
+  const [selectedPackageId, setSelectedPackageId] = React.useState<string | null>(
+    defaultSelectedPackage?.id ?? null,
+  );
+  const selectedPackage =
+    [...allPrimaryPackages, ...allLargePackages].find(
+      (pkg) => pkg.id === selectedPackageId,
+    ) ??
+    defaultSelectedPackage;
+
+  React.useEffect(() => {
+    if (!selectedPackageId && defaultSelectedPackage) {
+      setSelectedPackageId(defaultSelectedPackage.id);
+    }
+  }, [defaultSelectedPackage, selectedPackageId]);
 
   const handleSelectPackage = (pkg: AiCoinPackage) => {
+    setSelectedPackageId(pkg.id);
+
     if (!isAuthenticated) {
       openAuthenticationModal({ returnTo: "/ai-coins", reason: "payment" });
       return;
@@ -994,75 +1296,100 @@ export const AiCoinsMobileExperience: React.FC<{
     openAiCoinsModal({ packageId: pkg.id, step: "payment" });
   };
 
+  const [allPackagesOpen, setAllPackagesOpen] = React.useState(false);
+
+  const handleOpenAllPackages = () => {
+    setAllPackagesOpen(true);
+  };
+
+  const handleBuyFromAllPackages = (pkg: AiCoinPackage) => {
+    setAllPackagesOpen(false);
+    handleSelectPackage(pkg);
+  };
+
   return (
-    <div className="w-full min-w-0 max-w-full overflow-x-clip pb-24 sm:pb-20">
-      <div className="flex w-full min-w-0 max-w-full items-center justify-between gap-3 overflow-hidden">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          aria-label="Go back"
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-violet-300/22 bg-slate-950/64 text-white shadow-[0_12px_28px_rgba(15,23,42,0.24)] transition active:scale-95"
-        >
-          <ArrowLeft className="h-6 w-6" />
-        </button>
-        <MobileWalletBalance />
+    <>
+      <div className="w-full min-w-0 max-w-full overflow-x-clip pb-[max(24px,env(safe-area-inset-bottom))]">
+        <MobileTopSection onBack={() => navigate(-1)} />
+
+        <MobileHeroSection />
+        <MobileBenefitsStrip />
+
+        <MembershipCoinSwitcher
+          activeTab="coins"
+          visualTab={transition.visualMode}
+          isTransitioning={transition.isTransitioning}
+          onTabSelect={transition.switchMode}
+          mobileCoinsFirst
+          className="mt-4"
+        />
+
+        {actionMessage ? (
+          <div className="mt-4 flex items-start gap-3 rounded-2xl border border-blue-300/20 bg-blue-400/10 p-3 text-sm font-bold text-blue-100">
+            <Zap className="mt-0.5 h-5 w-5 shrink-0 text-blue-200" />
+            <span>{actionMessage}</span>
+          </div>
+        ) : null}
+
+        <section className="mt-4 w-full min-w-0 overflow-hidden">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-black text-white">Popular Packs</h2>
+            <button
+              type="button"
+              onClick={handleOpenAllPackages}
+              className="inline-flex items-center gap-1 text-sm font-bold text-slate-300 transition hover:text-white"
+              aria-label="View all popular packs"
+            >
+              View all <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="mt-3 flex w-full min-w-0 snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {allPrimaryPackages.map((pkg) => (
+              <MobilePackageCard
+                key={pkg.id}
+                pkg={pkg}
+                onSelect={handleSelectPackage}
+                isSelected={selectedPackage?.id === pkg.id || (isAiCoinsModalOpen && modalOptions.packageId === pkg.id)}
+              />
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-5 w-full min-w-0 overflow-hidden">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-black text-white">More Value Packs</h2>
+            <button
+              type="button"
+              onClick={handleOpenAllPackages}
+              className="inline-flex items-center gap-1 text-sm font-bold text-slate-300 transition hover:text-white"
+              aria-label="View all value packs"
+            >
+              View all <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="mt-3 grid w-full min-w-0 gap-2.5">
+            {allLargePackages.map((pkg) => (
+              <MobileValuePackCard
+                key={pkg.id}
+                pkg={pkg}
+                onSelect={handleSelectPackage}
+                isSelected={selectedPackage?.id === pkg.id || (isAiCoinsModalOpen && modalOptions.packageId === pkg.id)}
+              />
+            ))}
+          </div>
+        </section>
+
+        <MobilePaymentMethodsSection />
+        <MobileSecurePaymentBanner />
       </div>
 
-      <MobileHeroSection />
-      <MobileBenefitsStrip />
-
-      <MembershipCoinSwitcher
-        activeTab="coins"
-        visualTab={transition.visualMode}
-        isTransitioning={transition.isTransitioning}
-        onTabSelect={transition.switchMode}
-        className="mt-5"
+      <AllCoinPackagesModal
+        open={allPackagesOpen}
+        packages={allCoinPackages}
+        onClose={() => setAllPackagesOpen(false)}
+        onBuy={handleBuyFromAllPackages}
       />
-
-      {actionMessage ? (
-        <div className="mt-4 flex items-start gap-3 rounded-2xl border border-blue-300/20 bg-blue-400/10 p-3 text-sm font-bold text-blue-100">
-          <Zap className="mt-0.5 h-5 w-5 shrink-0 text-blue-200" />
-          <span>{actionMessage}</span>
-        </div>
-      ) : null}
-
-      <section className="mt-5 grid w-full min-w-0 grid-cols-2 gap-3 min-[400px]:grid-cols-3 sm:grid-cols-3 md:grid-cols-4">
-        {allPrimaryPackages.map((pkg) => (
-          <MobilePackageCard
-            key={pkg.id}
-            pkg={pkg}
-            onSelect={handleSelectPackage}
-            isSelected={isAiCoinsModalOpen && modalOptions.packageId === pkg.id}
-          />
-        ))}
-      </section>
-
-      <section className="mt-6 w-full min-w-0 overflow-hidden rounded-[22px] border border-violet-300/18 bg-slate-950/48 p-3 shadow-[0_18px_42px_rgba(2,6,23,0.22)]">
-        <div className="flex items-center justify-between gap-3 px-1">
-          <h2 className="text-lg font-black text-white">More Value Packs</h2>
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 text-sm font-bold text-slate-300 transition hover:text-white"
-            aria-label="View all value packs"
-          >
-            View all <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="mt-3 flex w-full min-w-0 max-w-full snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {allLargePackages.map((pkg) => (
-            <MobileValuePackCard
-              key={pkg.id}
-              pkg={pkg}
-              onSelect={handleSelectPackage}
-              isSelected={isAiCoinsModalOpen && modalOptions.packageId === pkg.id}
-            />
-          ))}
-        </div>
-      </section>
-
-      <MobilePaymentMethodsSection />
-      <MobileSecurePaymentBanner />
-    </div>
+    </>
   );
 };
 

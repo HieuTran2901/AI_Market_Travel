@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowRight,
@@ -12,14 +12,17 @@ import {
   ChevronDown,
   Clock,
   CreditCard,
+  Download,
   Globe2,
   Headphones,
   Heart,
+  Home,
   Loader2,
   Lock,
   LogOut,
   MapPin,
   Menu,
+  Plane,
   Search,
   ShieldCheck,
   ShoppingCart,
@@ -40,11 +43,13 @@ import { StatusBadge } from "../../components/ui/StatusBadge";
 import { PaymentTimeline } from "../../components/payment/PaymentTimeline";
 import { DevControls } from "../../components/payment/DevControls";
 import coinGoldImage from "../../assets/images/coin-gold.png";
+import paymentListingSuccessImage from "../../assets/images/payment_listing_success.png";
 import { bookingService } from "../../services/bookingService";
 import { paymentService } from "../../services/paymentService";
 import { useAuth } from "../../context/AuthContext";
 import { useAiCoinWallet } from "../../hooks/useAiCoinWallet";
 import { cn } from "../../lib/utils";
+import { submitSePayCheckout } from "../../utils/submitSePayCheckout";
 import {
   Cart,
   CartItem,
@@ -60,6 +65,17 @@ import {
 
 type CheckoutStep = "details" | "payment" | "review" | "processing" | "result";
 type DevOutcome = "success" | "failed" | "expired";
+
+type ListingBankTransferPaymentSession = {
+  flowType?: "LISTING_BOOKING";
+  orderId?: number;
+  paymentId?: number;
+  listingId?: number | null;
+  paymentMethod?: PaymentMethod;
+  provider?: "SEPAY";
+  checkoutStep?: CheckoutStep;
+  originRoute?: string;
+};
 
 const MotionButton = motion(Button);
 
@@ -256,6 +272,16 @@ function formatDate(value?: string) {
     day: "numeric",
     year: "numeric",
   }).format(new Date(`${value}T00:00:00`));
+}
+
+function formatTime(value?: string) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("en", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function getDuration(item?: CartItem) {
@@ -667,18 +693,39 @@ function PaymentMethodCard({
 
 function ExtraPaymentOptionCard({
   option,
+  selected,
+  onSelect,
 }: {
   option: (typeof EXTRA_PAYMENT_OPTIONS)[number];
+  selected?: boolean;
+  onSelect?: () => void;
 }) {
+  const isBankTransfer = option.id === "BANK";
+
   return (
     <motion.button
       type="button"
-      title="This payment method will be available soon."
-      aria-disabled="true"
+      title={isBankTransfer ? undefined : "This payment method will be available soon."}
+      aria-disabled={!isBankTransfer}
       whileHover={{ y: -3 }}
-      className="relative min-h-[104px] rounded-2xl border border-slate-200 bg-white p-3 text-center opacity-90 shadow-sm transition-all hover:border-blue-200 hover:shadow-xl hover:shadow-blue-100/60 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-[116px] sm:p-4"
+      whileTap={{ scale: isBankTransfer ? 0.98 : 1 }}
+      onClick={isBankTransfer ? onSelect : undefined}
+      className={cn(
+        "relative min-h-[104px] rounded-2xl border p-3 text-center shadow-sm transition-all hover:border-blue-200 hover:shadow-xl hover:shadow-blue-100/60 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-[116px] sm:p-4",
+        selected
+          ? "border-blue-500 bg-blue-50/70 shadow-xl shadow-blue-100"
+          : "border-slate-200 bg-white",
+        !isBankTransfer && "opacity-90",
+      )}
     >
-      <span className="absolute right-4 top-4 h-5 w-5 rounded-full border border-slate-300 bg-white" />
+      <span
+        className={cn(
+          "absolute right-4 top-4 flex h-5 w-5 items-center justify-center rounded-full border bg-white",
+          selected ? "border-blue-500 bg-blue-600 text-white" : "border-slate-300",
+        )}
+      >
+        {selected && <Check className="h-3 w-3" />}
+      </span>
       <div className="flex h-10 items-center justify-center">
         <PaymentLogoMark logo={option.logo} />
       </div>
@@ -1366,6 +1413,7 @@ function BookingSummaryCard({
 
 export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const aiCoinWalletQuery = useAiCoinWallet();
   const [step, setStep] = useState<CheckoutStep>("details");
@@ -1383,6 +1431,7 @@ export const CheckoutPage: React.FC = () => {
   const [travelersSameAsContact, setTravelersSameAsContact] = useState(true);
   const checkoutContentRef = useRef<HTMLDivElement>(null);
   const paymentSubmissionRef = useRef(false);
+  const sepayReturnHandledRef = useRef(false);
   const [promoCode, setPromoCode] = useState("");
 
   const loadCart = async () => {
@@ -1401,6 +1450,101 @@ export const CheckoutPage: React.FC = () => {
   useEffect(() => {
     loadCart();
   }, []);
+
+  useEffect(() => {
+    if (sepayReturnHandledRef.current) return;
+
+    const params = new URLSearchParams(location.search);
+    const sepayResult = params.get("sepayResult");
+    if (!sepayResult) return;
+
+    sepayReturnHandledRef.current = true;
+    const paymentIdFromUrl = Number(params.get("paymentId"));
+    let savedSession: ListingBankTransferPaymentSession | null = null;
+    const savedSessionValue = window.sessionStorage.getItem(
+      "listing-bank-transfer-payment-session",
+    );
+    if (savedSessionValue) {
+      try {
+        savedSession = JSON.parse(savedSessionValue) as ListingBankTransferPaymentSession;
+      } catch {
+        savedSession = null;
+      }
+    }
+
+    const paymentId =
+      Number.isFinite(paymentIdFromUrl) && paymentIdFromUrl > 0
+        ? paymentIdFromUrl
+        : savedSession?.paymentId;
+
+    setSelectedMethod(PaymentMethod.BANK_TRANSFER);
+    setError(null);
+
+    if (sepayResult === "cancel" || sepayResult === "error") {
+      setError(
+        sepayResult === "cancel"
+          ? "Bank Transfer checkout was cancelled. Your booking details are still here."
+          : "Bank Transfer checkout could not be completed. Please try again.",
+      );
+      moveToStep("payment");
+      return;
+    }
+
+    if (!paymentId) {
+      setError("Unable to restore the Bank Transfer payment. Please check Payment History.");
+      moveToStep("payment");
+      return;
+    }
+
+    let cancelled = false;
+    const terminalStatuses = new Set<PaymentStatus>([
+      PaymentStatus.SUCCESS,
+      PaymentStatus.FAILED,
+      PaymentStatus.CANCELLED,
+      PaymentStatus.EXPIRED,
+      PaymentStatus.REFUNDED,
+    ]);
+
+    const restorePayment = async () => {
+      setProcessing(true);
+      moveToStep("processing");
+      for (let attempt = 0; attempt < 12 && !cancelled; attempt += 1) {
+        try {
+          const response = await paymentService.getPayment(paymentId);
+          const restoredPayment = response.data;
+          setPayment(restoredPayment);
+          saveRecentPaymentId(restoredPayment.id);
+          if (terminalStatuses.has(restoredPayment.status)) {
+            moveToStep("result");
+            return;
+          }
+        } catch (err: unknown) {
+          if (!cancelled) {
+            setError(getApiErrorMessage(err, "Unable to verify Bank Transfer payment."));
+            moveToStep("payment");
+          }
+          return;
+        }
+
+        await new Promise((resolve) => window.setTimeout(resolve, 2000));
+      }
+
+      if (!cancelled) {
+        setError("Bank Transfer payment is still being verified. Please refresh shortly or check Payment History.");
+        moveToStep("processing");
+      }
+    };
+
+    restorePayment().finally(() => {
+      if (!cancelled) {
+        setProcessing(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [location.search]);
 
   useEffect(() => {
     if (user) {
@@ -1474,7 +1618,7 @@ export const CheckoutPage: React.FC = () => {
     setProcessing(true);
     setError(null);
     moveToStep("processing");
-    let momoRedirectStarted = false;
+    let externalRedirectStarted = false;
 
     try {
       const orderResponse = await bookingService.createOrder(
@@ -1482,14 +1626,22 @@ export const CheckoutPage: React.FC = () => {
       );
       const scenarioSuffix = outcome === "success" ? "success" : outcome;
       const momoStorageKey = `momo-idempotency-${orderResponse.data.id}`;
+      const sepayStorageKey = `sepay-idempotency-${orderResponse.data.id}`;
       const existingMomoKey = window.sessionStorage.getItem(momoStorageKey);
+      const existingSepayKey = window.sessionStorage.getItem(sepayStorageKey);
       const idempotencyKey =
         selectedMethod === PaymentMethod.MOMO
           ? existingMomoKey ??
             `checkout-momo-${orderResponse.data.id}-${window.crypto.randomUUID()}`
+          : selectedMethod === PaymentMethod.BANK_TRANSFER
+            ? existingSepayKey ??
+              `checkout-sepay-${orderResponse.data.id}-${window.crypto.randomUUID()}`
           : `checkout-${orderResponse.data.id}-${scenarioSuffix}-${Date.now()}`;
       if (selectedMethod === PaymentMethod.MOMO && !existingMomoKey) {
         window.sessionStorage.setItem(momoStorageKey, idempotencyKey);
+      }
+      if (selectedMethod === PaymentMethod.BANK_TRANSFER && !existingSepayKey) {
+        window.sessionStorage.setItem(sepayStorageKey, idempotencyKey);
       }
       const paymentResponse = await paymentService.createPayment(
         orderResponse.data.id,
@@ -1513,7 +1665,41 @@ export const CheckoutPage: React.FC = () => {
           throw new Error("The MoMo payment URL could not be verified.");
         }
         window.location.assign(parsedPayUrl.toString());
-        momoRedirectStarted = true;
+        externalRedirectStarted = true;
+        return;
+      }
+      if (selectedMethod === PaymentMethod.BANK_TRANSFER) {
+        const { checkoutUrl, checkoutFields } = paymentResponse.data;
+        if (!checkoutUrl || !checkoutFields || Object.keys(checkoutFields).length === 0) {
+          throw new Error(
+            "Bank Transfer checkout is missing signed payment fields. Please try again shortly.",
+          );
+        }
+        const parsedCheckoutUrl = new URL(checkoutUrl);
+        if (
+          parsedCheckoutUrl.protocol !== "https:" ||
+          !["pay-sandbox.sepay.vn", "pay.sepay.vn"].includes(parsedCheckoutUrl.hostname)
+        ) {
+          throw new Error("The Bank Transfer checkout URL could not be verified.");
+        }
+        window.sessionStorage.setItem(
+          "listing-bank-transfer-payment-session",
+          JSON.stringify({
+            orderId: orderResponse.data.id,
+            paymentId: paymentResponse.data.id,
+            listingId: primaryItem?.listingId ?? null,
+            paymentMethod: PaymentMethod.BANK_TRANSFER,
+            provider: "SEPAY",
+            flowType: "LISTING_BOOKING",
+            checkoutStep: step,
+            originRoute: `${window.location.pathname}${window.location.search}${window.location.hash}`,
+          }),
+        );
+        submitSePayCheckout({
+          checkoutUrl: parsedCheckoutUrl.toString(),
+          checkoutFields,
+        });
+        externalRedirectStarted = true;
         return;
       }
       moveToStep("result");
@@ -1521,7 +1707,7 @@ export const CheckoutPage: React.FC = () => {
       setError(getApiErrorMessage(err, "Checkout failed."));
       moveToStep("review");
     } finally {
-      if (!momoRedirectStarted) {
+      if (!externalRedirectStarted) {
         setProcessing(false);
         paymentSubmissionRef.current = false;
       }
@@ -1551,10 +1737,13 @@ export const CheckoutPage: React.FC = () => {
   const visibleTravelerCount = Math.max(1, Math.min(totalGuests || 1, 2));
 
   const selectedPaymentLabel =
-    PAYMENT_METHODS.find((method) => method.value === selectedMethod)?.label ||
-    "Mock Payment";
+    selectedMethod === PaymentMethod.BANK_TRANSFER
+      ? "Bank Transfer"
+      : PAYMENT_METHODS.find((method) => method.value === selectedMethod)?.label ||
+        "Mock Payment";
   const isAiCoinSelected = selectedMethod === PaymentMethod.AI_COINS;
   const isMomoSelected = selectedMethod === PaymentMethod.MOMO;
+  const isBankTransferSelected = selectedMethod === PaymentMethod.BANK_TRANSFER;
 
   const wizardContent = (
     <AnimatePresence mode="wait">
@@ -1754,7 +1943,15 @@ export const CheckoutPage: React.FC = () => {
                 </h3>
                 <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                   {EXTRA_PAYMENT_OPTIONS.map((option) => (
-                    <ExtraPaymentOptionCard key={option.id} option={option} />
+                    <ExtraPaymentOptionCard
+                      key={option.id}
+                      option={option}
+                      selected={
+                        option.id === "BANK" &&
+                        selectedMethod === PaymentMethod.BANK_TRANSFER
+                      }
+                      onSelect={() => setSelectedMethod(PaymentMethod.BANK_TRANSFER)}
+                    />
                   ))}
                 </div>
 
@@ -2062,6 +2259,8 @@ export const CheckoutPage: React.FC = () => {
                         ? "border-amber-300 bg-amber-50 text-amber-950"
                         : isMomoSelected
                           ? "border-pink-300 bg-pink-50 text-pink-950"
+                          : isBankTransferSelected
+                            ? "border-blue-300 bg-blue-50 text-blue-950"
                         : "border-slate-200 bg-white text-slate-950",
                     )}
                   >
@@ -2077,6 +2276,8 @@ export const CheckoutPage: React.FC = () => {
                       ? "AI Coins"
                       : isMomoSelected
                         ? "MoMo"
+                        : isBankTransferSelected
+                          ? "Bank Transfer"
                         : "Card"}
                   </span>
                   <span>
@@ -2088,6 +2289,8 @@ export const CheckoutPage: React.FC = () => {
                         ? "Pay with your available AI Coin balance"
                         : isMomoSelected
                           ? "Secure MoMo Sandbox wallet payment"
+                          : isBankTransferSelected
+                            ? "Secure SePay bank transfer checkout"
                         : "Instant test payment through MockPaymentGateway"}
                     </span>
                   </span>
@@ -2233,6 +2436,8 @@ export const CheckoutPage: React.FC = () => {
                         ? "bg-gradient-to-r from-blue-600 via-violet-600 to-purple-600 shadow-violet-500/20"
                         : isMomoSelected
                           ? "bg-gradient-to-r from-pink-600 to-fuchsia-600 shadow-pink-500/20"
+                          : isBankTransferSelected
+                            ? "bg-gradient-to-r from-blue-600 to-cyan-500 shadow-blue-500/20"
                         : "bg-gradient-to-r from-blue-600 to-teal-500 shadow-blue-500/20",
                     )}
                     onClick={() => submitPayment("success")}
@@ -2259,6 +2464,8 @@ export const CheckoutPage: React.FC = () => {
                           ? "Pay with AI Coins"
                           : isMomoSelected
                             ? "Pay with MoMo"
+                            : isBankTransferSelected
+                              ? "Pay by Bank Transfer"
                           : "Confirm Booking"}
                       </span>
                       <span className="block text-xs font-medium text-white/85">
@@ -2266,6 +2473,8 @@ export const CheckoutPage: React.FC = () => {
                           ? "Top up your balance to continue"
                           : isMomoSelected
                             ? "Continue securely in MoMo Sandbox"
+                            : isBankTransferSelected
+                              ? "Continue securely in SePay"
                           : "You won't be charged yet"}
                       </span>
                     </span>
@@ -2293,51 +2502,272 @@ export const CheckoutPage: React.FC = () => {
         )}
 
         {step === "result" && payment && (
-          <div className="mx-auto max-w-2xl space-y-6">
-            <Card className="rounded-3xl">
-              <CardContent className="py-12 text-center">
-                {payment.status === PaymentStatus.SUCCESS ? (
-                  <motion.div
-                    variants={resultContentVariants}
-                    initial={{ scale: 0.4, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ type: "spring", stiffness: 260, damping: 18 }}
-                  >
-                    <CheckCircle2 className="mx-auto mb-4 h-16 w-16 text-emerald-600" />
-                  </motion.div>
-                ) : payment.status === PaymentStatus.EXPIRED ? (
-                  <Clock className="mx-auto mb-4 h-16 w-16 text-slate-500" />
-                ) : (
-                  <XCircle className="mx-auto mb-4 h-16 w-16 text-red-600" />
-                )}
-                <div className="mb-2 flex justify-center">
-                  <StatusBadge kind="payment" status={payment.status} />
+          payment.status === PaymentStatus.SUCCESS ? (
+            <div className="space-y-6">
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,0.7fr)_minmax(320px,0.3fr)]">
+                <div className="space-y-5">
+                  <Card className="overflow-hidden rounded-[28px] border-blue-100 bg-white shadow-xl shadow-blue-100/50">
+                    <CardContent className="relative min-h-[360px] p-0">
+                      <img
+                        src={paymentListingSuccessImage}
+                        alt="Booking payment completed successfully"
+                        className="absolute inset-0 h-full w-full object-cover"
+                      />
+                      <div className="relative grid min-h-[360px] items-center gap-4 p-5 sm:p-7 lg:grid-cols-[0.48fr_0.52fr] lg:p-8">
+                        <div className="min-h-[180px]" aria-hidden="true" />
+                        <motion.div
+                          variants={resultContentVariants}
+                          initial="initial"
+                          animate="animate"
+                          className="rounded-[24px] border border-white/80 bg-white/82 p-5 shadow-lg shadow-blue-100/70 backdrop-blur-sm sm:p-6"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600 shadow-sm">
+                              <CheckCircle2 className="h-8 w-8" />
+                            </span>
+                            <div>
+                              <StatusBadge kind="payment" status={payment.status} />
+                              <h2 className="mt-2 text-2xl font-black tracking-tight text-emerald-700 sm:text-3xl">
+                                Payment Successful!
+                              </h2>
+                            </div>
+                          </div>
+                          <p className="mt-3 text-sm leading-6 text-slate-600 sm:text-base">
+                            Thank you, your booking is confirmed. Your reservation and payment details have been updated.
+                          </p>
+
+                          <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white/90">
+                            <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-4 py-3 text-sm">
+                              <span className="font-semibold text-slate-600">Order ID</span>
+                              <span className="font-black text-slate-950">
+                                {payment.orderNumber || `#${payment.orderId || payment.id}`}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+                              <span className="font-semibold text-slate-600">Total Paid</span>
+                              <span className="text-xl font-black tracking-tight text-emerald-700">
+                                {formatMoney(payment.amount, payment.currency || currency)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                            <Button
+                              className="h-12 rounded-2xl bg-blue-600 font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700"
+                              onClick={() => navigate(`/payments/${payment.id}`)}
+                            >
+                              <Plane className="mr-2 h-4 w-4" />
+                              View payment details
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className="h-12 rounded-2xl border-slate-200 bg-white font-bold"
+                              disabled
+                              title="Invoice download is not available yet"
+                            >
+                              <Download className="mr-2 h-4 w-4" />
+                              Download invoice
+                            </Button>
+                          </div>
+                        </motion.div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="rounded-[26px] border-blue-100 bg-white/95 shadow-lg shadow-blue-100/40">
+                    <CardContent className="p-5 sm:p-6">
+                      <div className="flex items-center gap-4">
+                        <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600 shadow-sm">
+                          <ShieldCheck className="h-8 w-8" />
+                        </span>
+                        <div>
+                          <h3 className="text-lg font-black text-slate-950">Payment Progress</h3>
+                          <p className="mt-1 text-sm text-slate-500">Verified through the current payment status flow.</p>
+                        </div>
+                      </div>
+                      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                        {[
+                          { title: "Order Placed", time: payment.createdAt, Icon: Check },
+                          { title: "Processing Payment", time: payment.createdAt, Icon: Check },
+                          { title: "Payment Complete", time: payment.paidAt || payment.updatedAt, Icon: Sparkles },
+                        ].map(({ title, time, Icon }, index) => (
+                          <div key={title} className="relative rounded-2xl border border-slate-100 bg-slate-50/70 p-4 text-center">
+                            {index < 2 && <span className="pointer-events-none absolute left-[calc(50%+2rem)] top-8 hidden h-px w-[calc(100%-4rem)] bg-emerald-200 sm:block" />}
+                            <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/20">
+                              <Icon className="h-5 w-5" />
+                            </span>
+                            <p className="mt-3 text-sm font-black text-slate-900">{title}</p>
+                            <p className="mt-1 text-xs font-semibold text-slate-500">{formatTime(String(time || ""))}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <div className="flex flex-col justify-center gap-3 sm:flex-row">
+                    <Button
+                      className="h-12 rounded-2xl bg-blue-600 px-8 font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700"
+                      onClick={() => navigate("/search")}
+                    >
+                      <Plane className="mr-2 h-4 w-4" />
+                      Explore more trips
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-12 rounded-2xl bg-white px-8 font-bold"
+                      onClick={() => navigate("/search")}
+                    >
+                      <Home className="mr-2 h-4 w-4" />
+                      Back to listings
+                    </Button>
+                  </div>
                 </div>
-                <h2 className="text-2xl font-black text-slate-950">
-                  Payment result
-                </h2>
-                <p className="mt-2 text-slate-500">
-                  Payment #{payment.id} for order #{payment.orderId}
-                </p>
-                <p className="mt-2 font-bold text-slate-950">
-                  {formatMoney(payment.amount, payment.currency || currency)}
-                </p>
-              </CardContent>
-            </Card>
-            <PaymentTimeline
-              currentStatus={paymentStatus}
-              createdAt={payment.createdAt}
-              updatedAt={payment.updatedAt}
-            />
-            <div className="flex flex-wrap justify-center gap-3">
-              <Button onClick={() => navigate(`/payments/${payment.id}`)}>
-                View payment
-              </Button>
-              <Button variant="outline" onClick={() => navigate("/search")}>
-                Browse listings
-              </Button>
+
+                <aside className="space-y-4">
+                  <Card className="rounded-[26px] border-blue-100 bg-white/95 shadow-xl shadow-slate-200/70">
+                    <CardContent className="p-5">
+                      <h3 className="text-lg font-black text-slate-950">Your booking summary</h3>
+                      {primaryItem ? (
+                        <>
+                          <div className="mt-4 flex gap-4">
+                            <div className="h-[118px] w-[128px] shrink-0 overflow-hidden rounded-2xl bg-slate-100 shadow-sm">
+                              {primaryItem.listingCoverImageUrl ? (
+                                <img
+                                  src={primaryItem.listingCoverImageUrl}
+                                  alt={primaryItem.listingTitle}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-blue-500">
+                                  <Sparkles className="h-8 w-8" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h4 className="line-clamp-2 text-base font-black leading-5 text-slate-950">
+                                {primaryItem.listingTitle}
+                              </h4>
+                              <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                                <MapPin className="h-4 w-4 text-blue-600" />
+                                {[primaryItem.listingCity, primaryItem.listingCountry].filter(Boolean).join(", ") || "Location confirmed after booking"}
+                              </p>
+                              <div className="mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+                                <span className="text-slate-500">Check-in</span>
+                                <span className="text-right font-semibold text-slate-950">{formatDate(primaryItem.startDate)}</span>
+                                <span className="text-slate-500">Check-out</span>
+                                <span className="text-right font-semibold text-slate-950">{formatDate(primaryItem.endDate)}</span>
+                                <span className="text-slate-500">Guests</span>
+                                <span className="text-right font-semibold text-slate-950">
+                                  {primaryItem.quantity} {getQuantityLabel(primaryItem).toLowerCase()}
+                                </span>
+                                <span className="text-slate-500">Services</span>
+                                <span className="text-right font-semibold text-slate-950">
+                                  {items.length} {items.length === 1 ? "service" : "services"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => navigate(primaryItem.listingSlug ? `/listings/${primaryItem.listingSlug}` : "/search")}
+                            className="mt-5 inline-flex items-center gap-2 text-sm font-black text-blue-700 transition hover:text-blue-800"
+                          >
+                            View booking details <ArrowRight className="h-4 w-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <div className="mt-4 rounded-2xl border border-dashed border-blue-200 bg-blue-50/50 p-5 text-center text-sm text-slate-500">
+                          Booking details are unavailable.
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {(totals?.discount || 0) > 0 && (
+                    <Card className="rounded-[24px] border-emerald-100 bg-white/95 shadow-lg shadow-emerald-100/50">
+                      <CardContent className="p-5">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="flex items-center gap-2 text-base font-black text-slate-950">
+                              <Tag className="h-5 w-5 text-blue-600" />
+                              Promo code
+                            </p>
+                            <p className="mt-2 text-sm text-slate-600">
+                              You saved {formatMoney(totals?.discount || 0, currency)} on this booking.
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black text-emerald-700">
+                            Applied
+                          </span>
+                        </div>
+                        <div className="mt-4 flex items-center justify-between rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm">
+                          <span className="font-semibold text-slate-600">{promoCode || "Promo applied"}</span>
+                          <span className="font-black text-emerald-700">-{formatMoney(totals?.discount || 0, currency)}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </aside>
+              </div>
+
+              <Card className="rounded-[26px] border-blue-100 bg-white/95 shadow-lg shadow-slate-200/60">
+                <CardContent className="grid gap-4 p-5 md:grid-cols-3 md:divide-x md:divide-slate-200">
+                  {[
+                    { Icon: ShieldCheck, title: "Secure Payment", description: "Protected by industry-standard security." },
+                    { Icon: BadgeCheck, title: "Best Price Guarantee", description: "Transparent pricing from verified providers." },
+                    { Icon: Headphones, title: "24/7 Support", description: "Help is available throughout your trip." },
+                  ].map(({ Icon, title, description }) => (
+                    <div key={title} className="flex items-center gap-4 md:px-5 first:md:pl-0 last:md:pr-0">
+                      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                        <Icon className="h-6 w-6" />
+                      </span>
+                      <span>
+                        <span className="block font-black text-slate-950">{title}</span>
+                        <span className="mt-1 block text-sm text-slate-500">{description}</span>
+                      </span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
             </div>
-          </div>
+          ) : (
+            <div className="mx-auto max-w-2xl space-y-6">
+              <Card className="rounded-3xl">
+                <CardContent className="py-12 text-center">
+                  {payment.status === PaymentStatus.EXPIRED ? (
+                    <Clock className="mx-auto mb-4 h-16 w-16 text-slate-500" />
+                  ) : (
+                    <XCircle className="mx-auto mb-4 h-16 w-16 text-red-600" />
+                  )}
+                  <div className="mb-2 flex justify-center">
+                    <StatusBadge kind="payment" status={payment.status} />
+                  </div>
+                  <h2 className="text-2xl font-black text-slate-950">
+                    Payment result
+                  </h2>
+                  <p className="mt-2 text-slate-500">
+                    Payment #{payment.id} for order #{payment.orderId}
+                  </p>
+                  <p className="mt-2 font-bold text-slate-950">
+                    {formatMoney(payment.amount, payment.currency || currency)}
+                  </p>
+                </CardContent>
+              </Card>
+              <PaymentTimeline
+                currentStatus={paymentStatus}
+                createdAt={payment.createdAt}
+                updatedAt={payment.updatedAt}
+              />
+              <div className="flex flex-wrap justify-center gap-3">
+                <Button onClick={() => navigate(`/payments/${payment.id}`)}>
+                  View payment
+                </Button>
+                <Button variant="outline" onClick={() => navigate("/search")}>
+                  Browse listings
+                </Button>
+              </div>
+            </div>
+          )
         )}
       </motion.section>
     </AnimatePresence>
@@ -2401,7 +2831,7 @@ export const CheckoutPage: React.FC = () => {
                   className="py-16"
                 />
               </motion.div>
-            ) : items.length === 0 ? (
+            ) : items.length === 0 && !payment ? (
               <motion.div
                 key="empty"
                 variants={checkoutContentVariants}

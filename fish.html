@@ -1,0 +1,943 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Universal Fish Sprite Tester</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Arial, sans-serif;
+        color: #eaf8ff;
+        background: linear-gradient(180deg, #06142b, #052441, #020b17);
+      }
+      .shell {
+        width: min(1240px, calc(100% - 28px));
+        margin: 0 auto;
+        padding: 22px 0;
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 30px;
+      }
+      p {
+        margin: 0 0 16px;
+        color: #9fc6d7;
+        line-height: 1.45;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        gap: 16px;
+      }
+      .panel,
+      .stage-card {
+        border: 1px solid rgba(145, 213, 255, 0.24);
+        border-radius: 16px;
+        background: rgba(7, 23, 46, 0.82);
+        box-shadow: 0 20px 70px rgba(0, 0, 0, 0.32);
+      }
+      .panel {
+        padding: 16px;
+        max-height: calc(100vh - 44px);
+        overflow: auto;
+      }
+      .field {
+        display: grid;
+        gap: 7px;
+        margin-bottom: 12px;
+      }
+      label {
+        color: #c9ecff;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      input,
+      select,
+      button {
+        width: 100%;
+        border: 1px solid rgba(154, 221, 255, 0.28);
+        border-radius: 10px;
+        color: #eaf8ff;
+        background: rgba(3, 14, 32, 0.76);
+        font: inherit;
+      }
+      input,
+      select {
+        min-height: 40px;
+        padding: 0 10px;
+      }
+      input[type="file"] {
+        padding: 9px;
+      }
+      input[type="checkbox"] {
+        width: auto;
+        min-height: auto;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .grid-3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 8px;
+      }
+      .checks {
+        display: grid;
+        gap: 9px;
+        margin: 10px 0 12px;
+        padding: 10px;
+        border: 1px solid rgba(56, 217, 255, 0.22);
+        border-radius: 12px;
+        background: rgba(56, 217, 255, 0.07);
+      }
+      .check {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        color: #c9ecff;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 12px;
+      }
+      button {
+        min-height: 42px;
+        cursor: pointer;
+        font-weight: 800;
+      }
+      button:hover {
+        border-color: rgba(56, 217, 255, 0.8);
+      }
+      .primary {
+        color: #032032;
+        border-color: rgba(255, 209, 102, 0.85);
+        background: linear-gradient(135deg, #ffe08a, #36e4ff);
+      }
+      .auto-button {
+        margin-top: 10px;
+        color: #032032;
+        background: linear-gradient(135deg, #38d9ff, #8fffea);
+      }
+      .hint {
+        margin-top: 12px;
+        padding: 11px;
+        border-radius: 12px;
+        color: #bfeeff;
+        background: rgba(56, 217, 255, 0.09);
+        line-height: 1.4;
+        font-size: 13px;
+      }
+      .stage-card {
+        position: relative;
+        min-height: 620px;
+        overflow: hidden;
+      }
+      .ocean {
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(
+            circle at 50% 100%,
+            rgba(6, 76, 111, 0.75),
+            transparent 40%
+          ),
+          linear-gradient(
+            180deg,
+            rgba(49, 205, 255, 0.32),
+            rgba(4, 38, 75, 0.9)
+          );
+      }
+      .bubbles {
+        position: absolute;
+        inset: 0;
+        opacity: 0.62;
+        background-image:
+          radial-gradient(
+            circle,
+            rgba(225, 251, 255, 0.82) 0 2px,
+            transparent 3px
+          ),
+          radial-gradient(
+            circle,
+            rgba(225, 251, 255, 0.5) 0 3px,
+            transparent 4px
+          );
+        background-position:
+          20px 60px,
+          90px 120px;
+        background-size:
+          160px 190px,
+          230px 260px;
+        animation: drift 12s linear infinite;
+      }
+      canvas {
+        position: relative;
+        display: block;
+        width: 100%;
+        height: 620px;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+      }
+      .status {
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        bottom: 16px;
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 11px 13px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 12px;
+        background: rgba(2, 12, 26, 0.68);
+        font-size: 13px;
+      }
+      .pill {
+        color: #062133;
+        padding: 5px 9px;
+        border-radius: 999px;
+        font-weight: 900;
+        background: #ffd166;
+        white-space: nowrap;
+      }
+      @keyframes drift {
+        to {
+          background-position:
+            20px -140px,
+            90px -180px;
+        }
+      }
+      @media (max-width: 900px) {
+        .layout {
+          display: block;
+        }
+        .panel {
+          max-height: none;
+          margin-bottom: 16px;
+        }
+        .stage-card {
+          min-height: 460px;
+        }
+        canvas {
+          height: 460px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <h1>Universal Fish Sprite Tester</h1>
+      <p>
+        Upload sprite sheet cá. Bản này tự crop vùng pixel thật trong từng frame
+        và căn tâm để giảm giật do padding lệch.
+      </p>
+
+      <section class="layout">
+        <aside class="panel">
+          <div class="field">
+            <label for="fileInput">Sprite sheet PNG</label>
+            <input
+              id="fileInput"
+              type="file"
+              accept="image/png,image/webp,image/jpeg"
+            />
+          </div>
+
+          <div class="grid">
+            <div class="field">
+              <label for="frameWidth">Frame width</label>
+              <input id="frameWidth" type="number" min="1" value="128" />
+            </div>
+            <div class="field">
+              <label for="frameHeight">Frame height</label>
+              <input id="frameHeight" type="number" min="1" value="128" />
+            </div>
+          </div>
+
+          <div class="grid">
+            <div class="field">
+              <label for="frameCount">Frames</label>
+              <input id="frameCount" type="number" min="1" value="8" />
+            </div>
+            <div class="field">
+              <label for="fps">FPS</label>
+              <input id="fps" type="number" min="1" max="30" value="8" />
+            </div>
+          </div>
+
+          <div class="grid">
+            <div class="field">
+              <label for="columns">Columns</label>
+              <input id="columns" type="number" min="1" value="8" />
+            </div>
+            <div class="field">
+              <label for="scale">Scale</label>
+              <input id="scale" type="number" min="0.1" step="0.1" value="2" />
+            </div>
+          </div>
+
+          <div class="grid-3">
+            <div class="field">
+              <label for="gapX">Gap X</label>
+              <input id="gapX" type="number" min="0" value="0" />
+            </div>
+            <div class="field">
+              <label for="gapY">Gap Y</label>
+              <input id="gapY" type="number" min="0" value="0" />
+            </div>
+            <div class="field">
+              <label for="startX">Start X</label>
+              <input id="startX" type="number" min="0" value="0" />
+            </div>
+          </div>
+
+          <div class="grid">
+            <div class="field">
+              <label for="startY">Start Y</label>
+              <input id="startY" type="number" min="0" value="0" />
+            </div>
+            <div class="field">
+              <label for="alphaThreshold">Alpha threshold</label>
+              <input
+                id="alphaThreshold"
+                type="number"
+                min="1"
+                max="255"
+                value="8"
+              />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="mode">Movement</label>
+            <select id="mode">
+              <option value="idle">Idle in place</option>
+              <option value="swim">Swim across screen</option>
+            </select>
+          </div>
+
+          <div class="grid">
+            <div class="field">
+              <label for="direction">Sprite faces</label>
+              <select id="direction">
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="swimDirection">Swim direction</label>
+              <select id="swimDirection">
+                <option value="auto">Auto</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid">
+            <div class="field">
+              <label for="flipMode">Draw mode</label>
+              <select id="flipMode">
+                <option value="normal">Normal</option>
+                <option value="flip">Flip horizontally</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="anchorMode">Anchor</label>
+              <select id="anchorMode">
+                <option value="trim-center">Trim center</option>
+                <option value="frame-center">Frame center</option>
+                <option value="bottom-center">Bottom center</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="checks">
+            <label class="check">
+              <input id="autoTrim" type="checkbox" checked />
+              Auto trim transparent padding
+            </label>
+            <label class="check">
+              <input id="stabilizeCenter" type="checkbox" checked />
+              Stabilize center across frames
+            </label>
+            <label class="check">
+              <input id="pixelSnap" type="checkbox" checked />
+              Snap to integer pixels
+            </label>
+            <label class="check">
+              <input id="waveMotion" type="checkbox" />
+              Add wave motion
+            </label>
+            <label class="check">
+              <input id="showBoxes" type="checkbox" />
+              Show frame/trim boxes
+            </label>
+          </div>
+
+          <div class="actions">
+            <button class="primary" id="playButton" type="button">Pause</button>
+            <button id="resetButton" type="button">Reset</button>
+          </div>
+
+          <button class="auto-button" id="autoDetectButton" type="button">
+            Auto detect sprite sheet
+          </button>
+
+          <div class="hint" id="hintBox">
+            Nếu cá giật: bật Auto trim + Stabilize center, để Movement = Idle,
+            Scale = 2, Wave off.
+          </div>
+        </aside>
+
+        <section class="stage-card">
+          <div class="ocean"></div>
+          <div class="bubbles"></div>
+          <canvas id="stage" width="980" height="620"></canvas>
+          <div class="status">
+            <span id="statusText">Choose your sprite sheet to begin.</span>
+            <span class="pill" id="frameLabel">Frame 1</span>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script>
+      const canvas = document.getElementById("stage");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      const fileInput = document.getElementById("fileInput");
+      const playButton = document.getElementById("playButton");
+      const resetButton = document.getElementById("resetButton");
+      const autoDetectButton = document.getElementById("autoDetectButton");
+      const statusText = document.getElementById("statusText");
+      const frameLabel = document.getElementById("frameLabel");
+      const hintBox = document.getElementById("hintBox");
+
+      const inputs = {
+        frameWidth: document.getElementById("frameWidth"),
+        frameHeight: document.getElementById("frameHeight"),
+        frameCount: document.getElementById("frameCount"),
+        fps: document.getElementById("fps"),
+        columns: document.getElementById("columns"),
+        scale: document.getElementById("scale"),
+        gapX: document.getElementById("gapX"),
+        gapY: document.getElementById("gapY"),
+        startX: document.getElementById("startX"),
+        startY: document.getElementById("startY"),
+        alphaThreshold: document.getElementById("alphaThreshold"),
+        mode: document.getElementById("mode"),
+        direction: document.getElementById("direction"),
+        swimDirection: document.getElementById("swimDirection"),
+        flipMode: document.getElementById("flipMode"),
+        anchorMode: document.getElementById("anchorMode"),
+        autoTrim: document.getElementById("autoTrim"),
+        stabilizeCenter: document.getElementById("stabilizeCenter"),
+        pixelSnap: document.getElementById("pixelSnap"),
+        waveMotion: document.getElementById("waveMotion"),
+        showBoxes: document.getElementById("showBoxes"),
+      };
+
+      const state = {
+        image: null,
+        imageName: "",
+        playing: true,
+        fishX: canvas.width + 80,
+        fishY: canvas.height * 0.44,
+        lastTime: 0,
+        frameTimer: 0,
+        currentFrame: 0,
+        frameData: [],
+        stableCenter: { x: 0, y: 0 },
+      };
+
+      function numberValue(name, fallback) {
+        const value = Number(inputs[name].value);
+        return Number.isFinite(value) ? value : fallback;
+      }
+
+      function positiveValue(name, fallback) {
+        const value = Number(inputs[name].value);
+        return Number.isFinite(value) && value > 0 ? value : fallback;
+      }
+
+      function intValue(name, fallback) {
+        return Math.max(0, Math.floor(numberValue(name, fallback)));
+      }
+
+      function setInputValue(name, value) {
+        inputs[name].value = String(value);
+      }
+
+      function getEffectiveSwimDirection() {
+        if (inputs.swimDirection.value !== "auto")
+          return inputs.swimDirection.value;
+        return inputs.direction.value;
+      }
+
+      function resetFish() {
+        const frameWidth = positiveValue("frameWidth", 128);
+        const scale = positiveValue("scale", 2);
+        const drawnWidth = frameWidth * scale;
+
+        state.fishY = canvas.height * 0.44;
+        state.currentFrame = 0;
+        state.frameTimer = 0;
+
+        if (getEffectiveSwimDirection() === "left") {
+          state.fishX = canvas.width + 80;
+        } else {
+          state.fishX = -drawnWidth - 80;
+        }
+      }
+
+      function getLayout() {
+        return {
+          frameWidth: Math.floor(positiveValue("frameWidth", 128)),
+          frameHeight: Math.floor(positiveValue("frameHeight", 128)),
+          frameCount: Math.max(1, Math.floor(positiveValue("frameCount", 8))),
+          columns: Math.max(1, Math.floor(positiveValue("columns", 8))),
+          gapX: intValue("gapX", 0),
+          gapY: intValue("gapY", 0),
+          startX: intValue("startX", 0),
+          startY: intValue("startY", 0),
+        };
+      }
+
+      function getSourceRect(frameIndex) {
+        const layout = getLayout();
+        const col = frameIndex % layout.columns;
+        const row = Math.floor(frameIndex / layout.columns);
+
+        return {
+          x: layout.startX + col * (layout.frameWidth + layout.gapX),
+          y: layout.startY + row * (layout.frameHeight + layout.gapY),
+          w: layout.frameWidth,
+          h: layout.frameHeight,
+        };
+      }
+
+      function autoDetectSpriteSheet() {
+        if (!state.image) {
+          hintBox.textContent = "Please upload a sprite sheet first.";
+          return;
+        }
+
+        const imageWidth = state.image.naturalWidth || state.image.width;
+        const imageHeight = state.image.naturalHeight || state.image.height;
+
+        const preferredFrameCounts = [8, 10, 6, 12, 4, 5, 7, 9, 16];
+
+        let best = null;
+
+        for (const count of preferredFrameCounts) {
+          if (imageWidth % count !== 0) continue;
+
+          const frameWidth = imageWidth / count;
+          const frameHeight = imageHeight;
+
+          if (frameWidth < 32 || frameHeight < 32) continue;
+
+          const isEightFrame = count === 8;
+          const isReasonableFishFrame =
+            frameWidth >= frameHeight * 0.8 && frameWidth <= frameHeight * 2.4;
+
+          let score = 0;
+
+          if (isEightFrame) score -= 100;
+          if (isReasonableFishFrame) score -= 40;
+
+          score += Math.abs(frameWidth - frameHeight) * 0.1;
+
+          if (!best || score < best.score) {
+            best = {
+              count,
+              frameWidth,
+              frameHeight,
+              columns: count,
+              score,
+            };
+          }
+        }
+
+        if (!best) {
+          best = {
+            count: 1,
+            frameWidth: imageWidth,
+            frameHeight: imageHeight,
+            columns: 1,
+            score: 9999,
+          };
+        }
+
+        setInputValue("frameWidth", best.frameWidth);
+        setInputValue("frameHeight", best.frameHeight);
+        setInputValue("frameCount", best.count);
+        setInputValue("columns", best.columns);
+
+        setInputValue("gapX", 0);
+        setInputValue("gapY", 0);
+        setInputValue("startX", 0);
+        setInputValue("startY", 0);
+
+        const scale = best.frameHeight <= 128 ? 2 : 1;
+        setInputValue("scale", scale);
+
+        if (inputs.mode) inputs.mode.value = "idle";
+        if (inputs.fps) inputs.fps.value = "8";
+        if (inputs.autoTrim) inputs.autoTrim.checked = true;
+        if (inputs.stabilizeCenter) inputs.stabilizeCenter.checked = true;
+        if (inputs.waveMotion) inputs.waveMotion.checked = false;
+
+        rebuildFrameData();
+        resetFish();
+
+        hintBox.textContent = `Detected: ${best.count} frames, ${best.frameWidth}x${best.frameHeight}, ${best.columns} columns.`;
+        statusText.textContent = `Auto detected ${best.count} frames: ${best.frameWidth}x${best.frameHeight}`;
+      }
+
+      function rebuildFrameData() {
+        if (!state.image) return;
+
+        const layout = getLayout();
+        const threshold = Math.max(
+          1,
+          Math.min(255, Math.floor(positiveValue("alphaThreshold", 8))),
+        );
+        const temp = document.createElement("canvas");
+        temp.width = layout.frameWidth;
+        temp.height = layout.frameHeight;
+        const tctx = temp.getContext("2d", { willReadFrequently: true });
+        const frames = [];
+
+        for (let i = 0; i < layout.frameCount; i += 1) {
+          const rect = getSourceRect(i);
+          const safeRect = clampSourceRect(
+            rect,
+            state.image.width,
+            state.image.height,
+          );
+          tctx.clearRect(0, 0, temp.width, temp.height);
+          tctx.drawImage(
+            state.image,
+            safeRect.x,
+            safeRect.y,
+            safeRect.w,
+            safeRect.h,
+            0,
+            0,
+            safeRect.w,
+            safeRect.h,
+          );
+
+          const box = findOpaqueBox(
+            tctx,
+            layout.frameWidth,
+            layout.frameHeight,
+            threshold,
+          );
+          const trim = box || {
+            x: 0,
+            y: 0,
+            w: layout.frameWidth,
+            h: layout.frameHeight,
+          };
+          const center = {
+            x: trim.x + trim.w / 2,
+            y: trim.y + trim.h / 2,
+          };
+
+          frames.push({ source: rect, safeSource: safeRect, trim, center });
+        }
+
+        const valid = frames.filter(
+          (frame) => frame.trim.w > 0 && frame.trim.h > 0,
+        );
+        const avgCenter = valid.length
+          ? {
+              x:
+                valid.reduce((sum, frame) => sum + frame.center.x, 0) /
+                valid.length,
+              y:
+                valid.reduce((sum, frame) => sum + frame.center.y, 0) /
+                valid.length,
+            }
+          : { x: layout.frameWidth / 2, y: layout.frameHeight / 2 };
+
+        state.frameData = frames;
+        state.stableCenter = avgCenter;
+      }
+
+      function clampSourceRect(rect, imageWidth, imageHeight) {
+        const x = Math.max(0, Math.min(imageWidth, rect.x));
+        const y = Math.max(0, Math.min(imageHeight, rect.y));
+        const w = Math.max(1, Math.min(rect.w, imageWidth - x));
+        const h = Math.max(1, Math.min(rect.h, imageHeight - y));
+        return { x, y, w, h };
+      }
+
+      function findOpaqueBox(context, width, height, threshold) {
+        const data = context.getImageData(0, 0, width, height).data;
+        let minX = width;
+        let minY = height;
+        let maxX = -1;
+        let maxY = -1;
+
+        for (let y = 0; y < height; y += 1) {
+          for (let x = 0; x < width; x += 1) {
+            const alpha = data[(y * width + x) * 4 + 3];
+            if (alpha > threshold) {
+              if (x < minX) minX = x;
+              if (y < minY) minY = y;
+              if (x > maxX) maxX = x;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+
+        if (maxX < minX || maxY < minY) return null;
+        return {
+          x: minX,
+          y: minY,
+          w: maxX - minX + 1,
+          h: maxY - minY + 1,
+        };
+      }
+
+      function drawEmpty() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.fillStyle = "rgba(230, 250, 255, 0.78)";
+        ctx.font = "700 24px Arial, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(
+          "Upload fish sprite sheet",
+          canvas.width / 2,
+          canvas.height / 2 - 8,
+        );
+        ctx.fillStyle = "rgba(190, 231, 245, 0.78)";
+        ctx.font = "16px Arial, sans-serif";
+        ctx.fillText(
+          "Then click Auto detect sprite sheet",
+          canvas.width / 2,
+          canvas.height / 2 + 24,
+        );
+        ctx.restore();
+      }
+
+      function drawSprite(delta) {
+        const layout = getLayout();
+        const fps = positiveValue("fps", 8);
+        const scale = positiveValue("scale", 2);
+        const frameDuration = 1000 / fps;
+        const movementDirection = getEffectiveSwimDirection();
+
+        if (
+          !state.frameData.length ||
+          state.frameData.length !== layout.frameCount
+        ) {
+          rebuildFrameData();
+        }
+
+        if (state.playing) {
+          state.frameTimer += delta;
+
+          while (state.frameTimer >= frameDuration) {
+            state.currentFrame = (state.currentFrame + 1) % layout.frameCount;
+            state.frameTimer -= frameDuration;
+          }
+
+          if (inputs.mode.value === "swim") {
+            const speed = 120 * (delta / 1000);
+            if (movementDirection === "left") {
+              state.fishX -= speed;
+              if (state.fishX < -layout.frameWidth * scale - 50)
+                state.fishX = canvas.width + 80;
+            } else {
+              state.fishX += speed;
+              if (state.fishX > canvas.width + 50)
+                state.fishX = -layout.frameWidth * scale - 80;
+            }
+          }
+        }
+
+        const frameIndex = state.currentFrame % layout.frameCount;
+        const frame = state.frameData[frameIndex] || {
+          source: getSourceRect(frameIndex),
+          trim: { x: 0, y: 0, w: layout.frameWidth, h: layout.frameHeight },
+          center: { x: layout.frameWidth / 2, y: layout.frameHeight / 2 },
+        };
+
+        const useTrim = inputs.autoTrim.checked;
+        const stabilize = inputs.stabilizeCenter.checked;
+        const source = useTrim
+          ? {
+              x: frame.source.x + frame.trim.x,
+              y: frame.source.y + frame.trim.y,
+              w: frame.trim.w,
+              h: frame.trim.h,
+            }
+          : frame.source;
+
+        const drawW = source.w * scale;
+        const drawH = source.h * scale;
+        const wave = inputs.waveMotion.checked
+          ? Math.sin(performance.now() / 420) * 8
+          : 0;
+
+        const anchor = getAnchor(frame, layout, useTrim, stabilize);
+        let anchorX =
+          inputs.mode.value === "idle" ? canvas.width / 2 : state.fishX;
+        let anchorY = state.fishY + wave;
+
+        if (inputs.pixelSnap.checked) {
+          anchorX = Math.round(anchorX);
+          anchorY = Math.round(anchorY);
+        }
+
+        const x = anchorX - anchor.x * scale;
+        const y = anchorY - anchor.y * scale;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+
+        if (inputs.flipMode.value === "flip") {
+          ctx.translate(x + drawW, y);
+          ctx.scale(-1, 1);
+          ctx.drawImage(
+            state.image,
+            source.x,
+            source.y,
+            source.w,
+            source.h,
+            0,
+            0,
+            drawW,
+            drawH,
+          );
+        } else {
+          ctx.drawImage(
+            state.image,
+            source.x,
+            source.y,
+            source.w,
+            source.h,
+            x,
+            y,
+            drawW,
+            drawH,
+          );
+        }
+
+        ctx.restore();
+
+        if (inputs.showBoxes.checked) {
+          drawDebugBoxes(x, y, drawW, drawH, anchorX, anchorY);
+        }
+
+        statusText.textContent = `${state.imageName} | frame ${layout.frameWidth}x${layout.frameHeight} | ${layout.frameCount} frames | ${layout.columns} columns | ${useTrim ? "trim on" : "trim off"}`;
+        frameLabel.textContent = `Frame ${frameIndex + 1}`;
+      }
+
+      function getAnchor(frame, layout, useTrim, stabilize) {
+        if (inputs.anchorMode.value === "frame-center") {
+          return useTrim
+            ? {
+                x: layout.frameWidth / 2 - frame.trim.x,
+                y: layout.frameHeight / 2 - frame.trim.y,
+              }
+            : { x: layout.frameWidth / 2, y: layout.frameHeight / 2 };
+        }
+
+        if (inputs.anchorMode.value === "bottom-center") {
+          return useTrim
+            ? { x: frame.trim.w / 2, y: frame.trim.h }
+            : { x: layout.frameWidth / 2, y: layout.frameHeight };
+        }
+
+        if (useTrim) {
+          if (stabilize) {
+            return {
+              x: state.stableCenter.x - frame.trim.x,
+              y: state.stableCenter.y - frame.trim.y,
+            };
+          }
+
+          return { x: frame.trim.w / 2, y: frame.trim.h / 2 };
+        }
+
+        return { x: layout.frameWidth / 2, y: layout.frameHeight / 2 };
+      }
+
+      function drawDebugBoxes(x, y, w, h, anchorX, anchorY) {
+        ctx.save();
+        ctx.strokeStyle = "#ffd166";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, w, h);
+        ctx.strokeStyle = "#38d9ff";
+        ctx.beginPath();
+        ctx.moveTo(anchorX - 10, anchorY);
+        ctx.lineTo(anchorX + 10, anchorY);
+        ctx.moveTo(anchorX, anchorY - 10);
+        ctx.lineTo(anchorX, anchorY + 10);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function loop(time) {
+        const delta = state.lastTime
+          ? Math.min(80, time - state.lastTime)
+          : 16.67;
+        state.lastTime = time;
+
+        if (state.image) drawSprite(delta);
+        else drawEmpty();
+
+        requestAnimationFrame(loop);
+      }
+
+      fileInput.addEventListener("change", () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+
+        const image = new Image();
+        image.onload = () => {
+          state.image = image;
+          state.imageName = file.name;
+          autoDetectSpriteSheet();
+          URL.revokeObjectURL(image.src);
+        };
+        image.src = URL.createObjectURL(file);
+      });
+
+      playButton.addEventListener("click", () => {
+        state.playing = !state.playing;
+        playButton.textContent = state.playing ? "Pause" : "Play";
+      });
+
+      resetButton.addEventListener("click", resetFish);
+      autoDetectButton.addEventListener("click", autoDetectSpriteSheet);
+
+      Object.values(inputs).forEach((input) => {
+        input.addEventListener("change", () => {
+          rebuildFrameData();
+          resetFish();
+        });
+      });
+
+      drawEmpty();
+      requestAnimationFrame(loop);
+    </script>
+  </body>
+</html>

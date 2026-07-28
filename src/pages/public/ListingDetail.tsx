@@ -17,6 +17,7 @@ import {
   ExternalLink,
   FileText,
   Headphones,
+  Heart,
   Info,
   Map,
   MapPin,
@@ -28,6 +29,7 @@ import {
   ShoppingCart,
   Sparkles,
   Star,
+  Share2,
   Minus,
   Plus,
   Utensils,
@@ -735,6 +737,273 @@ const LoadingSkeleton = () => (
   </div>
 );
 
+type GalleryImage = ReturnType<typeof getGalleryImages>[number];
+
+type MobileListingSummaryProps = {
+  listing: ListingResponse;
+  galleryImages: GalleryImage[];
+  previewImages: GalleryImage[];
+  location: string;
+  ratingLabel: string;
+  amenities: DetailItem[];
+  policyDetails: Record<string, unknown>;
+  isGuestFavorite: boolean;
+  bookingEmphasis: boolean;
+  onBack: () => void;
+  onShare: () => void;
+  onOpenLightbox: (index: number) => void;
+  onBook: () => void;
+  onShowOverview: () => void;
+};
+
+const MobileListingSummary: React.FC<MobileListingSummaryProps> = ({
+  listing,
+  galleryImages,
+  previewImages,
+  location,
+  ratingLabel,
+  amenities,
+  policyDetails,
+  isGuestFavorite,
+  bookingEmphasis,
+  onBack,
+  onShare,
+  onOpenLightbox,
+  onBook,
+  onShowOverview,
+}) => {
+  const coverImage = previewImages[0];
+  const visibleThumbnails = galleryImages.slice(0, 5);
+  const remainingImages = Math.max(0, galleryImages.length - 4);
+  const featuredAmenities = amenities.slice(0, 8);
+  const checkInText = formatValue(policyDetails.checkInTime) || 'From 14:00';
+  const checkOutText = formatValue(policyDetails.checkOutTime) || 'Until 12:00';
+  const description = listing.description || listing.shortDesc || 'Review the listing details, amenities, location, policies, and rates before booking.';
+  const metaLocation = [listing.city, listing.country].filter(Boolean).join(', ');
+  const compactLocation = listing.city || listing.country || location || 'Destination';
+  const guestHint = formatValue(policyDetails.maxGuests || policyDetails.maxGroupSize) || 'Select guests';
+
+  const trustCards = [
+    { key: 'support', title: '24/7 Support', detail: "We're here for you", icon: Headphones, tone: 'text-slate-600 bg-slate-50' },
+    { key: 'booking', title: 'Instant Booking', detail: 'Secure your room', icon: Sparkles, tone: 'text-blue-600 bg-blue-50' },
+    { key: 'policy', title: 'Clear Policies', detail: 'Review before booking', icon: ShieldCheck, tone: 'text-emerald-600 bg-emerald-50' },
+    { key: 'payment', title: 'Secure Payment', detail: '100% protected', icon: CreditCard, tone: 'text-violet-600 bg-violet-50' },
+  ];
+
+  return (
+    <div className="w-full min-w-0 overflow-x-clip bg-[#071226] pb-0 text-white md:hidden">
+      <header className="relative z-30 flex w-full min-w-0 items-center justify-between gap-3 px-[max(16px,env(safe-area-inset-left))] pb-4 pt-[max(14px,env(safe-area-inset-top))]">
+        <button
+          type="button"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/8 text-white shadow-lg shadow-black/20 backdrop-blur"
+          onClick={onBack}
+          aria-label="Go back"
+        >
+          <ArrowLeft className="h-6 w-6" />
+        </button>
+        <img
+          src="/brand/ai-marketplace-traveler-logo.png"
+          alt="AI Marketplace Traveler"
+          className="h-14 min-w-0 max-w-[178px] object-contain brightness-0 invert"
+        />
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            className="flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-white/8 text-white shadow-lg shadow-black/20 backdrop-blur"
+            disabled
+            title="Wishlist is not connected yet"
+            aria-label="Save listing"
+          >
+            <Heart className="h-6 w-6" />
+          </button>
+          <button
+            type="button"
+            className="flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-white/8 text-white shadow-lg shadow-black/20 backdrop-blur"
+            onClick={onShare}
+            aria-label="Share listing"
+          >
+            <Share2 className="h-6 w-6" />
+          </button>
+        </div>
+      </header>
+
+      <section className="relative w-full min-w-0 overflow-visible">
+        <button
+          type="button"
+          className="relative block h-[318px] w-full min-w-0 overflow-hidden bg-slate-900 text-left min-[390px]:h-[352px] min-[430px]:h-[372px]"
+          onClick={() => onOpenLightbox(0)}
+          aria-label="Open listing photo gallery"
+        >
+          {coverImage ? (
+            <img src={coverImage.src} alt={coverImage.alt} className="h-full w-full object-cover" />
+          ) : (
+            <ImageFallback title={listing.title} className="h-full w-full" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-950/10 via-transparent to-slate-950/35" />
+          <span className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-xl bg-emerald-700/90 px-3 py-2 text-xs font-black text-white shadow-lg shadow-emerald-950/20 backdrop-blur">
+            <CheckCircle2 className="h-4 w-4" />
+            Best price guarantee
+          </span>
+          <span className="absolute bottom-12 right-4 inline-flex items-center gap-2 rounded-xl bg-slate-950/70 px-3 py-2 text-sm font-black text-white shadow-lg backdrop-blur">
+            <Camera className="h-4 w-4" />
+            {galleryImages.length > 0 ? `1 / ${galleryImages.length}` : '1 / 1'}
+          </span>
+        </button>
+
+        {visibleThumbnails.length > 1 && (
+          <div className="absolute inset-x-0 -bottom-8 z-20 w-full min-w-0 overflow-hidden px-4">
+            <div className="flex w-full min-w-0 gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {visibleThumbnails.slice(0, 5).map((image, index) => (
+                <button
+                  key={`${image.src}-${index}`}
+                  type="button"
+                  className={cn(
+                    'relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-2xl bg-white shadow-xl ring-2 ring-white/85',
+                    index === 0 && 'ring-blue-400',
+                  )}
+                  onClick={() => onOpenLightbox(index)}
+                  aria-label={`Open listing photo ${index + 1}`}
+                >
+                  <img src={image.src} alt={image.alt} className="h-full w-full object-cover" />
+                  {index === 4 && remainingImages > 0 && (
+                    <span className="absolute inset-0 flex items-center justify-center bg-slate-950/50 text-sm font-black text-white">+{remainingImages}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="relative z-10 -mt-7 w-full min-w-0 rounded-t-[32px] bg-white px-5 pb-5 pt-14 text-slate-950 shadow-2xl shadow-slate-950/20">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+            {formatCategory(listing.category)} {metaLocation ? `| ${metaLocation}` : ''}
+          </p>
+          <h1 className="mt-3 flex min-w-0 flex-wrap items-center gap-2 text-[28px] font-black leading-tight tracking-tight text-slate-950 min-[390px]:text-[32px]">
+            {listing.title}
+            <CheckCircle2 className="h-6 w-6 shrink-0 fill-blue-600 text-white" />
+          </h1>
+          <div className="mt-4 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 text-sm font-semibold text-slate-500">
+            <span className="inline-flex items-center gap-1.5 text-amber-600"><Star className="h-4 w-4 fill-amber-400 text-amber-400" /> {ratingLabel} ({listing.reviewCount} reviews)</span>
+            <span className="text-slate-300">|</span>
+            <span className="inline-flex items-center gap-1.5 text-emerald-600"><CheckCircle2 className="h-4 w-4" /> {isGuestFavorite ? 'Excellent' : 'Verified'}</span>
+            <span className="text-slate-300">|</span>
+            <span className="inline-flex items-center gap-1.5"><MapPin className="h-4 w-4" /> {compactLocation}</span>
+          </div>
+        </div>
+
+        {featuredAmenities.length > 0 && (
+          <div className="mt-5 w-full min-w-0 overflow-hidden">
+            <div className="flex w-full min-w-0 gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {featuredAmenities.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <span key={item.key} className="inline-flex h-12 shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-blue-700 shadow-sm">
+                    <Icon className="h-5 w-5" />
+                    {item.label}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-5 rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="grid min-w-0 grid-cols-[1fr_1fr_1fr_auto] items-center gap-3">
+            <div className="min-w-0 border-r border-slate-200 pr-3">
+              <p className="text-xs font-bold text-slate-500">Check-in</p>
+              <p className="mt-2 text-sm font-black text-slate-950">Select date</p>
+              <p className="mt-1 text-xs font-semibold text-slate-500">{checkInText}</p>
+            </div>
+            <div className="min-w-0 border-r border-slate-200 pr-3">
+              <p className="text-xs font-bold text-slate-500">Check-out</p>
+              <p className="mt-2 text-sm font-black text-slate-950">Select date</p>
+              <p className="mt-1 text-xs font-semibold text-slate-500">{checkOutText}</p>
+            </div>
+            <div className="min-w-0 border-r border-slate-200 pr-3">
+              <p className="text-xs font-bold text-slate-500">Guests</p>
+              <p className="mt-2 text-sm font-black text-slate-950">{guestHint}</p>
+              <p className="mt-1 text-xs font-semibold text-slate-500">Set at booking</p>
+            </div>
+            <button type="button" className="px-1 text-sm font-black text-violet-600" onClick={onBook}>
+              Change
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-[22px] border border-emerald-100 bg-emerald-50/70 p-4 text-emerald-800">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+              <CheckCircle2 className="h-6 w-6" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-base font-black">Best price guarantee</p>
+              <p className="mt-1 text-sm font-semibold text-emerald-700">Secure marketplace checkout for this stay.</p>
+            </div>
+          </div>
+          <ChevronRight className="h-5 w-5 shrink-0" />
+        </div>
+
+        <div className="mt-6">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-xl font-black text-slate-950">About this stay</h2>
+            <button type="button" className="text-sm font-black text-violet-600" onClick={onShowOverview}>View more</button>
+          </div>
+          <p className="mt-3 line-clamp-3 text-sm font-semibold leading-6 text-slate-600">{description}</p>
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 gap-3 min-[390px]:grid-cols-4">
+          {trustCards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <div key={card.key} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 text-center shadow-sm">
+                <span className={cn('mx-auto flex h-9 w-9 items-center justify-center rounded-xl', card.tone)}>
+                  <Icon className="h-5 w-5" />
+                </span>
+                <p className="mt-2 text-xs font-black leading-tight text-slate-950">{card.title}</p>
+                <p className="mt-1 text-[11px] font-semibold leading-4 text-slate-500">{card.detail}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        <Card className="mt-5 overflow-hidden rounded-[22px] border-slate-200 bg-white shadow-lg shadow-slate-200/80">
+          <CardContent className="p-4">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Best price guarantee
+            </div>
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-600">Starting from</p>
+                <p className={cn('mt-1 text-[32px] font-black leading-none text-slate-950 transition-colors', bookingEmphasis && 'motion-price-highlight')}>
+                  {formatMoney(listing.basePrice, listing.currency)}
+                </p>
+                <p className="mt-2 text-sm font-semibold text-slate-500">Includes taxes & fees</p>
+              </div>
+              <div className="shrink-0 rounded-2xl bg-amber-50 px-3 py-2 text-center">
+                <div className="flex items-center justify-center gap-1 text-base font-black text-slate-950">
+                  {ratingLabel}
+                  <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                </div>
+                <p className="mt-1 text-xs font-semibold text-slate-500">{listing.reviewCount} reviews</p>
+              </div>
+            </div>
+            <Button
+              className="mt-4 h-14 w-full rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 text-base font-black shadow-lg shadow-blue-500/25"
+              onClick={onBook}
+              disabled={listing.status !== 'ACTIVE'}
+            >
+              Book now
+            </Button>
+          </CardContent>
+        </Card>
+      </section>
+    </div>
+  );
+};
+
 export const ListingDetail: React.FC = () => {
   const { slug, id } = useParams<{ slug?: string; id?: string }>();
   const listingSlug = slug ?? id;
@@ -1045,10 +1314,52 @@ export const ListingDetail: React.FC = () => {
     navigate(`/login?redirect=${redirect}&reason=booking`);
   };
 
+  const handleShareListing = async () => {
+    if (typeof window === 'undefined') return;
+    const shareUrl = `${window.location.origin}${routeLocation.pathname}${routeLocation.search}`;
+    const shareData = {
+      title: listing.title,
+      text: listing.shortDesc || listing.description || `View ${listing.title} on AI Marketplace Traveler.`,
+      url: shareUrl,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl);
+        setCartNotice('Listing link copied.');
+      }
+    } catch {
+      // Sharing can be cancelled by the user; keep the listing page unchanged.
+    }
+  };
+
+  const showOverviewTab = () => {
+    setActiveTab('overview');
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-slate-50/70 to-white">
-      <main className="mx-auto w-full max-w-[1680px] px-4 py-4 sm:px-5 sm:py-6 lg:px-8 2xl:px-10">
-        <nav className="detail-enter mb-4 flex flex-nowrap items-center gap-2 overflow-x-auto whitespace-nowrap text-xs text-slate-500 [scrollbar-width:none] sm:mb-5 sm:text-sm [&::-webkit-scrollbar]:hidden" aria-label="Breadcrumb">
+    <div className="min-h-screen overflow-x-clip bg-gradient-to-b from-white via-slate-50/70 to-white">
+      <MobileListingSummary
+        listing={listing}
+        galleryImages={galleryImages}
+        previewImages={previewImages}
+        location={location}
+        ratingLabel={ratingLabel}
+        amenities={amenities}
+        policyDetails={policyDetails}
+        isGuestFavorite={isGuestFavorite}
+        bookingEmphasis={bookingEmphasis}
+        onBack={() => navigate(-1)}
+        onShare={handleShareListing}
+        onOpenLightbox={openLightbox}
+        onBook={openBookingFlow}
+        onShowOverview={showOverviewTab}
+      />
+
+      <main className="mx-auto w-full max-w-[1680px] px-0 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] pt-0 md:px-5 md:py-6 lg:px-8 2xl:px-10">
+        <nav className="detail-enter mb-4 hidden flex-nowrap items-center gap-2 overflow-x-auto whitespace-nowrap text-xs text-slate-500 [scrollbar-width:none] sm:mb-5 sm:text-sm md:flex [&::-webkit-scrollbar]:hidden" aria-label="Breadcrumb">
           <button className="font-semibold transition-colors hover:text-blue-600" onClick={() => navigate('/')}>Home</button>
           <ChevronRight className="h-4 w-4" />
           <button className="font-semibold transition-colors hover:text-blue-600" onClick={() => navigate('/search')}>Explore</button>
@@ -1058,7 +1369,7 @@ export const ListingDetail: React.FC = () => {
           <span className="max-w-[220px] truncate text-slate-700 sm:max-w-none">{listing.title}</span>
         </nav>
 
-        <header className="detail-enter detail-enter-delay-1 mb-5 space-y-3 sm:mb-6 sm:space-y-4">
+        <header className="detail-enter detail-enter-delay-1 mb-5 hidden space-y-3 sm:mb-6 sm:space-y-4 md:block">
           <div className="flex flex-wrap items-center gap-2">
             <Badge className="bg-blue-100 text-blue-800">{formatCategory(listing.category)}</Badge>
             <StatusBadge kind="listing" status={listing.status} />
@@ -1074,8 +1385,8 @@ export const ListingDetail: React.FC = () => {
           </div>
         </header>
 
-        <div className="min-w-0 space-y-5 sm:space-y-6">
-          <section className="detail-enter detail-enter-delay-2 grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)] xl:gap-6 2xl:grid-cols-[minmax(0,1fr)_minmax(330px,390px)]">
+        <div className="min-w-0 space-y-0 md:space-y-6">
+          <section className="detail-enter detail-enter-delay-2 hidden min-w-0 grid-cols-1 items-start gap-4 md:grid xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)] xl:gap-6 2xl:grid-cols-[minmax(0,1fr)_minmax(330px,390px)]">
             <div className="flex min-w-0 flex-col gap-4">
               <div className="relative min-w-0 rounded-[22px] shadow-xl shadow-slate-200/80 ring-1 ring-black/5 sm:rounded-[24px]">
                 {previewImages.length > 0 ? (
@@ -1191,7 +1502,7 @@ export const ListingDetail: React.FC = () => {
             </aside>
           </section>
 
-          <section className="flex w-full snap-x snap-mandatory gap-2 overflow-x-auto rounded-[22px] border border-blue-100 bg-blue-50/30 p-2 shadow-sm [scrollbar-width:none] xl:hidden [&::-webkit-scrollbar]:hidden">
+          <section className="hidden w-full snap-x snap-mandatory gap-2 overflow-x-auto rounded-[22px] border border-blue-100 bg-blue-50/30 p-2 shadow-sm [scrollbar-width:none] md:flex xl:hidden [&::-webkit-scrollbar]:hidden">
             {quickInfoItems.map((item) => {
               const Icon = item.icon;
               return (
@@ -1209,7 +1520,7 @@ export const ListingDetail: React.FC = () => {
             })}
           </section>
 
-            <section className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm sm:rounded-3xl">
+            <section className="overflow-hidden rounded-none border-y border-slate-200 bg-white shadow-none md:rounded-3xl md:border md:shadow-sm">
               <div className="sticky top-0 z-30 overflow-x-auto border-b border-slate-200 bg-white/95 backdrop-blur [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <div className="flex min-w-max gap-2 px-3 py-3">
                   {tabs.map((tab) => {

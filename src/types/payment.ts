@@ -56,6 +56,8 @@ export interface Payment {
   listingCategory?: string;
   gatewayOrderId?: string;
   payUrl?: string;
+  checkoutUrl?: string;
+  checkoutFields?: Record<string, string>;
   aiCoinPackageId?: string;
   aiCoinPackageCode?: string;
   aiCoinPackageName?: string;

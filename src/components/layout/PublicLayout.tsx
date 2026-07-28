@@ -1,5 +1,5 @@
 import React from 'react';
-import { Outlet, Link } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import {
   ArrowUp,
   Facebook,
@@ -58,6 +58,10 @@ const PaymentCard: React.FC<{ method: PaymentMethod }> = ({ method }) => (
 );
 
 export const PublicLayout: React.FC = () => {
+  const location = useLocation();
+  const hideChromeOnMobileAiCoins = location.pathname === '/ai-coins';
+  const hideChromeOnMobileListingDetail = /^\/listings\/[^/]+\/?$/.test(location.pathname);
+
   const footerColumns = [
     {
       title: 'Discover',
@@ -128,13 +132,22 @@ export const PublicLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      <SiteHeader />
+      <div className={cn(
+        hideChromeOnMobileAiCoins && 'max-lg:hidden',
+        hideChromeOnMobileListingDetail && 'max-md:hidden',
+      )}>
+        <SiteHeader />
+      </div>
 
       <main className="flex-1">
         <Outlet />
       </main>
 
-      <footer className="relative w-full overflow-hidden bg-slate-950 text-white">
+      <footer className={cn(
+        "relative w-full overflow-hidden bg-slate-950 text-white",
+        hideChromeOnMobileAiCoins && "max-lg:hidden",
+        hideChromeOnMobileListingDetail && "max-md:hidden",
+      )}>
           <div className="absolute inset-0 bg-gradient-to-br from-blue-950/70 via-slate-950 to-slate-900" />
           <div className="absolute left-0 top-0 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl" />
           <div className="absolute right-0 top-0 h-64 w-64 rounded-full bg-cyan-400/10 blur-3xl" />
