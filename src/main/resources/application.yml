@@ -73,10 +73,28 @@ payment:
     language: ${MOMO_LANGUAGE:en}
     timeout: ${MOMO_TIMEOUT:30s}
 
+  sepay:
+    enabled: ${SEPAY_ENABLED:true}
+    environment: ${SEPAY_ENV:sandbox}
+    merchant-id: ${MERCHANTID}
+    secret-key: ${SEPAY_SECRETKEY}
+    ipn-secret: ${SEPAY_IPN_SECRET:}
+    ipn-url: ${SEPAY_IPN_URL:https://proscience-caftaned-dann.ngrok-free.dev/api/v1/payments/sepay/ipn}
+    success-url: ${SEPAY_SUCCESS_URL:https://proscience-caftaned-dann.ngrok-free.dev/api/v1/payments/sepay/return/success}
+    error-url: ${SEPAY_ERROR_URL:https://proscience-caftaned-dann.ngrok-free.dev/api/v1/payments/sepay/return/error}
+    cancel-url: ${SEPAY_CANCEL_URL:https://proscience-caftaned-dann.ngrok-free.dev/api/v1/payments/sepay/return/cancel}
+    frontend-redirect-url: ${SEPAY_FRONTEND_REDIRECT_URL:http://localhost:5173/ai-coins/payment-result}
+    booking-frontend-redirect-url: ${SEPAY_BOOKING_FRONTEND_REDIRECT_URL:http://localhost:5173/checkout}
+
 # ── AI Module Configuration ────────────────────────────────────────
-# Set ai.provider to: mock | gemini | openrouter
+# Provider options: mock, gemini, openrouter, groq
+# Switch examples:
+#   OpenRouter: AI_PROVIDER=openrouter, AI_MODEL=<openrouter-model-id>
+#   Google AI Studio: AI_PROVIDER=gemini, AI_MODEL=<gemini-model-id>
+#   Groq: AI_PROVIDER=groq, AI_MODEL=openai/gpt-oss-120b, GROQ_API_KEY=<set in environment>
 ai:
-  provider: ${AI_PROVIDER:openrouter}
+  provider: ${AI_PROVIDER:groq}
+  model: ${AI_MODEL:}
   trip-planner:
     structured-model: ${AI_TRIP_PLANNER_STRUCTURED_MODEL:google/gemini-2.0-flash-001}
     fallback-structured-model: ${AI_TRIP_PLANNER_FALLBACK_STRUCTURED_MODEL:openai/gpt-4o-mini}
@@ -96,7 +114,7 @@ gemini:
   api-key: ${GEMINI_API_KEY:}
   base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
   api-version: ${GEMINI_API_VERSION:v1beta}
-  model: ${GEMINI_MODEL:gemini-3.1-pro-preview}
+  model: ${GEMINI_MODEL:gemini-2.5-flash}
   connect-timeout-seconds: ${GEMINI_CONNECT_TIMEOUT_SECONDS:10}
   read-timeout-seconds: ${GEMINI_READ_TIMEOUT_SECONDS:90}
   max-output-tokens: ${GEMINI_MAX_OUTPUT_TOKENS:6000}
@@ -114,9 +132,24 @@ openrouter:
   http-referer: ${OPENROUTER_HTTP_REFERER:}
   title: ${OPENROUTER_TITLE:AI Travel Marketplace}
 
+groq:
+  api-key: ${GROQ_API_KEY:}
+  base-url: ${GROQ_BASE_URL:https://api.groq.com/openai/v1}
+  chat-path: ${GROQ_CHAT_PATH:/chat/completions}
+  model: ${GROQ_MODEL:openai/gpt-oss-120b}
+  connect-timeout-seconds: ${GROQ_CONNECT_TIMEOUT_SECONDS:10}
+  read-timeout-seconds: ${GROQ_READ_TIMEOUT_SECONDS:90}
+  max-output-tokens: ${GROQ_MAX_OUTPUT_TOKENS:6000}
+  temperature: ${GROQ_TEMPERATURE:0.7}
+
 # ── Logging ────────────────────────────────────────────────────────
 logging:
   level:
     org.springframework.security: INFO
     org.hibernate.SQL: WARN
     com.travel.marketplace: DEBUG
+
+serpapi:
+  api-key: ${SERPAPI_API_KEY:}
+  base-url: ${SERPAPI_BASE_URL:https://serpapi.com}
+

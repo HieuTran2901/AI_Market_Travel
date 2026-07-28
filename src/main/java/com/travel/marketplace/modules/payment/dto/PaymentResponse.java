@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Map;
 
 @Data
 @Builder
@@ -29,6 +30,8 @@ public class PaymentResponse {
     private String listingCategory;
     private String gatewayOrderId;
     private String payUrl;
+    private String checkoutUrl;
+    private Map<String, String> checkoutFields;
     private String aiCoinPackageId;
     private String aiCoinPackageCode;
     private String aiCoinPackageName;

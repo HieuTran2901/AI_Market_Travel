@@ -49,6 +49,8 @@ public class ListingSpecification {
                     String normalizedAlias = alias.toLowerCase();
                     cityPredicates.add(cb.equal(cb.lower(root.get("city")), normalizedAlias));
                     cityPredicates.add(cb.like(cb.lower(root.get("city")), normalizedAlias + ",%"));
+                    cityPredicates.add(cb.like(cb.lower(root.get("city")), normalizedAlias + " city%"));
+                    cityPredicates.add(cb.like(cb.lower(root.get("address")), "%" + normalizedAlias + "%"));
                 }
                 predicates.add(cb.or(cityPredicates.toArray(new Predicate[0])));
             }

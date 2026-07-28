@@ -13,6 +13,7 @@ import com.travel.marketplace.modules.trip.service.AiTripDraftService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -21,6 +22,7 @@ import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -43,25 +45,19 @@ public class AssistantServiceImpl implements AssistantService {
     private final StructuredAssistantResponseParser structuredParser;
     private final DestinationImageResolver destinationImageResolver;
     private final AiTripDraftService aiTripDraftService;
+    private final com.travel.marketplace.modules.ai.flight.service.FlightAssistantService flightAssistantService;
 
     private static final Pattern DURATION_PATTERN = Pattern.compile("(\\d+)\\s*[- ]?\\s*(?:day|days|night|nights|ngay|dem|ngày|đêm)", Pattern.CASE_INSENSITIVE);
     private static final Pattern TRAVELER_PATTERN = Pattern.compile("(\\d+)\\s*(?:people|person|travelers|adults|guests|wife|couple|nguoi|người|khach|khách)", Pattern.CASE_INSENSITIVE);
     public enum AssistantIntent {
-        GREETING,
-        ASSISTANT_IDENTITY,
-        ASSISTANT_CAPABILITIES,
-        CASUAL_CONVERSATION,
-        GENERAL_TRAVEL_QUESTION,
-        EXACT_LISTING_SEARCH,
+        GENERAL_CHAT,
+        MARKETPLACE_RECOMMENDATION,
         MARKETPLACE_SEARCH,
-        RECOMMENDATION_REQUEST,
-        TRIP_PLANNING,
-        ITINERARY_ADJUSTMENT,
-        LISTING_COMPARISON,
-        LISTING_DETAIL_QUESTION,
-        BOOKING_HELP,
-        CLARIFICATION_REQUIRED,
-        UNSUPPORTED
+        FLIGHT_SEARCH,
+        TRIP_PLANNER,
+        ITINERARY,
+        BOOKING,
+        UNKNOWN
     }
 
     public enum MessagePurpose {
@@ -101,7 +97,8 @@ public class AssistantServiceImpl implements AssistantService {
             String tripStyle,
             List<Long> previouslyRecommendedListings,
             String previousResponseMode,
-            boolean wantsItinerary
+            boolean wantsItinerary,
+            String language
     ) {
         Map<String, Object> toMap() {
             Map<String, Object> map = new LinkedHashMap<>();
@@ -123,6 +120,7 @@ public class AssistantServiceImpl implements AssistantService {
             put(map, "previouslyRecommendedListings", previouslyRecommendedListings);
             put(map, "previousResponseMode", previousResponseMode);
             put(map, "wantsItinerary", wantsItinerary);
+            put(map, "language", language);
             return map;
         }
 
@@ -180,6 +178,7 @@ public class AssistantServiceImpl implements AssistantService {
         TravelContext context = extractTravelContext(request);
         IntentResult intentResult = classifyIntent(request, context);
 
+        log.debug("Detected Intent:\n{}", intentResult.intent());
         log.debug(
                 "AI routing purpose={} intent={} confidence={} marketplaceLookup={} structured={} destination={}",
                 intentResult.purpose(),
@@ -191,16 +190,11 @@ public class AssistantServiceImpl implements AssistantService {
         );
 
         return switch (intentResult.intent()) {
-            case GREETING -> buildGreetingResponse(intentResult);
-            case ASSISTANT_IDENTITY -> buildStaticTextResponse(intentResult, "Mình là trợ lý du lịch AI của AI Marketplace Traveler. Mình có thể trò chuyện, gợi ý điểm đến, tìm listing thật trên marketplace và giúp bạn lập lịch trình.");
-            case ASSISTANT_CAPABILITIES -> buildStaticTextResponse(intentResult, "Mình có thể giúp bạn tìm nơi lưu trú, nhà hàng, tour, trải nghiệm, so sánh lựa chọn và lập lịch trình theo ngân sách hoặc phong cách du lịch của bạn.");
-            case CASUAL_CONVERSATION, BOOKING_HELP, UNSUPPORTED -> buildTextResponse(request, intentResult);
-            case GENERAL_TRAVEL_QUESTION -> intentResult.purpose() == MessagePurpose.FOLLOW_UP && intentResult.context().destination() == null
-                    ? clarificationResponse(intentResult, "Bạn muốn điều chỉnh chuyến đi hoặc gợi ý cho điểm đến nào?")
-                    : buildTextResponse(request, intentResult);
-            case CLARIFICATION_REQUIRED -> clarificationResponse(intentResult, "Bạn muốn tìm ở thành phố hoặc khu vực nào?");
-            case EXACT_LISTING_SEARCH, MARKETPLACE_SEARCH, RECOMMENDATION_REQUEST, LISTING_COMPARISON, LISTING_DETAIL_QUESTION -> buildRecommendationResponse(request, intentResult);
-            case TRIP_PLANNING, ITINERARY_ADJUSTMENT -> buildItineraryResponse(request, intentResult);
+            case GENERAL_CHAT, UNKNOWN -> buildTextResponse(request, intentResult);
+            case BOOKING -> buildStaticTextResponse(intentResult, "Mình có thể giúp bạn kiểm tra thông tin đặt chỗ hoặc giải đáp các thắc mắc về thanh toán.");
+            case MARKETPLACE_RECOMMENDATION, MARKETPLACE_SEARCH -> buildRecommendationResponse(request, intentResult);
+            case TRIP_PLANNER, ITINERARY -> buildItineraryResponse(request, intentResult);
+            case FLIGHT_SEARCH -> flightAssistantService.handleFlightIntent(request, intentResult.intent(), intentResult.context().toMap());
         };
     }
 
@@ -269,7 +263,7 @@ public class AssistantServiceImpl implements AssistantService {
                 .build());
 
         List<String> suggestions = generateSuggestedActions(aiResponse.getText(), request, context);
-        return AssistantResponse.builder()
+        AssistantResponse response = AssistantResponse.builder()
                 .type(AssistantResponse.AssistantResponseType.TEXT.name())
                 .intent(intentResult.intent().name())
                 .purpose(intentResult.purpose().name())
@@ -283,6 +277,7 @@ public class AssistantServiceImpl implements AssistantService {
                 .extractedContext(withResponseMode(context, "text", intentResult.intent()))
                 .mockedAi(aiResponse.isMocked())
                 .build();
+        return response;
     }
 
     private AssistantResponse buildRecommendationResponse(AssistantRequest request, IntentResult intentResult) {
@@ -294,9 +289,29 @@ public class AssistantServiceImpl implements AssistantService {
         if (context.destination() == null && shouldAskForDestination(request.getMessage(), intent)) {
             return clarificationResponse(intentResult, "Bạn muốn tìm gợi ý ở thành phố hoặc khu vực nào?");
         }
-
-        List<ListingResponse> listings = activeListings(fetchRelevantListings(request, context, intent, 10));
-        if (intent == AssistantIntent.EXACT_LISTING_SEARCH) {
+        List<ListingResponse> fetchedListings = activeListings(fetchRelevantListings(request, context, intent, recommendationCandidateLimit(intent, context)));
+        
+        List<ListingResponse> listings = diversifyRecommendationListings(fetchedListings, intent, context).stream()
+                .limit(recommendationResultLimit(intent, context))
+                .toList();
+        log.info(
+                "AI routing intent={} confidence={} reason=marketplace_recommendation destination={} budget={} budgetType={} duration={} marketplaceLookup=true resultCount={} responseType=RECOMMENDATIONS",
+                intent,
+                intentResult.confidence(),
+                firstNonBlank(context.destination(), context.previousDestination(), "unspecified"),
+                context.budgetAmount(),
+                context.budgetScope(),
+                context.durationDays(),
+                listings.size()
+        );
+        log.info(
+                "AI recommendation context destinationSource={} category={} broadDiscovery={} candidateCount={} clarificationTriggered=false",
+                context.destination() != null ? "current_message_or_page" : context.previousDestination() != null ? "conversation_context" : "broad_discovery",
+                categoriesForIntent(intent, context),
+                firstNonBlank(context.destination(), context.previousDestination()) == null,
+                listings.size()
+        );
+        if (intent == AssistantIntent.MARKETPLACE_SEARCH) {
             return exactListingResponse(intentResult, listings);
         }
         if (listings.isEmpty()) {
@@ -320,20 +335,34 @@ public class AssistantServiceImpl implements AssistantService {
 
                 Return ONLY valid JSON:
                 {
-                  "message": "short helpful sentence",
+                  "message": "A natural, conversational explanation of what you searched, why you selected these listings, and how they match the user's budget/request.",
                   "destination": "string",
                   "summary": "string",
-                  "listingIds": [1, 2, 3],
-                  "followUpSuggestions": ["string"]
+                  "recommendations": [
+                    {
+                      "listingId": 1,
+                      "reasoning": "1-2 short sentences explaining why this listing is recommended based on price, rating, or amenities."
+                    }
+                  ],
+                  "followUpSuggestions": ["A few suggestions for the user to refine their search (e.g. 'địa điểm dưới 300k', 'chỉ quán cà phê')"]
                 }
 
                 Rules:
                 - Use only listing IDs from MARKETPLACE_CONTEXT.
                 - Never invent a listing ID, slug, title, price, image, rating, provider, location, category, or availability.
                 - Never mention a marketplace business or service unless its ID is present in MARKETPLACE_CONTEXT.
-                - If no listing fits, explain that clearly and leave listingIds empty.
+                - Explanations MUST be based only on the provided marketplace data.
+                - Do not create a day-by-day itinerary unless the user explicitly asks for an itinerary, schedule, route, or plan.
+                - If no listing fits, explain that clearly and leave recommendations empty.
                 - No markdown fences and no text outside JSON.
-                """.formatted(safeText(request.getMessage()), context.toMap(), listingContext);
+                
+                You MUST answer ONLY in the user's language: %s.
+                Never switch to English unless the user explicitly changes language.
+                If the user speaks Vietnamese:
+                - explain in Vietnamese
+                - recommendations in Vietnamese
+                - summaries in Vietnamese
+                """.formatted(safeText(request.getMessage()), context.toMap(), listingContext, context.language());
 
         AiResponse aiResponse = aiProvider.complete(AiRequest.builder()
                 .prompt(prompt)
@@ -344,13 +373,14 @@ public class AssistantServiceImpl implements AssistantService {
                 .jsonResponse(true)
                 .build());
 
-        RecommendationPayload payload = parseRecommendation(aiResponse.getText(), listings, context)
+        boolean vietnameseRequest = isVietnameseRequest(request.getMessage());
+        RecommendationPayload payload = parseRecommendation(aiResponse.getText(), listings, context, vietnameseRequest, intent)
                 .orElseGet(() -> fallbackRecommendationPayload(request, listings, context));
         List<String> followUps = payload.followUpSuggestions().isEmpty()
                 ? defaultFollowUps(intent)
                 : payload.followUpSuggestions();
 
-        return AssistantResponse.builder()
+        AssistantResponse response = AssistantResponse.builder()
                 .type(AssistantResponse.AssistantResponseType.RECOMMENDATIONS.name())
                 .intent(intent.name())
                 .purpose(intentResult.purpose().name())
@@ -368,6 +398,7 @@ public class AssistantServiceImpl implements AssistantService {
                 .extractedContext(withResponseMode(context, "recommendation", intent))
                 .mockedAi(aiResponse.isMocked())
                 .build();
+        return response;
     }
 
     private AssistantResponse exactListingResponse(IntentResult intentResult, List<ListingResponse> listings) {
@@ -520,13 +551,21 @@ public class AssistantServiceImpl implements AssistantService {
                 - If the plan is infeasible, set insufficientMarketplaceData=true rather than inventing impossible prices.
                 - Respect follow-up constraints such as cheaper, more food, beach, family, romantic, or relaxing.
                 - No markdown fences. No text outside JSON.
+                
+                You MUST answer ONLY in the user's language: %s.
+                Never switch to English unless the user explicitly changes language.
+                If the user speaks Vietnamese:
+                - explain in Vietnamese
+                - recommendations in Vietnamese
+                - summaries in Vietnamese
                 """.formatted(
                 safeText(request.getMessage()),
                 context.toMap(),
                 formatConversationHistory(request.getHistory()),
                 listingContext,
                 budgetAllocation.toMap(),
-                durationDays
+                durationDays,
+                context.language()
         );
 
         AiResponse aiResponse = aiProvider.complete(AiRequest.builder()
@@ -581,7 +620,7 @@ public class AssistantServiceImpl implements AssistantService {
                 card.getBudget() != null ? card.getBudget().getEstimatedTotal() : null,
                 card.getBudget() == null || Boolean.TRUE.equals(card.getBudget().getFeasible())
         );
-        return AssistantResponse.builder()
+        AssistantResponse response = AssistantResponse.builder()
                 .type(AssistantResponse.AssistantResponseType.ITINERARY.name())
                 .intent(intent.name())
                 .purpose(intentResult.purpose().name())
@@ -597,6 +636,7 @@ public class AssistantServiceImpl implements AssistantService {
                 .extractedContext(withResponseMode(context, "itinerary", intent))
                 .mockedAi(aiResponse.isMocked())
                 .build();
+        return response;
     }
 
     private AssistantResponse.ItineraryCard fallbackItineraryCard(
@@ -656,76 +696,55 @@ public class AssistantServiceImpl implements AssistantService {
     }
 
     private IntentResult classifyIntent(AssistantRequest request, TravelContext context) {
-        String current = normalize(safeText(request.getMessage()));
-        String combined = normalize(safeText(request.getMessage()) + " " + recentUserText(request.getHistory()));
+        String historyText = recentUserText(request.getHistory());
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("userMessage", safeText(request.getMessage()));
+        vars.put("history", historyText);
 
-        if (isGreetingOnly(current)) {
-            return new IntentResult(AssistantIntent.GREETING, MessagePurpose.GREETING, 0.99, false, false, context);
+        String prompt = promptRegistry.render("intent_classification", vars);
+        
+        AiRequest aiReq = AiRequest.builder()
+                .prompt(prompt)
+                .systemContext("system")
+                .jsonResponse(true)
+                .build();
+        String response = aiProvider.complete(aiReq).getText();
+
+        AssistantIntent intent = AssistantIntent.UNKNOWN;
+        String detectedLanguage = "vi";
+        ObjectMapper mapper = new ObjectMapper();
+
+        try {
+            JsonNode root = mapper.readTree(response);
+            if (root.has("intent")) {
+                String intentStr = root.get("intent").asText();
+                try {
+                    intent = AssistantIntent.valueOf(intentStr);
+                } catch (IllegalArgumentException e) {
+                    log.warn("Invalid intent from AI: {}", intentStr);
+                }
+            }
+            if (root.has("language")) {
+                detectedLanguage = root.get("language").asText();
+            }
+        } catch (Exception e) {
+            log.error("Failed to parse intent classification: {}", response, e);
         }
-        if (isAssistantIdentityQuestion(current)) {
-            return new IntentResult(AssistantIntent.ASSISTANT_IDENTITY, MessagePurpose.QUESTION, 0.96, false, false, context);
-        }
-        if (isAssistantCapabilitiesQuestion(current) || isDatabaseCapabilityQuestion(current)) {
-            return new IntentResult(AssistantIntent.ASSISTANT_CAPABILITIES, MessagePurpose.QUESTION, 0.96, false, false, context);
-        }
-        if (context.listingName() != null) {
-            return new IntentResult(AssistantIntent.EXACT_LISTING_SEARCH, MessagePurpose.SEARCH, 0.84, true, true, context);
-        }
-        if (containsAny(current, "booking", "booked", "cancel", "refund", "payment", "reservation")) {
-            return new IntentResult(AssistantIntent.BOOKING_HELP, detectPurpose(current), 0.85, false, false, context);
-        }
-        if (isFollowUp(current) && firstNonBlank(context.destination(), context.previousDestination()) != null) {
-            TravelContext followUpContext = context.destination() == null ? withDestination(context, context.previousDestination()) : context;
-            AssistantIntent followUpIntent = "itinerary".equals(context.previousResponseMode())
-                    ? AssistantIntent.ITINERARY_ADJUSTMENT
-                    : AssistantIntent.RECOMMENDATION_REQUEST;
-            return new IntentResult(followUpIntent, MessagePurpose.FOLLOW_UP, 0.86, true, true, followUpContext);
-        }
-        if (isFollowUp(current)) {
-            return new IntentResult(AssistantIntent.GENERAL_TRAVEL_QUESTION, MessagePurpose.FOLLOW_UP, 0.58, false, false, context);
-        }
-        if (context.wantsItinerary()
-                || containsAny(current, "itinerary", "schedule", "plan", "route", "day by day", "what should i do", "what to do", "lap ke hoach", "lich trinh", "du lich", "chuyen di", "chuyen du lich")
-                || (context.durationDays() != null && context.destination() != null)) {
-            return new IntentResult(AssistantIntent.TRIP_PLANNING, MessagePurpose.COMMAND, 0.88, true, true, context);
-        }
-        if (context.destination() != null && containsAny(current, "co gi", "gi dep", "hay", "dep")) {
-            return new IntentResult(AssistantIntent.GENERAL_TRAVEL_QUESTION, MessagePurpose.QUESTION, 0.75, false, false, context);
-        }
-        if (containsAny(combined, "hotel", "stay", "homestay", "resort", "accommodation", "khach san")
-                && context.destination() == null
-                && containsAny(current, "recommend", "suggest", "find", "search", "goi y", "tim")) {
-            return new IntentResult(AssistantIntent.MARKETPLACE_SEARCH, detectPurpose(current), 0.76, true, true, context);
-        }
-        if (containsAny(combined, "hotel", "stay", "homestay", "resort", "accommodation", "khach san")) {
-            AssistantIntent intent = context.destination() == null && !containsAny(current, "recommend", "suggest", "find", "search", "gợi ý", "tìm")
-                    ? AssistantIntent.GENERAL_TRAVEL_QUESTION
-                    : AssistantIntent.MARKETPLACE_SEARCH;
-            return new IntentResult(intent, detectPurpose(current), intent == AssistantIntent.MARKETPLACE_SEARCH ? 0.86 : 0.68, intent == AssistantIntent.MARKETPLACE_SEARCH, intent == AssistantIntent.MARKETPLACE_SEARCH, context);
-        }
-        if (containsAny(combined, "food", "seafood", "restaurant", "eat", "coffee", "cafe", "nha hang", "an gi")) {
-            boolean explicit = context.destination() != null || containsAny(current, "recommend", "suggest", "find", "search", "goi y", "tim");
-            return new IntentResult(explicit ? AssistantIntent.RECOMMENDATION_REQUEST : AssistantIntent.GENERAL_TRAVEL_QUESTION, detectPurpose(current), explicit ? 0.84 : 0.70, explicit, explicit, context);
-        }
-        if (context.destination() != null && containsAny(combined, "idea", "ideas", "recommend", "suggest", "places", "sightseeing", "beach", "culture", "relax", "goi y", "dia diem", "an choi", "choi gi")) {
-            return new IntentResult(AssistantIntent.RECOMMENDATION_REQUEST, detectPurpose(current), 0.82, true, true, context);
-        }
-        if (containsAny(current, "di dau", "nen di dau", "goi y diem den", "destination recommendation", "where should i go")) {
-            return new IntentResult(AssistantIntent.RECOMMENDATION_REQUEST, detectPurpose(current), 0.80, true, true, context);
-        }
-        if (context.destination() != null && containsAny(combined, "next week", "weekend", "with my wife", "with my family", "medium budget", "not too expensive")) {
-            return new IntentResult(AssistantIntent.RECOMMENDATION_REQUEST, detectPurpose(current), 0.78, true, true, context);
-        }
-        if (context.destination() != null && containsAny(current, "i want to go", "visiting", "going to", "traveling to")) {
-            return new IntentResult(AssistantIntent.GENERAL_TRAVEL_QUESTION, MessagePurpose.QUESTION, 0.72, false, false, context);
-        }
-        if (containsAny(current, "support", "help center", "contact")) {
-            return new IntentResult(AssistantIntent.UNSUPPORTED, MessagePurpose.QUESTION, 0.75, false, false, context);
-        }
-        if (context.destination() != null && containsAny(current, "what", "what is", "có gì", "hay", "đẹp")) {
-            return new IntentResult(AssistantIntent.GENERAL_TRAVEL_QUESTION, MessagePurpose.QUESTION, 0.75, false, false, context);
-        }
-        return new IntentResult(AssistantIntent.CASUAL_CONVERSATION, detectPurpose(current), 0.70, false, false, context);
+
+        TravelContext updatedContext = new TravelContext(
+                context.destination(), context.previousDestination(), context.listingName(),
+                context.durationDays(), context.travelDates(), context.travelerCount(),
+                context.budgetLevel(), context.budgetAmount(), context.budgetPerPerson(),
+                context.currency(), context.budgetScope(), context.interests(),
+                context.accommodationPreference(), context.transportPreference(),
+                context.tripStyle(), context.previouslyRecommendedListings(),
+                context.previousResponseMode(), context.wantsItinerary(), detectedLanguage
+        );
+
+        boolean requiresData = (intent == AssistantIntent.MARKETPLACE_RECOMMENDATION || intent == AssistantIntent.MARKETPLACE_SEARCH || intent == AssistantIntent.TRIP_PLANNER || intent == AssistantIntent.ITINERARY);
+        boolean requiresStructured = requiresData || intent == AssistantIntent.FLIGHT_SEARCH;
+
+        return new IntentResult(intent, MessagePurpose.UNKNOWN, 0.95, requiresData, requiresStructured, updatedContext);
     }
 
     private TravelContext extractTravelContext(AssistantRequest request) {
@@ -794,22 +813,12 @@ public class AssistantServiceImpl implements AssistantService {
         String dates = firstNonBlank(asString(previous.get("travelDates")), detectTravelDates(combined));
         String previousMode = firstNonBlank(asString(previous.get("responseMode")), asString(previous.get("previousResponseMode")));
         String normalizedCurrent = normalize(current);
-        boolean currentWantsItinerary = containsAny(
-                normalizedCurrent,
-                "itinerary",
-                "schedule",
-                "plan",
-                "route",
-                "day by day",
-                "what should",
-                "lap ke hoach",
-                "lich trinh",
-                "du lich",
-                "chuyen di",
-                "chuyen du lich"
-        );
+        boolean currentWantsItinerary = isExplicitItineraryRequest(normalizedCurrent);
         boolean wantsItinerary = currentWantsItinerary
                 || (Boolean.TRUE.equals(previous.get("wantsItinerary")) && isFollowUp(normalizedCurrent));
+
+        String previousLanguage = asString(previous.get("language"));
+        String language = detectLanguage(current, historyText, previousLanguage);
 
         return new TravelContext(
                 explicitDestination,
@@ -829,30 +838,108 @@ public class AssistantServiceImpl implements AssistantService {
                 style,
                 asLongList(previous.get("previouslyRecommendedListings")),
                 previousMode,
-                wantsItinerary
+                wantsItinerary,
+                language
         );
+    }
+
+    private String detectLanguage(String current, String history, String previousLanguage) {
+        if (current == null || current.isBlank()) {
+            return firstNonBlank(previousLanguage, "vi");
+        }
+        
+        if (Pattern.compile("[ăâđêôơưĂÂĐÊÔƠƯáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]").matcher(current).find()) {
+            return "vi";
+        }
+        
+        String normalized = normalize(current).toLowerCase();
+        if (containsAny(normalized, " toi ", " ban ", " cho ", " lam ", " gi ", " khong ", " co the ", " tim ", " di dau ", " nao ", " chuyen ", " khach san ", " nha hang ", " xin chao ", " goi y ")) {
+            return "vi";
+        }
+        
+        if (containsAny(normalized, " i ", " you ", " can ", " do ", " what ", " where ", " hotel", " flight", " recommend", " suggest", " find", " hello", " hi ")) {
+            return "en";
+        }
+        
+        if (history != null && !history.isBlank()) {
+            if (Pattern.compile("[ăâđêôơưĂÂĐÊÔƠƯáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]").matcher(history).find()) {
+                return "vi";
+            }
+        }
+        
+        return firstNonBlank(previousLanguage, "vi");
     }
 
     private List<ListingResponse> fetchRelevantListings(AssistantRequest request, TravelContext context, AssistantIntent intent, int limit) {
         String destination = context.destination();
-        if (destination == null && intent == AssistantIntent.ITINERARY_ADJUSTMENT) {
-            destination = context.previousDestination();
-        }
-        if (destination == null && intent == AssistantIntent.RECOMMENDATION_REQUEST && context.previousResponseMode() != null) {
+        if (destination == null && (intent == AssistantIntent.ITINERARY
+                || intent == AssistantIntent.MARKETPLACE_RECOMMENDATION
+                || intent == AssistantIntent.MARKETPLACE_SEARCH
+                || intent == AssistantIntent.MARKETPLACE_RECOMMENDATION)) {
             destination = context.previousDestination();
         }
         return marketplaceAiContextService.search(new MarketplaceAiContextService.MarketplaceQueryContext(
                 destination,
                 categoriesForIntent(intent, context),
                 null,
-                context.budgetAmount(),
+                recommendationSearchCeiling(intent, context),
                 context.interests(),
                 context.travelerCount(),
                 context.previouslyRecommendedListings(),
-                intent == AssistantIntent.EXACT_LISTING_SEARCH ? context.listingName() : null,
+                intent == AssistantIntent.MARKETPLACE_SEARCH ? context.listingName() : null,
                 safeText(request.getMessage()),
                 limit
-        ));
+        )).stream()
+                .sorted(recommendationComparator(intent, context))
+                .toList();
+    }
+
+    private int recommendationCandidateLimit(AssistantIntent intent, TravelContext context) {
+        if (intent == AssistantIntent.MARKETPLACE_SEARCH) {
+            return 10;
+        }
+        boolean broadDiscovery = firstNonBlank(context.destination(), context.previousDestination()) == null
+                && categoriesForIntent(intent, context).isEmpty();
+        return broadDiscovery ? 40 : 18;
+    }
+
+    private int recommendationResultLimit(AssistantIntent intent, TravelContext context) {
+        if (intent == AssistantIntent.MARKETPLACE_SEARCH) {
+            return 4;
+        }
+        boolean broadDiscovery = firstNonBlank(context.destination(), context.previousDestination()) == null
+                && categoriesForIntent(intent, context).isEmpty();
+        return broadDiscovery ? 8 : 6;
+    }
+
+    private List<ListingResponse> diversifyRecommendationListings(List<ListingResponse> listings, AssistantIntent intent, TravelContext context) {
+        if (listings == null || listings.isEmpty() || intent == AssistantIntent.MARKETPLACE_SEARCH) {
+            return listings == null ? List.of() : listings;
+        }
+        boolean broadDiscovery = firstNonBlank(context.destination(), context.previousDestination()) == null
+                && categoriesForIntent(intent, context).isEmpty();
+        if (!broadDiscovery) {
+            return listings;
+        }
+        Map<String, Integer> cityCounts = new LinkedHashMap<>();
+        Map<String, Integer> categoryCounts = new LinkedHashMap<>();
+        List<ListingResponse> diversified = new ArrayList<>();
+        List<ListingResponse> overflow = new ArrayList<>();
+        for (ListingResponse listing : listings) {
+            String city = normalize(firstNonBlank(listing.getCity(), listing.getCountry(), "unknown"));
+            String category = normalize(firstNonBlank(listing.getCategory(), "unknown"));
+            int cityCount = cityCounts.getOrDefault(city, 0);
+            int categoryCount = categoryCounts.getOrDefault(category, 0);
+            if (cityCount < 2 && categoryCount < 3) {
+                diversified.add(listing);
+                cityCounts.put(city, cityCount + 1);
+                categoryCounts.put(category, categoryCount + 1);
+            } else {
+                overflow.add(listing);
+            }
+        }
+        diversified.addAll(overflow);
+        return diversified;
     }
 
     private List<ListingResponse> activeListings(List<ListingResponse> listings) {
@@ -890,22 +977,49 @@ public class AssistantServiceImpl implements AssistantService {
         return sb.toString();
     }
 
-    private Optional<RecommendationPayload> parseRecommendation(String aiText, List<ListingResponse> listings, TravelContext context) {
+    private Optional<RecommendationPayload> parseRecommendation(
+            String aiText,
+            List<ListingResponse> listings,
+            TravelContext context,
+            boolean vietnameseRequest,
+            AssistantIntent intent
+    ) {
         Optional<JsonNode> parsed = structuredParser.parseObject(aiText);
         if (parsed.isEmpty()) {
             return Optional.empty();
         }
         try {
             JsonNode root = parsed.get();
-            boolean modelSelectedIds = hasArrayValues(root.path("listingIds"));
-            List<AssistantResponse.ListingRecommendation> recommendations = hydrateRecommendations(root.path("listingIds"), listings);
+            boolean modelSelectedIds = hasArrayValues(root.path("recommendations")) || hasArrayValues(root.path("listingIds"));
+            JsonNode recNode = root.has("recommendations") ? root.path("recommendations") : root.path("listingIds");
+            List<AssistantResponse.ListingRecommendation> recommendations = hydrateRecommendations(recNode, listings);
             if (modelSelectedIds && recommendations.isEmpty()) {
                 log.warn("AI grounding violation: recommendation IDs were outside DATABASE_ONLY context");
             }
-            String destination = firstNonBlank(root.path("destination").asText(null), context.destination(), "your trip");
+            if (recommendations.isEmpty() && listings != null && !listings.isEmpty()) {
+                recommendations = listings.stream()
+                        .limit(5)
+                        .map(this::toRecommendation)
+                        .toList();
+                log.info(
+                        "AI recommendation fallback used databaseCandidates={} destination={} reason=model_returned_no_valid_listing_ids",
+                        listings.size(),
+                        firstNonBlank(root.path("destination").asText(null), context.destination(), context.previousDestination(), "unspecified")
+                );
+            }
+            String destination = firstNonBlank(root.path("destination").asText(null), context.destination(), context.previousDestination(), "your trip");
             String message = recommendations.isEmpty()
-                    ? "I could not find matching active marketplace listings for " + destination + "."
-                    : "I found active marketplace options for " + destination + ".";
+                    ? (vietnameseRequest ? "Tôi chưa tìm thấy địa điểm phù hợp chính xác với yêu cầu của bạn." : "I could not find matching active marketplace listings for " + destination + ".")
+                    : root.path("message").asText("I found some great options.");
+            log.info(
+                    "AI recommendation intro responseType=LISTING_RECOMMENDATIONS resultCount={} introLanguage={} destination={} budget={} nearBudgetFallback={} introRendered={}",
+                    recommendations.size(),
+                    vietnameseRequest ? "vi" : "en",
+                    firstNonBlank(destination, "unspecified"),
+                    context.budgetAmount(),
+                    hasNearBudgetRecommendation(context, recommendations, intent),
+                    !recommendations.isEmpty()
+            );
             return Optional.of(new RecommendationPayload(
                     message,
                     destination,
@@ -925,15 +1039,66 @@ public class AssistantServiceImpl implements AssistantService {
                 .map(this::toRecommendation)
                 .toList();
         String destination = firstNonBlank(context.destination(), "your trip");
+        boolean vietnameseRequest = isVietnameseRequest(request.getMessage()) || "vi".equals(context.language());
         String message = recommendations.isEmpty()
-                ? "I could not find active marketplace listings for " + destination + " yet, but I can still help shape the trip."
-                : "I found active marketplace options for " + destination + ".";
+                ? (vietnameseRequest ? "Tôi chưa tìm thấy địa điểm phù hợp ở " + destination + " nhưng tôi có thể giúp bạn lên kế hoạch." : "I could not find active marketplace listings for " + destination + " yet, but I can still help shape the trip.")
+                : (vietnameseRequest ? "Dưới đây là một số lựa chọn phù hợp với bạn:" : "Here are some options that match your request:");
         return new RecommendationPayload(
                 message,
                 destination,
                 recommendations.isEmpty() ? "No matching active listings are currently available." : "These picks are grounded in active marketplace listings.",
                 recommendations,
-                defaultFollowUps(AssistantIntent.RECOMMENDATION_REQUEST)
+                defaultFollowUps(AssistantIntent.MARKETPLACE_RECOMMENDATION)
+        );
+    }
+
+
+
+    private String displayDestination(String destination) {
+        String value = firstNonBlank(destination);
+        if (value == null || "your trip".equalsIgnoreCase(value) || "that destination".equalsIgnoreCase(value)) {
+            return null;
+        }
+        return value;
+    }
+
+    private boolean hasNearBudgetRecommendation(
+            TravelContext context,
+            List<AssistantResponse.ListingRecommendation> recommendations,
+            AssistantIntent intent
+    ) {
+        BigDecimal strict = strictBudgetCeiling(intent, context);
+        if (strict == null || recommendations == null || recommendations.isEmpty()) {
+            return false;
+        }
+        return recommendations.stream().anyMatch(recommendation ->
+                recommendation.getPrice() != null && recommendation.getPrice().compareTo(strict) > 0
+        );
+    }
+
+    private boolean isVietnameseRequest(String message) {
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+        if (Pattern.compile("[ăâđêôơưĂÂĐÊÔƠƯáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]").matcher(message).find()) {
+            return true;
+        }
+        String normalized = normalize(message);
+        return containsAny(
+                normalized,
+                "toi",
+                "ban",
+                "goi y",
+                "dia diem",
+                "ngan sach",
+                "phu hop",
+                "khach san",
+                "nha hang",
+                "duoi",
+                "tim cho toi",
+                "ha noi",
+                "da nang",
+                "da lat"
         );
     }
 
@@ -1007,7 +1172,7 @@ public class AssistantServiceImpl implements AssistantService {
 
             List<String> followUps = readStringArray(root.path("followUpSuggestions"));
             if (followUps.isEmpty()) {
-                followUps.addAll(defaultFollowUps(AssistantIntent.TRIP_PLANNING));
+                followUps.addAll(defaultFollowUps(AssistantIntent.TRIP_PLANNER));
             }
             if (recommendations.isEmpty()) {
                 recommendations = hydrateRecommendationsFromDayIds(days, listings);
@@ -1222,18 +1387,29 @@ public class AssistantServiceImpl implements AssistantService {
                 .build();
     }
 
-    private List<AssistantResponse.ListingRecommendation> hydrateRecommendations(JsonNode listingIds, List<ListingResponse> listings) {
+    private List<AssistantResponse.ListingRecommendation> hydrateRecommendations(JsonNode recommendationsNode, List<ListingResponse> listings) {
         Map<Long, ListingResponse> listingById = listingsById(listings);
         List<AssistantResponse.ListingRecommendation> recommendations = new ArrayList<>();
         int requested = 0;
         int discarded = 0;
-        if (listingIds.isArray()) {
-            for (JsonNode node : listingIds) {
-                if (node.canConvertToLong()) {
+        if (recommendationsNode.isArray()) {
+            for (JsonNode node : recommendationsNode) {
+                Long listingId = null;
+                String reasoning = null;
+                if (node.isObject() && node.hasNonNull("listingId")) {
+                    listingId = node.path("listingId").asLong();
+                    reasoning = node.path("reasoning").asText(null);
+                } else if (node.canConvertToLong()) {
+                    listingId = node.asLong();
+                }
+                
+                if (listingId != null) {
                     requested++;
-                    ListingResponse listing = listingById.get(node.asLong());
+                    ListingResponse listing = listingById.get(listingId);
                     if (listing != null && "ACTIVE".equalsIgnoreCase(listing.getStatus())) {
-                        recommendations.add(toRecommendation(listing));
+                        AssistantResponse.ListingRecommendation rec = toRecommendation(listing);
+                        rec.setReasoning(reasoning);
+                        recommendations.add(rec);
                     } else {
                         discarded++;
                     }
@@ -1761,8 +1937,23 @@ public class AssistantServiceImpl implements AssistantService {
                 .replace("dong", "vnd")
                 .replace("trieu", "million")
                 .replace("triệu", "million");
+        normalized = normalized
+                .replace("nghin", "k")
+                .replace("ngan", "k");
         String currency = containsAny(normalized, "usd", "dollar") || raw.contains("$") ? "USD" : "VND";
-        String scope = containsAny(normalized, "moi nguoi", "per person", "each", "/ nguoi", "/ person", "per traveler") ? "PER_PERSON" : "TOTAL";
+        String scope = containsAny(normalized, "mot dem", "moi dem", "per night", "a night", "/ night", "nightly")
+                ? "NIGHTLY"
+                : containsAny(normalized, "moi nguoi", "per person", "each", "/ nguoi", "/ person", "per traveler")
+                        ? "PER_PERSON"
+                        : "TOTAL";
+
+        Matcher halfMillion = Pattern.compile("(\\d+(?:[\\.,]\\d+)?)\\s*million\\s+ruoi").matcher(normalized);
+        if (halfMillion.find()) {
+            BigDecimal base = parseBudgetNumber(halfMillion.group(1), "million", currency);
+            if (base != null) {
+                return new ParsedBudget(base.add(BigDecimal.valueOf(500_000)), currency, scope, null, null);
+            }
+        }
 
         Matcher range = Pattern.compile("(\\d+(?:[\\.,]\\d+)?)\\s*(?:-|to|den|toi)\\s*(\\d+(?:[\\.,]\\d+)?)\\s*(k|m|tr|mil|million|vnd|usd)?").matcher(normalized);
         if (range.find()) {
@@ -1840,7 +2031,7 @@ public class AssistantServiceImpl implements AssistantService {
 
     private String detectAccommodation(String text) {
         String normalized = normalize(text);
-        if (containsAny(normalized, "hotel", "resort", "homestay", "near the beach")) {
+        if (containsAny(normalized, "hotel", "resort", "homestay", "stay", "accommodation", "khach san", "near the beach")) {
             return containsAny(normalized, "near the beach", "beach") ? "near beach" : "hotel";
         }
         return null;
@@ -1875,8 +2066,8 @@ public class AssistantServiceImpl implements AssistantService {
     private List<String> categoriesForIntent(AssistantIntent intent, TravelContext context) {
         if (intent == AssistantIntent.MARKETPLACE_SEARCH && "hotel".equals(context.accommodationPreference())) return List.of("HOTEL");
         if (context.interests().contains("food") || context.interests().contains("seafood")) return List.of("RESTAURANT", "HOTEL", "TOUR", "EXPERIENCE");
-        if (context.accommodationPreference() != null) return List.of("HOTEL", "RESTAURANT", "TOUR", "EXPERIENCE");
-        if (intent == AssistantIntent.TRIP_PLANNING || intent == AssistantIntent.ITINERARY_ADJUSTMENT) {
+        if (context.accommodationPreference() != null) return List.of("HOTEL");
+        if (intent == AssistantIntent.TRIP_PLANNER || intent == AssistantIntent.ITINERARY) {
             return List.of("HOTEL", "RESTAURANT", "TOUR", "EXPERIENCE");
         }
         return List.of();
@@ -1964,7 +2155,7 @@ public class AssistantServiceImpl implements AssistantService {
         if (intent == AssistantIntent.MARKETPLACE_SEARCH) {
             return List.of("Find cheaper hotels", "Show beach stays", "Build an itinerary with these");
         }
-        if (intent == AssistantIntent.RECOMMENDATION_REQUEST) {
+        if (intent == AssistantIntent.MARKETPLACE_RECOMMENDATION) {
             return List.of("Add these food stops to my trip", "Find seafood spots", "Make a food-focused itinerary");
         }
         return List.of("Make it cheaper", "Add more food stops", "I prefer a hotel near the beach");
@@ -2000,9 +2191,7 @@ public class AssistantServiceImpl implements AssistantService {
     }
 
     private boolean shouldAskForDestination(String message, AssistantIntent intent) {
-        String normalized = normalize(message);
-        boolean generalDestinationRequest = containsAny(normalized, "noi de di du lich", "place to travel", "somewhere to travel", "di dau");
-        return !generalDestinationRequest && (intent == AssistantIntent.MARKETPLACE_SEARCH || intent == AssistantIntent.RECOMMENDATION_REQUEST);
+        return false;
     }
 
     private Map<String, Object> withResponseMode(TravelContext context, String mode, AssistantIntent intent) {
@@ -2059,12 +2248,125 @@ public class AssistantServiceImpl implements AssistantService {
                 context.tripStyle(),
                 context.previouslyRecommendedListings(),
                 context.previousResponseMode(),
-                context.wantsItinerary()
+                context.wantsItinerary(),
+                context.language()
         );
+    }
+
+    private boolean isFlightRequest(String current, String combined) {
+        boolean hasStrongFlightKeyword = containsAny(current,
+                "chuyen bay", "ve may bay", "flight", "flights", "may bay",
+                "bay tu ", "bay den ", "bay ve ", "bay cuoi tuan", "bay trong", "nen bay",
+                "round trip", "one way", "khu hoi", "chieu di", "chieu ve",
+                "gia ve", "airport", "san bay", "airline", "vietnam airlines",
+                "vietjet", "bamboo", "transit", "nonstop", "direct flight",
+                "departure", "arrival", "dat ve", "book ve", "book flight",
+                "thoi gian nao nen bay"
+        ) || current.matches(".*\\b[a-z]{3}\\s*(->|=>|-|to)\\s*[a-z]{3}\\b.*");
+
+        return hasStrongFlightKeyword;
     }
 
     private boolean isFollowUp(String current) {
         return containsAny(current, "make it", "cheaper", "more food", "add", "replace", "near the beach", "prefer", "instead", "lower budget", "family friendly", "romantic", "re hon", "them mon an", "gan bien", "doi lai");
+    }
+
+    private boolean isExplicitItineraryRequest(String current) {
+        return containsAny(
+                current,
+                "itinerary",
+                "schedule",
+                "day by day",
+                "day-by-day",
+                "lap ke hoach",
+                "ke hoach chi tiet",
+                "lich trinh",
+                "chia theo ngay",
+                "plan my trip",
+                "build a trip",
+                "create a trip plan",
+                "create an itinerary",
+                "route plan"
+        ) || (containsAny(current, "plan", "route")
+                && containsAny(current, "trip", "travel", "chuyen di", "du lich", "ngay", "day", "days"));
+    }
+
+    private boolean isRecommendationRequest(String current, String combined, TravelContext context) {
+        if (isExplicitItineraryRequest(current)) {
+            return false;
+        }
+        boolean suggestionLanguage = containsAny(
+                current,
+                "goi y",
+                "de xuat",
+                "recommend",
+                "suggest",
+                "option",
+                "options",
+                "places",
+                "best places",
+                "interesting places",
+                "affordable places",
+                "budget friendly",
+                "where should i go",
+                "nen di dau",
+                "di dau",
+                "dia diem thu vi",
+                "dia diem dang di",
+                "dia diem phu hop",
+                "phu hop ngan sach",
+                "phu hop voi ngan sach",
+                "cho nao dang di",
+                "cho nao",
+                "resort nao",
+                "hotel nao",
+                "tour nao"
+        );
+        boolean budgetRecommendation = context.budgetAmount() != null
+                && containsAny(current, "ngan sach", "budget", "under", "below", "duoi", "tam", "khoang", "co", "voi")
+                && (suggestionLanguage
+                        || context.destination() != null
+                        || context.accommodationPreference() != null
+                        || containsAny(combined, "hotel", "resort", "tour", "restaurant", "khach san", "nha hang", "dia diem"));
+        boolean listingTypeRequest = containsAny(combined, "hotel", "stay", "homestay", "resort", "accommodation", "khach san", "restaurant", "nha hang", "tour")
+                && containsAny(current, "recommend", "suggest", "find", "search", "goi y", "tim", "under", "below", "duoi", "phu hop");
+        return suggestionLanguage || budgetRecommendation || listingTypeRequest;
+    }
+
+    private boolean isAccommodationListingRequest(String combined, TravelContext context) {
+        return context.accommodationPreference() != null
+                || containsAny(combined, "hotel", "stay", "homestay", "resort", "accommodation", "khach san");
+    }
+
+    private BigDecimal recommendationSearchCeiling(AssistantIntent intent, TravelContext context) {
+        BigDecimal strict = strictBudgetCeiling(intent, context);
+        if (strict == null) {
+            return null;
+        }
+        return strict.multiply(BigDecimal.valueOf(1.15)).setScale(0, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal strictBudgetCeiling(AssistantIntent intent, TravelContext context) {
+        BigDecimal budget = context.budgetAmount();
+        if (budget == null || (intent != AssistantIntent.MARKETPLACE_RECOMMENDATION && intent != AssistantIntent.MARKETPLACE_SEARCH)) {
+            return budget;
+        }
+        if ("NIGHTLY".equals(context.budgetScope())) {
+            return budget;
+        }
+        if ("TOTAL".equals(context.budgetScope()) && context.durationDays() != null && context.accommodationPreference() != null) {
+            int nights = Math.max(context.durationDays() - 1, 1);
+            return budget.divide(BigDecimal.valueOf(nights), 0, RoundingMode.DOWN);
+        }
+        return budget;
+    }
+
+    private Comparator<ListingResponse> recommendationComparator(AssistantIntent intent, TravelContext context) {
+        BigDecimal strict = strictBudgetCeiling(intent, context);
+        return Comparator
+                .comparing((ListingResponse listing) -> strict == null || listing.getBasePrice() == null || listing.getBasePrice().compareTo(strict) <= 0 ? 0 : 1)
+                .thenComparing((ListingResponse listing) -> listing.getAverageRating() == null ? BigDecimal.ZERO : listing.getAverageRating(), Comparator.reverseOrder())
+                .thenComparing(ListingResponse::getReviewCount, Comparator.nullsLast(Comparator.reverseOrder()));
     }
 
     private boolean isAssistantIdentityQuestion(String current) {

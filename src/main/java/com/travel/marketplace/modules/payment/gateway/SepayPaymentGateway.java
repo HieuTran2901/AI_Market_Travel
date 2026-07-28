@@ -10,6 +10,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.net.URLEncoder;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -38,9 +39,9 @@ public class SepayPaymentGateway implements PaymentGateway {
         fields.put("order_amount", amountStr);
         fields.put("currency", "VND");
         fields.put("order_description", "AI Coin package payment");
-        fields.put("success_url", properties.getSuccessUrl());
-        fields.put("error_url", properties.getErrorUrl());
-        fields.put("cancel_url", properties.getCancelUrl());
+        fields.put("success_url", appendPaymentRef(properties.getSuccessUrl(), invoiceNumber));
+        fields.put("error_url", appendPaymentRef(properties.getErrorUrl(), invoiceNumber));
+        fields.put("cancel_url", appendPaymentRef(properties.getCancelUrl(), invoiceNumber));
         fields.put("merchant", properties.getMerchantId());
 
         String signature = generateSignature(fields, properties.getSecretKey());
@@ -90,5 +91,10 @@ public class SepayPaymentGateway implements PaymentGateway {
             log.error("Failed to generate SePay signature", e);
             throw new IllegalStateException("Failed to generate signature for checkout");
         }
+    }
+
+    private String appendPaymentRef(String url, String paymentRef) {
+        String separator = url.contains("?") ? "&" : "?";
+        return url + separator + "paymentRef=" + URLEncoder.encode(paymentRef, StandardCharsets.UTF_8);
     }
 }

@@ -38,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -105,7 +106,7 @@ public class PaymentServiceImpl implements PaymentService {
         }
         applyGatewayResult(payment, gatewayResponse);
 
-        return toResponse(payment);
+        return toResponse(payment, gatewayResponse);
     }
 
     private String resolveOrderCurrency(Order order) {
@@ -341,6 +342,12 @@ public class PaymentServiceImpl implements PaymentService {
                 .orElseGet(() -> enrichAiCoinResponse(payment, paymentMapper.toResponse(payment)));
     }
 
+    private PaymentResponse toResponse(Payment payment, GatewayResponse gatewayResponse) {
+        PaymentResponse response = toResponse(payment);
+        enrichCheckoutPayload(response, gatewayResponse);
+        return response;
+    }
+
     private PaymentResponse toResponse(Payment payment, PaymentTransaction transaction) {
         PaymentResponse response = paymentMapper.toResponse(payment);
         response.setGatewayOrderId(transaction.getGatewayOrderId());
@@ -423,6 +430,31 @@ public class PaymentServiceImpl implements PaymentService {
         response.setProviderTransactionId(resolveProviderTransactionId(transaction));
         if (transaction.getPaidAt() != null) {
             response.setPaidAt(transaction.getPaidAt());
+        }
+    }
+
+    private void enrichCheckoutPayload(PaymentResponse response, GatewayResponse gatewayResponse) {
+        if (gatewayResponse == null || gatewayResponse.getRawResponse() == null) {
+            return;
+        }
+
+        Map<String, Object> rawResponse = gatewayResponse.getRawResponse();
+        Object checkoutUrl = rawResponse.get("checkoutUrl");
+        if (checkoutUrl instanceof String value && !value.isBlank()) {
+            response.setCheckoutUrl(value);
+        }
+
+        Object checkoutFields = rawResponse.get("checkoutFields");
+        if (checkoutFields instanceof Map<?, ?> fields && !fields.isEmpty()) {
+            Map<String, String> normalized = new LinkedHashMap<>();
+            fields.forEach((key, value) -> {
+                if (key != null && value != null) {
+                    normalized.put(String.valueOf(key), String.valueOf(value));
+                }
+            });
+            if (!normalized.isEmpty()) {
+                response.setCheckoutFields(normalized);
+            }
         }
     }
 

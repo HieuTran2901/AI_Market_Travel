@@ -3,6 +3,7 @@ package com.travel.marketplace.modules.ai.assistant.service;
 import com.travel.marketplace.modules.listing.dto.ListingResponse;
 import com.travel.marketplace.modules.listing.dto.ListingSearchRequest;
 import com.travel.marketplace.modules.listing.service.ListingService;
+import com.travel.marketplace.modules.ai.shared.DestinationNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -65,7 +66,33 @@ public class MarketplaceAiContextService {
         request.setMaxPrice(context.maxPrice());
 
         try {
-            return new ArrayList<>(listingService.searchListings(request, PageRequest.of(0, Math.max(1, limit))).getContent());
+            List<ListingResponse> exactResults = new ArrayList<>(listingService.searchListings(request, PageRequest.of(0, Math.max(1, limit))).getContent());
+            if (!exactResults.isEmpty() || context.destination() == null || context.destination().isBlank()) {
+                log.debug(
+                        "Marketplace AI search destination={} normalizedDestination={} category={} exactCount={}",
+                        context.destination(),
+                        DestinationNormalizer.key(context.destination()),
+                        category,
+                        exactResults.size()
+                );
+                return exactResults;
+            }
+
+            ListingSearchRequest fallbackRequest = new ListingSearchRequest();
+            fallbackRequest.setStatus("ACTIVE");
+            fallbackRequest.setCategory(category);
+            fallbackRequest.setKeyword(DestinationNormalizer.canonicalize(context.destination()));
+            fallbackRequest.setMinPrice(context.minPrice());
+            fallbackRequest.setMaxPrice(context.maxPrice());
+            List<ListingResponse> fallbackResults = new ArrayList<>(listingService.searchListings(fallbackRequest, PageRequest.of(0, Math.max(1, limit))).getContent());
+            log.info(
+                    "Marketplace AI destination fallback rawDestination={} normalizedDestination={} category={} exactCount=0 fallbackCount={}",
+                    context.destination(),
+                    DestinationNormalizer.key(context.destination()),
+                    category,
+                    fallbackResults.size()
+            );
+            return fallbackResults;
         } catch (Exception e) {
             log.warn("Failed to retrieve marketplace AI context", e);
             return List.of();

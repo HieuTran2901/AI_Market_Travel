@@ -34,6 +34,7 @@ class AssistantServiceImplTest {
     private MarketplaceAiContextService marketplaceAiContextService;
     private PromptTemplateRegistry promptRegistry;
     private AiTripDraftService aiTripDraftService;
+    private com.travel.marketplace.modules.ai.flight.service.FlightAssistantService flightAssistantService;
     private AssistantServiceImpl service;
 
     @BeforeEach
@@ -42,6 +43,7 @@ class AssistantServiceImplTest {
         marketplaceAiContextService = mock(MarketplaceAiContextService.class);
         promptRegistry = mock(PromptTemplateRegistry.class);
         aiTripDraftService = mock(AiTripDraftService.class);
+        flightAssistantService = mock(com.travel.marketplace.modules.ai.flight.service.FlightAssistantService.class);
         when(aiTripDraftService.createDraft(any(), any())).thenAnswer(invocation -> {
             AssistantResponse.ItineraryCard card = invocation.getArgument(1);
             return AssistantResponse.TripDraft.builder()
@@ -67,7 +69,8 @@ class AssistantServiceImplTest {
                 promptRegistry,
                 new StructuredAssistantResponseParser(new ObjectMapper()),
                 new DestinationImageResolver(),
-                aiTripDraftService
+                aiTripDraftService,
+                flightAssistantService
         );
     }
 
@@ -251,14 +254,89 @@ class AssistantServiceImplTest {
     }
 
     @Test
-    void genericHotelRecommendationWithoutDestinationAsksClarificationWithoutLookup() {
+    void genericHotelRecommendationWithoutDestinationSearchesBroadActiveListings() {
+        ListingResponse listing = listing(89L, "Budget Beach Hotel", "HOTEL");
+        when(marketplaceAiContextService.search(any())).thenReturn(List.of(listing));
+        when(aiProvider.complete(any(AiRequest.class))).thenReturn(AiResponse.builder()
+                .text("""
+                        {
+                          "message": "Here are active hotel options.",
+                          "summary": "Broad hotel discovery.",
+                          "listingIds": [89],
+                          "followUpSuggestions": ["Show cheaper options"]
+                        }
+                        """)
+                .build());
+
         AssistantResponse response = service.chat(request("Goi y khach san"));
 
-        assertThat(response.getType()).isEqualTo("CLARIFICATION");
+        ArgumentCaptor<MarketplaceAiContextService.MarketplaceQueryContext> captor = forClass(MarketplaceAiContextService.MarketplaceQueryContext.class);
+        verify(marketplaceAiContextService).search(captor.capture());
+        assertThat(response.getType()).isEqualTo("RECOMMENDATIONS");
         assertThat(response.getIntent()).isEqualTo("MARKETPLACE_SEARCH");
-        assertThat(response.getContextUsed()).isFalse();
-        assertThat(response.getRecommendations()).isEmpty();
-        verifyNoInteractions(marketplaceAiContextService, aiProvider, promptRegistry);
+        assertThat(response.getContextUsed()).isTrue();
+        assertThat(response.getRecommendations()).extracting(AssistantResponse.ListingRecommendation::getId).containsExactly(89L);
+        assertThat(response.getMessage()).contains("một").contains("nơi lưu trú");
+        assertThat(captor.getValue().destination()).isNull();
+        assertThat(captor.getValue().categories()).containsExactly("HOTEL");
+    }
+
+    @Test
+    void broadInterestingPlacesRequestSearchesMarketplaceWithoutCityClarification() {
+        ListingResponse daNang = listing(90L, "Dragon Bridge Night Walk", "EXPERIENCE");
+        ListingResponse daLat = listing(91L, "Da Lat Pine Valley", "TOUR");
+        daLat.setCity("Da Lat");
+        when(marketplaceAiContextService.search(any())).thenReturn(List.of(daNang, daLat));
+        when(aiProvider.complete(any(AiRequest.class))).thenReturn(AiResponse.builder()
+                .text("""
+                        {
+                          "message": "Here are interesting marketplace picks.",
+                          "summary": "Broad active recommendations.",
+                          "listingIds": [90, 91],
+                          "followUpSuggestions": ["Only show cheaper places"]
+                        }
+                        """)
+                .build());
+
+        AssistantResponse response = service.chat(request("Ban hay goi y cho toi mot so dia diem thu vi"));
+
+        ArgumentCaptor<MarketplaceAiContextService.MarketplaceQueryContext> captor = forClass(MarketplaceAiContextService.MarketplaceQueryContext.class);
+        verify(marketplaceAiContextService).search(captor.capture());
+        assertThat(response.getType()).isEqualTo("RECOMMENDATIONS");
+        assertThat(response.getIntent()).isEqualTo("RECOMMENDATION_REQUEST");
+        assertThat(captor.getValue().destination()).isNull();
+        assertThat(response.getRecommendations()).extracting(AssistantResponse.ListingRecommendation::getId).containsExactly(90L, 91L);
+        assertThat(response.getMessage()).contains("2").contains("địa điểm");
+    }
+
+    @Test
+    void recommendationReusesPreviousDestinationBeforeBroadDiscovery() {
+        ListingResponse listing = listing(92L, "Da Lat Garden Stay", "HOTEL");
+        listing.setCity("Da Lat");
+        when(marketplaceAiContextService.search(any())).thenReturn(List.of(listing));
+        when(aiProvider.complete(any(AiRequest.class))).thenReturn(AiResponse.builder()
+                .text("""
+                        {
+                          "message": "Here are Da Lat picks.",
+                          "destination": "Da Lat",
+                          "summary": "Context-aware recommendations.",
+                          "listingIds": [92]
+                        }
+                        """)
+                .build());
+
+        AssistantResponse response = service.chat(AssistantRequest.builder()
+                .message("Goi y vai dia diem thu vi")
+                .history(List.of())
+                .extractedContext(Map.of("destination", "Da Lat", "responseMode", "text"))
+                .build());
+
+        ArgumentCaptor<MarketplaceAiContextService.MarketplaceQueryContext> captor = forClass(MarketplaceAiContextService.MarketplaceQueryContext.class);
+        verify(marketplaceAiContextService).search(captor.capture());
+        assertThat(response.getType()).isEqualTo("RECOMMENDATIONS");
+        assertThat(captor.getValue().destination()).isEqualTo("Da Lat");
+        assertThat(response.getRecommendations()).extracting(AssistantResponse.ListingRecommendation::getId).containsExactly(92L);
+        assertThat(response.getMessage()).contains("Da Lat");
     }
 
     @Test
@@ -478,7 +556,7 @@ class AssistantServiceImplTest {
                         """)
                 .build());
 
-        AssistantResponse response = service.chat(request("Da Lat 1 day budget 1 million"));
+        AssistantResponse response = service.chat(request("Plan Da Lat 1 day budget 1 million"));
 
         assertThat(response.getType()).isEqualTo("ITINERARY");
         assertThat(response.getItineraryCard().getDurationDays()).isEqualTo(1);
@@ -515,7 +593,7 @@ class AssistantServiceImplTest {
                         """)
                 .build());
 
-        AssistantResponse response = service.chat(request("Da Nang 3 days total budget 2 million"));
+        AssistantResponse response = service.chat(request("Plan Da Nang 3 days total budget 2 million"));
 
         assertThat(response.getType()).isEqualTo("ITINERARY");
         AssistantResponse.BudgetSummary budget = response.getItineraryCard().getBudget();
@@ -537,7 +615,7 @@ class AssistantServiceImplTest {
         stay.setBasePrice(BigDecimal.valueOf(850000));
         when(marketplaceAiContextService.search(any())).thenReturn(List.of(stay));
 
-        AssistantResponse response = service.chat(request("Da Lat 3 days 2 people total budget 1 million"));
+        AssistantResponse response = service.chat(request("Plan Da Lat 3 days 2 people total budget 1 million"));
 
         assertThat(response.getType()).isEqualTo("CLARIFICATION");
         assertThat(response.getBudgetAdvice()).isNotNull();
@@ -596,7 +674,7 @@ class AssistantServiceImplTest {
                         """)
                 .build());
 
-        AssistantResponse response = service.chat(request("Da Lat 3 days 2 people 1 million per person"));
+        AssistantResponse response = service.chat(request("Plan Da Lat 3 days 2 people 1 million per person"));
 
         assertThat(response.getType()).isEqualTo("ITINERARY");
         assertThat(response.getItineraryCard().getBudget().getRequestedTotal()).isEqualByComparingTo("2000000");
@@ -737,6 +815,215 @@ class AssistantServiceImplTest {
         assertThat(response.getType()).isEqualTo("CLARIFICATION");
         assertThat(response.getRecommendations()).isEmpty();
         verify(aiProvider, never()).complete(any());
+    }
+
+    @Test
+    void budgetSuggestionTripLanguageReturnsRecommendationsNotItinerary() {
+        ListingResponse listing = listing(401L, "Da Nang Family Resort", "HOTEL");
+        when(marketplaceAiContextService.search(any())).thenReturn(List.of(listing));
+        when(aiProvider.complete(any(AiRequest.class))).thenReturn(AiResponse.builder()
+                .text("""
+                        {
+                          "message": "Here are active options for your budget.",
+                          "destination": "Da Nang",
+                          "summary": "Budget-friendly options.",
+                          "listingIds": [401],
+                          "followUpSuggestions": ["Show cheaper options", "Build a 3-day itinerary from these"]
+                        }
+                        """)
+                .build());
+
+        AssistantResponse response = service.chat(request("Goi y cho toi mot chuyen di Da Nang phu hop ngan sach 3 trieu"));
+
+        assertThat(response.getType()).isEqualTo("RECOMMENDATIONS");
+        assertThat(response.getIntent()).isEqualTo("RECOMMENDATION_REQUEST");
+        assertThat(response.getItineraryCard()).isNull();
+        assertThat(response.getRecommendations()).extracting(AssistantResponse.ListingRecommendation::getId).containsExactly(401L);
+    }
+
+    @Test
+    void destinationAndDurationWithSuggestionRemainRecommendations() {
+        ListingResponse listing = listing(402L, "Hoi An Boutique Stay", "HOTEL");
+        listing.setCity("Hoi An");
+        when(marketplaceAiContextService.search(any())).thenReturn(List.of(listing));
+        when(aiProvider.complete(any(AiRequest.class))).thenReturn(AiResponse.builder()
+                .text("""
+                        {
+                          "message": "Here are active options.",
+                          "destination": "Hoi An",
+                          "summary": "Marketplace matches.",
+                          "listingIds": [402]
+                        }
+                        """)
+                .build());
+
+        AssistantResponse response = service.chat(request("Goi y chuyen di Hoi An 3 ngay voi 5 trieu"));
+
+        assertThat(response.getType()).isEqualTo("RECOMMENDATIONS");
+        assertThat(response.getIntent()).isEqualTo("RECOMMENDATION_REQUEST");
+        verify(aiProvider, times(1)).complete(any(AiRequest.class));
+    }
+
+    @Test
+    void hotelNightlyBudgetUsesHotelCategoryAndNightlyCeiling() {
+        ListingResponse listing = listing(403L, "Da Nang Budget Resort", "HOTEL");
+        listing.setBasePrice(BigDecimal.valueOf(950000));
+        when(marketplaceAiContextService.search(any())).thenReturn(List.of(listing));
+        when(aiProvider.complete(any(AiRequest.class))).thenReturn(AiResponse.builder()
+                .text("""
+                        {
+                          "message": "Here are active stays under your nightly budget.",
+                          "destination": "Da Nang",
+                          "summary": "Hotel matches.",
+                          "listingIds": [403]
+                        }
+                        """)
+                .build());
+
+        AssistantResponse response = service.chat(AssistantRequest.builder()
+                .message("Goi y khach san Da Nang duoi 1 trieu mot dem")
+                .history(List.of())
+                .build());
+
+        ArgumentCaptor<MarketplaceAiContextService.MarketplaceQueryContext> queryCaptor = forClass(MarketplaceAiContextService.MarketplaceQueryContext.class);
+        verify(marketplaceAiContextService).search(queryCaptor.capture());
+        assertThat(response.getType()).isEqualTo("RECOMMENDATIONS");
+        assertThat(queryCaptor.getValue().categories()).containsExactly("HOTEL");
+        assertThat(queryCaptor.getValue().maxPrice()).isEqualByComparingTo("1150000");
+    }
+
+    @Test
+    void explicitItineraryLanguageStillUsesTripPlanning() {
+        ListingResponse listing = listing(404L, "Da Nang Local Experience", "EXPERIENCE");
+        when(marketplaceAiContextService.search(any())).thenReturn(List.of(listing));
+        when(aiProvider.complete(any(AiRequest.class))).thenReturn(AiResponse.builder()
+                .text("""
+                        {
+                          "title": "Da Nang itinerary",
+                          "destination": "Da Nang",
+                          "durationText": "3D / 2N",
+                          "summary": "A day-by-day plan.",
+                          "listingIds": [404],
+                          "days": [
+                            { "dayNumber": 1, "title": "Arrival", "morning": "Arrive" },
+                            { "dayNumber": 2, "title": "Explore", "morning": "Experience" },
+                            { "dayNumber": 3, "title": "Depart", "morning": "Pack" }
+                          ]
+                        }
+                        """)
+                .build());
+
+        AssistantResponse response = service.chat(request("Lap lich trinh Da Nang 3 ngay 2 dem"));
+
+        assertThat(response.getType()).isEqualTo("ITINERARY");
+        assertThat(response.getIntent()).isEqualTo("TRIP_PLANNING");
+    }
+
+    @Test
+    void hanoiRecommendationFallsBackToDatabaseCardsWhenModelReturnsNoIds() {
+        ListingResponse hotel = listing(3L, "Old Quarter Boutique Stay Ha Noi", "HOTEL");
+        hotel.setCity("Ha Noi");
+        hotel.setSlug("old-quarter-boutique-stay-ha-noi");
+        ListingResponse restaurant = listing(11L, "Old Quarter Pho Tasting Table", "RESTAURANT");
+        restaurant.setCity("Ha Noi");
+        restaurant.setSlug("old-quarter-pho-tasting-table");
+
+        when(marketplaceAiContextService.search(any())).thenReturn(List.of(hotel, restaurant));
+        when(aiProvider.complete(any(AiRequest.class))).thenReturn(AiResponse.builder()
+                .text("""
+                        {
+                          "message": "No matches",
+                          "destination": "Hanoi",
+                          "summary": "No matches",
+                          "listingIds": [],
+                          "followUpSuggestions": ["Show cheaper options"]
+                        }
+                        """)
+                .build());
+
+        AssistantResponse response = service.chat(request("Tim cho toi cac dia diem o Hanoi"));
+
+        assertThat(response.getType()).isEqualTo("RECOMMENDATIONS");
+        assertThat(response.getIntent()).isIn("MARKETPLACE_SEARCH", "RECOMMENDATION_REQUEST");
+        assertThat(response.getRecommendations()).extracting(AssistantResponse.ListingRecommendation::getId)
+                .containsExactly(3L, 11L);
+        assertThat(response.getMessage()).contains("Hanoi").contains("2");
+
+        ArgumentCaptor<MarketplaceAiContextService.MarketplaceQueryContext> captor = forClass(MarketplaceAiContextService.MarketplaceQueryContext.class);
+        verify(marketplaceAiContextService).search(captor.capture());
+        assertThat(captor.getValue().destination()).isEqualTo("Ha Noi");
+        assertThat(captor.getValue().maxPrice()).isNull();
+    }
+
+    @Test
+    void recommendationIntroMentionsBudgetAndNearBudgetFallback() {
+        ListingResponse listing = listing(405L, "Hanoi Family Food Walk", "EXPERIENCE");
+        listing.setCity("Ha Noi");
+        listing.setBasePrice(BigDecimal.valueOf(550000));
+        when(marketplaceAiContextService.search(any())).thenReturn(List.of(listing));
+        when(aiProvider.complete(any(AiRequest.class))).thenReturn(AiResponse.builder()
+                .text("""
+                        {
+                          "message": "Here are active options.",
+                          "destination": "Ha Noi",
+                          "summary": "Marketplace matches.",
+                          "listingIds": [405]
+                        }
+                        """)
+                .build());
+
+        AssistantResponse response = service.chat(request("Goi y dia diem o Ha Noi duoi 500k"));
+
+        assertThat(response.getType()).isEqualTo("RECOMMENDATIONS");
+        assertThat(response.getRecommendations()).hasSize(1);
+        assertThat(response.getMessage()).contains("500.000").contains("cao hơn");
+    }
+
+    @Test
+    void englishRecommendationIntroUsesEnglishSingularText() {
+        ListingResponse listing = listing(406L, "Hanoi Creative Studio", "EXPERIENCE");
+        listing.setCity("Ha Noi");
+        when(marketplaceAiContextService.search(any())).thenReturn(List.of(listing));
+        when(aiProvider.complete(any(AiRequest.class))).thenReturn(AiResponse.builder()
+                .text("""
+                        {
+                          "message": "Here are active options.",
+                          "destination": "Hanoi",
+                          "summary": "Marketplace matches.",
+                          "listingIds": [406]
+                        }
+                        """)
+                .build());
+
+        AssistantResponse response = service.chat(request("Recommend some places in Hanoi"));
+
+        assertThat(response.getType()).isEqualTo("RECOMMENDATIONS");
+        assertThat(response.getMessage()).contains("I found 1").contains("place").contains("Hanoi");
+    }
+
+    @Test
+    void flightSearchIntentIsDetected() {
+        AssistantResponse mockResponse = AssistantResponse.builder().intent("FLIGHT_SEARCH").build();
+        when(flightAssistantService.handleFlightIntent(any(), any(), any())).thenReturn(mockResponse);
+
+        String[] flightQueries = {
+            "Tìm chuyến bay từ TP HCM đến Quảng Trị",
+            "Flight từ SGN đến DAD",
+            "Bay cuối tuần",
+            "Vé máy bay dưới 2 triệu",
+            "Vietnam Airlines",
+            "Round trip",
+            "Bay trong 15 ngày"
+        };
+
+        for (String query : flightQueries) {
+            AssistantResponse response = service.chat(request(query));
+            assertThat(response).isNotNull();
+            assertThat(response.getIntent()).isEqualTo("FLIGHT_SEARCH");
+        }
+        
+        verify(flightAssistantService, times(flightQueries.length)).handleFlightIntent(any(), any(), any());
+        verifyNoInteractions(marketplaceAiContextService);
     }
 
     private AssistantRequest request(String message) {

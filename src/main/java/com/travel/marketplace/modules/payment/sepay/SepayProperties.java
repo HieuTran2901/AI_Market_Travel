@@ -22,6 +22,7 @@ public class SepayProperties {
     private String errorUrl;
     private String cancelUrl;
     private String frontendRedirectUrl = "http://localhost:5173/ai-coins/payment-result";
+    private String bookingFrontendRedirectUrl = "http://localhost:5173/checkout";
 
     @PostConstruct
     void validate() {

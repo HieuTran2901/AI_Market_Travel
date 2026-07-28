@@ -22,7 +22,12 @@ public class AssistantResponse {
         RECOMMENDATIONS,
         ITINERARY,
         CLARIFICATION,
-        ERROR
+        ERROR,
+        FLIGHT_DATE_RECOMMENDATIONS,
+        FLIGHT_RECOMMENDATIONS,
+        FLIGHT_NO_RESULTS,
+        FLIGHT_CLARIFICATION,
+        FLIGHT_MEMBERSHIP_LIMIT
     }
 
     @Builder.Default
@@ -62,6 +67,12 @@ public class AssistantResponse {
     private ItineraryCard itinerary;
 
     private TripDraft tripDraft;
+    
+    // Flight specific fields
+    private List<FlightDealRecommendation> dateRecommendations;
+    private List<FlightOfferRecommendation> flights;
+    private FlightMembership membership;
+    private List<FlightSummaryLabel> summaryLabels;
 
     private BudgetAdvice budgetAdvice;
 
@@ -189,7 +200,11 @@ public class AssistantResponse {
         private String slug;
         private String ratingText;
         private String shortDescription;
+        private String reasoning;
         private String providerName;
+        private List<String> tags;
+        private String matchReason;
+        private Boolean withinBudget;
         private String source;
     }
 
@@ -208,5 +223,61 @@ public class AssistantResponse {
         private String imageUrl;
         private String highlightImageUrl;
         private List<Long> relatedListingIds;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FlightDealRecommendation {
+        private String departureDate;
+        private String returnDate;
+        private java.math.BigDecimal price;
+        private String currency;
+        private String airlineLogo;
+        private String airlineName;
+        private String durationText;
+        private String routeText;
+        private String rankText;
+        private String bookingUrl;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FlightOfferRecommendation {
+        private String id;
+        private String departureTime;
+        private String arrivalTime;
+        private String airlineLogo;
+        private String airlineName;
+        private String durationText;
+        private String routeText;
+        private String stopsText;
+        private java.math.BigDecimal price;
+        private String currency;
+        private List<String> badges;
+        private String bookingUrl;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FlightSummaryLabel {
+        private String title;
+        private String value;
+        private String type; // "price", "time", "overall"
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FlightMembership {
+        private String tierName;
+        private int maxSearchDays;
+        private String limitReachedText;
     }
 }

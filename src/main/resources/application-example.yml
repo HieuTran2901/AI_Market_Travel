@@ -67,6 +67,7 @@ payment:
 
 ai:
   provider: ${AI_PROVIDER:gemini}
+  model: ${AI_MODEL:}
   trip-planner:
     structured-model: ${AI_TRIP_PLANNER_STRUCTURED_MODEL:google/gemini-2.0-flash-001}
     fallback-structured-model: ${AI_TRIP_PLANNER_FALLBACK_STRUCTURED_MODEL:openai/gpt-4o-mini}
@@ -103,6 +104,16 @@ openrouter:
   temperature: ${OPENROUTER_TEMPERATURE:0.7}
   http-referer: ${OPENROUTER_HTTP_REFERER:}
   title: ${OPENROUTER_TITLE:AI Travel Marketplace}
+
+groq:
+  api-key: ${GROQ_API_KEY:}
+  base-url: ${GROQ_BASE_URL:https://api.groq.com/openai/v1}
+  chat-path: ${GROQ_CHAT_PATH:/chat/completions}
+  model: ${GROQ_MODEL:openai/gpt-oss-120b}
+  connect-timeout-seconds: ${GROQ_CONNECT_TIMEOUT_SECONDS:10}
+  read-timeout-seconds: ${GROQ_READ_TIMEOUT_SECONDS:90}
+  max-output-tokens: ${GROQ_MAX_OUTPUT_TOKENS:6000}
+  temperature: ${GROQ_TEMPERATURE:0.7}
 
 logging:
   level:

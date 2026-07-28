@@ -36,6 +36,8 @@ public enum ErrorCode {
     BAN_REASON_REQUIRED("BAN_REASON_REQUIRED", "A ban reason is required"),
     OPENROUTER_AUTH_FAILED("OPENROUTER_AUTH_FAILED", "The AI provider authentication failed"),
     GEMINI_AUTH_FAILED("GEMINI_AUTH_FAILED", "The AI provider authentication failed"),
+    GROQ_AUTH_FAILED("GROQ_AUTH_FAILED", "The AI provider authentication failed"),
+    GROQ_MODEL_NOT_FOUND("GROQ_MODEL_NOT_FOUND", "The configured Groq model was not found"),
     AI_QUOTA_EXCEEDED("AI_QUOTA_EXCEEDED", "The AI quota has been exceeded"),
     AI_INVALID_REQUEST("AI_INVALID_REQUEST", "The AI provider request was invalid"),
     AI_PROVIDER_FORBIDDEN("AI_PROVIDER_FORBIDDEN", "The AI provider rejected the request"),

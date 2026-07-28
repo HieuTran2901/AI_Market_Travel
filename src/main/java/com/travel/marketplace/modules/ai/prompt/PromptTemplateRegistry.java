@@ -24,6 +24,32 @@ public class PromptTemplateRegistry {
 
     @PostConstruct
     public void registerBuiltInTemplates() {
+        register(createTemplate("intent_classification",
+            """
+            You are the intent router for an AI travel concierge.
+            Your job is to classify the user's message into exactly one of the following intents:
+            - GENERAL_CHAT: For greetings, casual conversation, general questions, asking for help, or asking about the assistant's capabilities.
+            - MARKETPLACE_RECOMMENDATION: For when the user asks for suggestions or recommendations (e.g., "suggest a hotel", "where should I eat", "places under 500k").
+            - MARKETPLACE_SEARCH: For when the user searches for a specific listing or type of accommodation.
+            - FLIGHT_SEARCH: For when the user wants to find, search, or book flights (vé máy bay, chuyến bay).
+            - TRIP_PLANNER: For when the user wants to plan a trip, build an itinerary, or organize a schedule.
+            - ITINERARY: For when the user wants to adjust an existing itinerary.
+            - BOOKING: For booking-related help.
+            - UNKNOWN: If the intent is unclear.
+            
+            You must also detect the language of the user's message ("vi" for Vietnamese, "en" for English).
+            
+            Current user message: {{userMessage}}
+            Recent conversation history: {{history}}
+            
+            Return ONLY valid JSON in this exact format:
+            {
+              "intent": "GENERAL_CHAT",
+              "language": "vi"
+            }
+            """
+        ));
+
         register(createTemplate("recommendation",
             """
             You are an expert travel recommendation AI for a Vietnamese travel marketplace.
@@ -43,6 +69,13 @@ public class PromptTemplateRegistry {
             2. Rank them from best to least match
             3. Keep each explanation concise (2-3 sentences)
             4. Reference specific listing names from the context above whenever possible
+            
+            You MUST answer ONLY in the user's language: {{userLanguage}}.
+            Never switch to English unless the user explicitly changes language.
+            If the user speaks Vietnamese:
+            - explain in Vietnamese
+            - recommendations in Vietnamese
+            - summaries in Vietnamese
             
             Format your response as a JSON array with fields: listingId, score (0-100), reasoning.
             """
@@ -78,6 +111,13 @@ public class PromptTemplateRegistry {
             Use listingId null only when no suitable marketplace item exists.
             Do not add a repeated hotel stay activity every day unless requested.
             Do not invent listing IDs, prices, availability, ratings, provider names, or image URLs.
+            
+            You MUST answer ONLY in the user's language: {{userLanguage}}.
+            Never switch to English unless the user explicitly changes language.
+            If the user speaks Vietnamese:
+            - explain in Vietnamese
+            - recommendations in Vietnamese
+            - summaries in Vietnamese
             """
         ));
 
@@ -99,8 +139,46 @@ public class PromptTemplateRegistry {
             
             User message: {{userMessage}}
             
+            You MUST answer ONLY in the user's language: {{userLanguage}}.
+            Never switch to English unless the user explicitly changes language.
+            If the user speaks Vietnamese:
+            - explain in Vietnamese
+            - recommendations in Vietnamese
+            - summaries in Vietnamese
+            
             Respond naturally and helpfully. If you reference specific listings, use their exact names from the context.
             Keep responses focused and actionable.
+            """
+        ));
+
+        register(createTemplate("flight_extraction",
+            """
+            Extract flight search parameters from the user's natural language request.
+            Return a JSON object with the following fields:
+            {
+              "departure_city": "City name or null",
+              "arrival_city": "City name or null",
+              "departure_date": "YYYY-MM-DD or null if not exact",
+              "return_date": "YYYY-MM-DD or null if not exact",
+              "flexible_date_window": "integer number of days if specified, or null",
+              "budget": "numeric budget limit in VND or null",
+              "trip_type": "ONE_WAY or ROUND_TRIP",
+              "passengers": "integer number of passengers, default 1",
+              "preferred_airline": "airline name or null"
+            }
+            
+            Context:
+            Current date: {{currentDate}}
+            Previous destination context: {{contextDestination}}
+            User query: {{naturalLanguageQuery}}
+            
+            Rules:
+            1. ONLY output valid JSON. No markdown, no explanations.
+            2. Match Vietnamese or English cities (e.g., 'Sài Gòn', 'TPHCM' -> 'Ho Chi Minh City').
+            3. If the user mentions a number of days (e.g. 'bay trong 15 ngày'), extract 15 as flexible_date_window.
+            4. Parse budget to a number (e.g. 'dưới 2 triệu' -> 2000000).
+            5. MUST output dates strictly in YYYY-MM-DD format. Resolve relative dates (e.g. 'ngày 1/8' -> '2026-08-01', 'next weekend') using Current date.
+            6. Only extract a date if explicitly requested; otherwise leave as null.
             """
         ));
 
