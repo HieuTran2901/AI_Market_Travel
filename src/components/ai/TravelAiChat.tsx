@@ -1420,7 +1420,6 @@ export const TravelAiChat: React.FC = () => {
   const queryClient = useQueryClient();
   const accountOwnerId = user?.id ?? null;
   const accountOwnerKey = getChatStorageKey(accountOwnerId);
-  const rootRef = useRef<HTMLDivElement>(null);
   const accountOwnerRef = useRef(accountOwnerKey);
   const previousOwnerKeyRef = useRef<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);

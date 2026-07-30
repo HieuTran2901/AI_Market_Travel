@@ -1,0 +1,99 @@
+.reward-toast {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  z-index: 9999;
+  
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  
+  min-width: 280px;
+  max-width: 90vw;
+  padding: 16px 20px;
+  
+  background: rgba(20, 10, 40, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(168, 85, 247, 0.25), inset 0 0 16px rgba(168, 85, 247, 0.1);
+  
+  color: #fff;
+  font-family: inherit;
+  pointer-events: none;
+}
+
+.reward-toast__header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.reward-toast__check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: #10b981;
+  border-radius: 50%;
+  color: #000;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.5);
+}
+
+.reward-toast__header strong {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #fff;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+.reward-toast__content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reward-toast__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.reward-toast__item img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.reward-toast__item span {
+  color: #e2e8f0;
+}
+
+.reward-toast__item--exp span {
+  color: #fbbf24;
+}
+
+.reward-toast__item--special span {
+  color: #60a5fa;
+}
+
+.reward-toast__item--voucher span {
+  color: #c084fc;
+}
+
+@media (max-width: 640px) {
+  .reward-toast {
+    top: 64px;
+    width: 90%;
+    min-width: unset;
+  }
+}

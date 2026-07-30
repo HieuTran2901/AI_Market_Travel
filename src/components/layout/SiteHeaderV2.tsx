@@ -27,6 +27,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/context/AuthContext";
 import { useAiCoinWallet } from "@/hooks/useAiCoinWallet";
+import { useCoinAnimation } from "@/hooks/useCoinAnimation";
 import { bookingService } from "@/services/bookingService";
 import { cn } from "@/lib/utils";
 
@@ -466,7 +467,8 @@ export const SiteHeaderV2: React.FC = () => {
   const displayName = user?.fullName || user?.email || "Traveler";
   const initials = displayName.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "AI";
   const aiCoinBalance = aiCoinWalletQuery.data?.balance ?? 0;
-  const aiCoinBalanceLabel = aiCoinWalletQuery.isLoading ? "..." : aiCoinBalance.toLocaleString("en-US");
+  const animatedBalance = useCoinAnimation(aiCoinBalance, 800);
+  const aiCoinBalanceLabel = aiCoinWalletQuery.isLoading ? "..." : animatedBalance.toLocaleString("en-US");
 
   const goTo = React.useCallback((path: string) => {
     setOpenHeaderMenu(null);

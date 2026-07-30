@@ -1,4 +1,4 @@
-import specialCoin from "../../../assets/images/coin.png";
+import goldCoin from "../../../assets/images/coin-gold.png";
 import heroChest from "../../../assets/missions/hero/01-hero-treasure-chest-transparent.png";
 import seasonPurpleChest from "../../../assets/missions/season/02-season-purple-chest-transparent.png";
 import seasonSilverChest from "../../../assets/missions/season/03-season-silver-chest-transparent.png";
@@ -20,7 +20,7 @@ import rankBronze from "../../../assets/missions/leaderboard/18-rank-bronze-icon
 
 export const missionAssets = {
   heroChest,
-  specialCoin,
+  goldCoin,
   seasonLevelBadge,
   seasonMilestones: {
     current: seasonPurpleChest,

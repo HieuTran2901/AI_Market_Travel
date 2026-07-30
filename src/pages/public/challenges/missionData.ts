@@ -31,6 +31,7 @@ export type MissionItem = {
   progress: number;
   target: number;
   rewardCoins: number;
+  rewardExp: number;
   status: MissionStatus;
   actionType?: MissionActionType;
   actionTarget?: string;
@@ -51,6 +52,7 @@ export type MissionSummary = {
 export type SeasonMilestone = {
   level: number;
   rewardCoins: number;
+  rewardExp: number;
   state: "completed" | "current" | "locked";
   final?: boolean;
 };
@@ -82,12 +84,12 @@ export const demoMissionSummary: MissionSummary = {
 };
 
 export const seasonMilestones: SeasonMilestone[] = [
-  { level: 5, rewardCoins: 500, state: "completed" },
-  { level: 10, rewardCoins: 1_000, state: "completed" },
-  { level: 15, rewardCoins: 1_500, state: "current" },
-  { level: 20, rewardCoins: 2_000, state: "locked" },
-  { level: 30, rewardCoins: 3_000, state: "locked" },
-  { level: 50, rewardCoins: 5_000, state: "locked", final: true },
+  { level: 5, rewardCoins: 500, rewardExp: 100, state: "completed" },
+  { level: 10, rewardCoins: 1_000, rewardExp: 200, state: "completed" },
+  { level: 15, rewardCoins: 1_500, rewardExp: 300, state: "current" },
+  { level: 20, rewardCoins: 2_000, rewardExp: 400, state: "locked" },
+  { level: 30, rewardCoins: 3_000, rewardExp: 600, state: "locked" },
+  { level: 50, rewardCoins: 5_000, rewardExp: 1000, state: "locked", final: true },
 ];
 
 export const missionItems: MissionItem[] = [
@@ -99,6 +101,7 @@ export const missionItems: MissionItem[] = [
     progress: 1,
     target: 1,
     rewardCoins: 50,
+    rewardExp: 20,
     status: "claimable",
     actionType: "claim",
     icon: "calendar",
@@ -112,6 +115,7 @@ export const missionItems: MissionItem[] = [
     progress: 0,
     target: 1,
     rewardCoins: 80,
+    rewardExp: 35,
     status: "in-progress",
     actionType: "navigate",
     actionTarget: "/challenges/games",
@@ -126,6 +130,7 @@ export const missionItems: MissionItem[] = [
     progress: 1,
     target: 3,
     rewardCoins: 120,
+    rewardExp: 50,
     status: "in-progress",
     actionType: "navigate",
     actionTarget: "/challenges/missions",
@@ -140,6 +145,7 @@ export const missionItems: MissionItem[] = [
     progress: 0,
     target: 1,
     rewardCoins: 60,
+    rewardExp: 25,
     status: "in-progress",
     actionType: "share",
     icon: "share",
@@ -153,6 +159,7 @@ export const missionItems: MissionItem[] = [
     progress: 1,
     target: 1,
     rewardCoins: 40,
+    rewardExp: 15,
     status: "claimable",
     actionType: "claim",
     icon: "marketplace",
@@ -166,6 +173,7 @@ export const missionItems: MissionItem[] = [
     progress: 1,
     target: 2,
     rewardCoins: 70,
+    rewardExp: 30,
     status: "in-progress",
     actionType: "navigate",
     actionTarget: "/search",
@@ -180,6 +188,7 @@ export const missionItems: MissionItem[] = [
     progress: 0,
     target: 1,
     rewardCoins: 350,
+    rewardExp: 120,
     status: "in-progress",
     actionType: "navigate",
     actionTarget: "/ai/planner",
@@ -194,6 +203,7 @@ export const missionItems: MissionItem[] = [
     progress: 12,
     target: 20,
     rewardCoins: 900,
+    rewardExp: 300,
     status: "in-progress",
     actionType: "navigate",
     actionTarget: "/search",
@@ -208,6 +218,7 @@ export const missionItems: MissionItem[] = [
     progress: 0,
     target: 1,
     rewardCoins: 1_500,
+    rewardExp: 500,
     status: "locked",
     icon: "sparkles",
     tone: "amber",
@@ -220,6 +231,7 @@ export const missionItems: MissionItem[] = [
     progress: 2,
     target: 5,
     rewardCoins: 700,
+    rewardExp: 250,
     status: "in-progress",
     actionType: "navigate",
     actionTarget: "/challenges",

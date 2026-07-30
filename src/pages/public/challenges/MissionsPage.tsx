@@ -27,6 +27,7 @@ import { demoRewardWallet } from "./rewardData";
 import { missionAssets } from "./missionAssets";
 import { MissionsMobilePresentation } from "./MissionsMobilePresentation";
 import { createMissionsMotion, missionsEase } from "./missionsMotion";
+import { EventTab } from "./EventTab";
 import {
   dailyCheckInItems,
   demoMissionSummary,
@@ -37,6 +38,18 @@ import {
   type MissionIconName,
   type MissionItem,
 } from "./missionData";
+import { gamificationService } from "@/services/gamificationService";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAiCoinWallet } from "@/hooks/useAiCoinWallet";
+import {
+  AI_COIN_WALLET_QUERY_KEY,
+  type AiCoinWallet,
+} from "@/services/aiCoinWalletService";
+import { useAuth } from "@/context/AuthContext";
+import { RewardToast, type RewardData } from "./RewardToast";
+import { AnimatedCounter } from "./AnimatedCounter";
+import { RewardParticleSystem, type RewardParticle } from "./RewardParticleSystem";
+import { MissionCenterView } from "./MissionCenterView";
 import "./MissionsPage.css";
 
 const categoryTabs: Array<{ id: MissionCategory; label: string }> = [
@@ -98,7 +111,10 @@ const ProgressBar: React.FC<{
         initial={shouldReduceMotion ? false : { scaleX: 0 }}
         animate={{ scaleX: ratio }}
         style={{ transformOrigin: "left" }}
-        transition={{ duration: shouldReduceMotion ? 0 : 0.5, ease: missionsEase }}
+        transition={{
+          duration: shouldReduceMotion ? 0 : 0.5,
+          ease: missionsEase,
+        }}
       />
     </div>
   );
@@ -122,67 +138,80 @@ const MissionsHero: React.FC<{ onHistory: () => void }> = ({ onHistory }) => {
   const shouldReduceMotion = Boolean(useReducedMotion());
   const motionConfig = createMissionsMotion(shouldReduceMotion);
 
-  return <motion.section
-    className="missions-hero"
-    aria-labelledby="missions-title"
-    variants={motionConfig.section}
-  >
-    <motion.img
-      src={missionAssets.heroChest}
-      alt=""
-      aria-hidden="true"
-      className="missions-hero__art"
-      variants={motionConfig.heroArt}
-    />
-    <motion.div className="missions-hero__copy" variants={motionConfig.section}>
-      <div className="missions-hero__sparkles" aria-hidden="true">
-        <Sparkles />
-        <span />
-        <Sparkles />
-      </div>
-      <h1 id="missions-title">MISSIONS</h1>
-      <p>
-        Complete daily missions and earn Special Coins and exclusive rewards!
-      </p>
-    </motion.div>
-    <motion.button
-      type="button"
-      className="missions-history-button"
-      onClick={onHistory}
+  return (
+    <motion.section
+      className="missions-hero"
+      aria-labelledby="missions-title"
       variants={motionConfig.section}
-      whileHover={shouldReduceMotion ? undefined : { y: -1 }}
-      whileTap={shouldReduceMotion ? undefined : { scale: 0.98 }}
     >
-      <History aria-hidden="true" />
-      Mission History
-    </motion.button>
-  </motion.section>;
+      <motion.img
+        src={missionAssets.heroChest}
+        alt=""
+        aria-hidden="true"
+        className="missions-hero__art"
+        variants={motionConfig.heroArt}
+      />
+      <motion.div
+        className="missions-hero__copy"
+        variants={motionConfig.section}
+      >
+        <div className="missions-hero__sparkles" aria-hidden="true">
+          <Sparkles />
+          <span />
+          <Sparkles />
+        </div>
+        <h1 id="missions-title">MISSIONS</h1>
+        <p>
+          Complete daily missions and earn Special Coins and exclusive rewards!
+        </p>
+      </motion.div>
+      <motion.button
+        type="button"
+        className="missions-history-button"
+        onClick={onHistory}
+        variants={motionConfig.section}
+        whileHover={shouldReduceMotion ? undefined : { y: -1 }}
+        whileTap={shouldReduceMotion ? undefined : { scale: 0.98 }}
+      >
+        <History aria-hidden="true" />
+        Mission History
+      </motion.button>
+    </motion.section>
+  );
 };
 
-const MissionsSummary = () => {
+const MissionsSummary: React.FC<{ seasonExp: number; aiCoinBalance?: number }> = ({ seasonExp, aiCoinBalance = demoRewardWallet.goldCoins }) => {
   const motionConfig = createMissionsMotion(Boolean(useReducedMotion()));
   const metrics = [
     {
-      label: "Your Special Coins",
-      value: formatNumber(demoRewardWallet.specialCoins),
+      label: "Your Gold Coins",
+      value: formatNumber(aiCoinBalance),
+      rawValue: aiCoinBalance,
       suffix: "",
       accent: true,
+      animated: true as boolean,
     },
     {
       label: "Season EXP",
-      value: formatNumber(demoMissionSummary.seasonExp),
+      value: formatNumber(seasonExp),
+      rawValue: seasonExp,
       suffix: ` / ${formatNumber(demoMissionSummary.seasonExpTarget)} EXP`,
+      animated: true as boolean,
     },
     {
       label: "Missions Completed",
       value: `${demoMissionSummary.completedMissions}`,
+      rawValue: demoMissionSummary.completedMissions,
       suffix: ` / ${demoMissionSummary.totalMissions}`,
+      animated: false as boolean,
     },
     {
       label: "Login Streak",
       value: `${demoMissionSummary.loginStreakDays}`,
+      rawValue: demoMissionSummary.loginStreakDays,
       suffix: " days",
       accent: true,
+      animated: false as boolean,
     },
   ];
 
@@ -196,9 +225,9 @@ const MissionsSummary = () => {
         <div key={metric.label} className="missions-summary__metric">
           <span>{metric.label}</span>
           <strong className={metric.accent ? "is-accent" : ""}>
-            {metric.value}
-            {metric.label === "Your Special Coins" && (
-              <img src={missionAssets.specialCoin} alt="Special Coin" />
+            {metric.animated ? <AnimatedCounter value={metric.rawValue as number} /> : metric.value}
+            {metric.label === "Your Gold Coins" && (
+              <img src={missionAssets.goldCoin} alt="Gold Coin" />
             )}
             <small>{metric.suffix}</small>
           </strong>
@@ -208,74 +237,81 @@ const MissionsSummary = () => {
   );
 };
 
-const SeasonProgress = () => {
+const SeasonProgress: React.FC<{ seasonExp: number }> = ({ seasonExp }) => {
   const motionConfig = createMissionsMotion(Boolean(useReducedMotion()));
 
-  return <motion.section
-    className="missions-card season-progress-card"
-    variants={motionConfig.section}
-  >
-    <span className="season-progress-card__countdown" aria-label="Season ends in 24 days">
-      Season ends in: <strong>24 days 18:32:10</strong>
-    </span>
-    <div className="season-level">
-      <img
-        src={missionAssets.seasonLevelBadge}
-        alt={`Season level ${demoMissionSummary.seasonLevel}`}
-        className="season-level__badge"
-      />
-      <div>
-        <strong>SEASON LEVEL {demoMissionSummary.seasonLevel}</strong>
-        <p>
-          EXP <b>{formatNumber(demoMissionSummary.seasonExp)}</b> /{" "}
-          {formatNumber(demoMissionSummary.seasonExpTarget)}
-        </p>
-        <ProgressBar
-          value={demoMissionSummary.seasonExp}
-          max={demoMissionSummary.seasonExpTarget}
-          label="Season EXP progress"
+  return (
+    <motion.section
+      className="missions-card season-progress-card"
+      variants={motionConfig.section}
+    >
+      <span
+        className="season-progress-card__countdown"
+        aria-label="Season ends in 24 days"
+      >
+        Season ends in: <strong>24 days 18:32:10</strong>
+      </span>
+      <div className="season-level">
+        <img
+          src={missionAssets.seasonLevelBadge}
+          alt={`Season level ${demoMissionSummary.seasonLevel}`}
+          className="season-level__badge"
         />
-      </div>
-    </div>
-
-    <div className="season-milestones" aria-label="Season reward milestones">
-      {seasonMilestones.map((milestone) => (
-        <div
-          key={milestone.level}
-          className={`season-milestone season-milestone--${milestone.state}`}
-        >
-          <span className={`season-milestone__icon ${milestoneAssets[milestone.level] ? "has-image" : ""}`}>
-            {milestoneAssets[milestone.level] ? (
-              <img
-                src={milestoneAssets[milestone.level]}
-                alt=""
-                aria-hidden="true"
-                loading="lazy"
-              />
-            ) : milestone.state === "completed" ? (
-              <Check aria-hidden="true" />
-            ) : milestone.final ? (
-              <Gift aria-hidden="true" />
-            ) : milestone.state === "locked" ? (
-              <LockKeyhole aria-hidden="true" />
-            ) : (
-              <Gift aria-hidden="true" />
-            )}
-          </span>
-          <strong>{milestone.level}</strong>
-          <small>
-            <img src={missionAssets.specialCoin} alt="" aria-hidden="true" />
-            {formatNumber(milestone.rewardCoins)}
-          </small>
+        <div>
+          <strong>SEASON LEVEL {demoMissionSummary.seasonLevel}</strong>
+          <p>
+            EXP <b><AnimatedCounter value={seasonExp} /></b> /{" "}
+            {formatNumber(demoMissionSummary.seasonExpTarget)}
+          </p>
+          <ProgressBar
+            value={seasonExp}
+            max={demoMissionSummary.seasonExpTarget}
+            label="Season EXP progress"
+          />
         </div>
-      ))}
-    </div>
-  </motion.section>;
+      </div>
+
+      <div className="season-milestones" aria-label="Season reward milestones">
+        {seasonMilestones.map((milestone) => (
+          <div
+            key={milestone.level}
+            className={`season-milestone season-milestone--${milestone.state}`}
+          >
+            <span
+              className={`season-milestone__icon ${milestoneAssets[milestone.level] ? "has-image" : ""}`}
+            >
+              {milestoneAssets[milestone.level] ? (
+                <img
+                  src={milestoneAssets[milestone.level]}
+                  alt=""
+                  aria-hidden="true"
+                  loading="lazy"
+                />
+              ) : milestone.state === "completed" ? (
+                <Check aria-hidden="true" />
+              ) : milestone.final ? (
+                <Gift aria-hidden="true" />
+              ) : milestone.state === "locked" ? (
+                <LockKeyhole aria-hidden="true" />
+              ) : (
+                <Gift aria-hidden="true" />
+              )}
+            </span>
+            <strong>{milestone.level}</strong>
+            <small>
+              <img src={missionAssets.goldCoin} alt="" aria-hidden="true" />
+              {formatNumber(milestone.rewardCoins)}
+            </small>
+          </div>
+        ))}
+      </div>
+    </motion.section>
+  );
 };
 
 const MissionRow: React.FC<{
   mission: MissionItem;
-  onAction: (mission: MissionItem) => void;
+  onAction: (mission: MissionItem, e?: React.MouseEvent) => void;
 }> = ({ mission, onAction }) => {
   const shouldReduceMotion = Boolean(useReducedMotion());
   const motionConfig = createMissionsMotion(shouldReduceMotion);
@@ -283,7 +319,7 @@ const MissionRow: React.FC<{
   const iconAsset = missionActionAssets[mission.icon];
   const actionLabel =
     mission.status === "claimed"
-      ? "Claimed"
+      ? "Completed"
       : mission.status === "locked"
         ? "Locked"
         : mission.actionType === "claim"
@@ -325,15 +361,38 @@ const MissionRow: React.FC<{
           {mission.progress} / {mission.target}
         </span>
       </div>
-      <strong className="mission-row__reward">
-        <img src={missionAssets.specialCoin} alt="Special Coin" />+{mission.rewardCoins}
+      <strong
+        className="mission-row__reward"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "2px",
+          alignItems: "center",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          <img src={missionAssets.goldCoin} alt="Gold Coin" />+
+          {mission.rewardCoins}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "2px",
+            fontSize: "12px",
+            color: "#fbbf24",
+            fontWeight: 600,
+          }}
+        >
+          <Star className="h-3 w-3 fill-amber-400" />+{mission.rewardExp} EXP
+        </div>
       </strong>
       <motion.button
         type="button"
         disabled={disabled}
         aria-label={`${actionLabel}: ${mission.title}`}
         className={`mission-row__action ${mission.actionType === "claim" ? "mission-row__action--claim" : ""}`}
-        onClick={() => onAction(mission)}
+        onClick={(e) => onAction(mission, e)}
         whileHover={disabled || shouldReduceMotion ? undefined : { y: -1 }}
         whileTap={disabled || shouldReduceMotion ? undefined : { scale: 0.975 }}
       >
@@ -353,253 +412,295 @@ const MissionRow: React.FC<{
   );
 };
 
-const VipUpgradeBanner: React.FC<{ onUpgrade: () => void }> = ({ onUpgrade }) => {
+const VipUpgradeBanner: React.FC<{ onUpgrade: () => void }> = ({
+  onUpgrade,
+}) => {
   const shouldReduceMotion = Boolean(useReducedMotion());
   const motionConfig = createMissionsMotion(shouldReduceMotion);
 
-  return <motion.section
-    className="vip-upgrade-banner"
-    variants={motionConfig.vip}
-    initial="hidden"
-    whileInView="visible"
-    viewport={{ once: true, amount: 0.35 }}
-  >
-    <motion.img
-      src={missionAssets.vipCard}
-      alt="VIP membership card"
-      className="vip-upgrade-banner__badge"
-      loading="lazy"
-      initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.95 }}
-      whileInView={{ opacity: 1, scale: 1 }}
+  return (
+    <motion.section
+      className="vip-upgrade-banner"
+      variants={motionConfig.vip}
+      initial="hidden"
+      whileInView="visible"
       viewport={{ once: true, amount: 0.35 }}
-    />
-    <div className="vip-upgrade-banner__copy">
-      <strong>UPGRADE TO VIP</strong>
-      <p>Earn more Special Coins and unlock exclusive mission rewards.</p>
-    </div>
-    <ul>
-      <li><Zap aria-hidden="true" /> +50% Special Coins from missions</li>
-      <li><Sparkles aria-hidden="true" /> Exclusive VIP missions</li>
-      <li><Gift aria-hidden="true" /> Monthly VIP reward chest</li>
-    </ul>
-    <motion.button
-      type="button"
-      onClick={onUpgrade}
-      whileHover={shouldReduceMotion ? undefined : { y: -1 }}
-      whileTap={shouldReduceMotion ? undefined : { scale: 0.98 }}
     >
-      Upgrade Now <ArrowRight aria-hidden="true" />
-    </motion.button>
-  </motion.section>;
+      <motion.img
+        src={missionAssets.vipCard}
+        alt="VIP membership card"
+        className="vip-upgrade-banner__badge"
+        loading="lazy"
+        initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.95 }}
+        whileInView={{ opacity: 1, scale: 1 }}
+        viewport={{ once: true, amount: 0.35 }}
+      />
+      <div className="vip-upgrade-banner__copy">
+        <strong>UPGRADE TO VIP</strong>
+        <p>Earn more Special Coins and unlock exclusive mission rewards.</p>
+      </div>
+      <ul>
+        <li>
+          <Zap aria-hidden="true" /> +50% Special Coins from missions
+        </li>
+        <li>
+          <Sparkles aria-hidden="true" /> Exclusive VIP missions
+        </li>
+        <li>
+          <Gift aria-hidden="true" /> Monthly VIP reward chest
+        </li>
+      </ul>
+      <motion.button
+        type="button"
+        onClick={onUpgrade}
+        whileHover={shouldReduceMotion ? undefined : { y: -1 }}
+        whileTap={shouldReduceMotion ? undefined : { scale: 0.98 }}
+      >
+        Upgrade Now <ArrowRight aria-hidden="true" />
+      </motion.button>
+    </motion.section>
+  );
 };
 
 const DailyCheckInCard = () => {
   const shouldReduceMotion = Boolean(useReducedMotion());
   const motionConfig = createMissionsMotion(shouldReduceMotion);
 
-  return <motion.section className="missions-card daily-check-in-card" variants={motionConfig.sidebar}>
-    <CardTitle icon={CalendarCheck2}>DAILY CHECK-IN</CardTitle>
-    <motion.div className="daily-check-in-grid" variants={motionConfig.checkInList}>
-      {dailyCheckInItems.map((item) => (
-        <motion.div
-          key={item.day}
-          className={`daily-check-in-day daily-check-in-day--${item.state}`}
-          variants={motionConfig.checkInItem}
-        >
-          <span>
-            {item.state === "claimed" ? (
-              <motion.span
-                className="daily-check-in-day__check"
-                initial={shouldReduceMotion ? false : { scale: 0.75 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 420, damping: 28 }}
-              >
-                <Check aria-hidden="true" />
-              </motion.span>
-            ) : (
-              <img
-                src={item.day === 7 ? missionAssets.checkInDay7Chest : missionAssets.specialCoin}
-                alt=""
-                aria-hidden="true"
-                loading="lazy"
-              />
-            )}
-          </span>
-          <strong>{item.rewardCoins ? `+${item.rewardCoins}` : item.rewardLabel}</strong>
-          <small>Day {item.day}</small>
-        </motion.div>
-      ))}
-    </motion.div>
-  </motion.section>;
-};
-
-const TodayRewardsCard: React.FC<{ onClaimAll: () => void }> = ({ onClaimAll }) => {
-  const shouldReduceMotion = Boolean(useReducedMotion());
-  const motionConfig = createMissionsMotion(shouldReduceMotion);
-
-  return <motion.section className="missions-card today-rewards-card" variants={motionConfig.sidebar}>
-    <CardTitle icon={Gift}>TODAY&apos;S REWARDS</CardTitle>
-    <div className="today-rewards-card__body">
-      <span className="today-rewards-card__amount">
-        <img src={missionAssets.specialCoin} alt="Special Coin" />
-        <strong>{formatNumber(demoMissionSummary.todayEarnedCoins)}</strong>
-        <small>Special Coins earned</small>
-      </span>
-      <img
-        src={missionAssets.todayRewardsChest}
-        alt=""
-        aria-hidden="true"
-        className="today-rewards-card__art"
-        loading="lazy"
-      />
-    </div>
-    <motion.button
-      type="button"
-      onClick={onClaimAll}
-      whileHover={shouldReduceMotion ? undefined : { y: -1 }}
-      whileTap={shouldReduceMotion ? undefined : { scale: 0.98 }}
+  return (
+    <motion.section
+      className="missions-card daily-check-in-card"
+      variants={motionConfig.sidebar}
     >
-      Claim All
-    </motion.button>
-  </motion.section>;
-};
-
-const MissionsLeaderboardCard: React.FC<{ onViewAll: () => void }> = ({ onViewAll }) => {
-  const shouldReduceMotion = Boolean(useReducedMotion());
-  const motionConfig = createMissionsMotion(shouldReduceMotion);
-
-  return <motion.section className="missions-card missions-leaderboard-card" variants={motionConfig.sidebar}>
-    <CardTitle
-      icon={Trophy}
-      action={<button type="button" onClick={onViewAll}>View All <ArrowRight /></button>}
-    >
-      MISSIONS LEADERBOARD
-    </CardTitle>
-    <ol>
-      {missionLeaderboard.map((entry, index) => (
-        <motion.li
-          key={entry.id}
-          className={entry.currentUser ? "is-current" : ""}
-          initial={shouldReduceMotion ? false : { opacity: 0, x: 6 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: shouldReduceMotion ? 0.14 : 0.24, delay: shouldReduceMotion ? 0 : index * 0.04 }}
-        >
-          <motion.span
-            className={`missions-rank missions-rank--${entry.rank <= 3 ? entry.rank : "other"}`}
-            initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.88 }}
-            animate={{ opacity: 1, scale: 1 }}
-          >
-            {entry.rank <= 3 ? (
-              <img
-                src={
-                  entry.rank === 1
-                    ? missionAssets.leaderboardRanks.gold
-                    : entry.rank === 2
-                      ? missionAssets.leaderboardRanks.silver
-                      : missionAssets.leaderboardRanks.bronze
-                }
-                alt={`Rank ${entry.rank}`}
-                loading="lazy"
-              />
-            ) : (
-              entry.rank
-            )}
-          </motion.span>
-          <span className="missions-avatar">{entry.name.slice(0, 2).toUpperCase()}</span>
-          <strong>{entry.name}</strong>
-          <span className="missions-leaderboard-card__score">
-            {formatNumber(entry.score)} <img src={missionAssets.specialCoin} alt="Special Coin" />
-          </span>
-        </motion.li>
-      ))}
-    </ol>
-  </motion.section>;
-};
-
-const RecentAchievementCard: React.FC<{ onViewAll: () => void }> = ({ onViewAll }) => {
-  const shouldReduceMotion = Boolean(useReducedMotion());
-  const motionConfig = createMissionsMotion(shouldReduceMotion);
-
-  return <motion.section className="missions-card recent-achievement-card" variants={motionConfig.sidebar}>
-    <CardTitle
-      icon={Medal}
-      action={<button type="button" onClick={onViewAll}>View All <ArrowRight /></button>}
-    >
-      RECENT ACHIEVEMENT
-    </CardTitle>
-    <div className="recent-achievement-card__body">
-      <motion.span
-        className="recent-achievement-card__badge"
-        initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.88 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ type: shouldReduceMotion ? "tween" : "spring", stiffness: 360, damping: 26 }}
+      <CardTitle icon={CalendarCheck2}>DAILY CHECK-IN</CardTitle>
+      <motion.div
+        className="daily-check-in-grid"
+        variants={motionConfig.checkInList}
       >
+        {dailyCheckInItems.map((item) => (
+          <motion.div
+            key={item.day}
+            className={`daily-check-in-day daily-check-in-day--${item.state}`}
+            variants={motionConfig.checkInItem}
+          >
+            <span>
+              {item.state === "claimed" ? (
+                <motion.span
+                  className="daily-check-in-day__check"
+                  initial={shouldReduceMotion ? false : { scale: 0.75 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 420, damping: 28 }}
+                >
+                  <Check aria-hidden="true" />
+                </motion.span>
+              ) : (
+                <img
+                  src={
+                    item.day === 7
+                      ? missionAssets.checkInDay7Chest
+                      : missionAssets.goldCoin
+                  }
+                  alt=""
+                  aria-hidden="true"
+                  loading="lazy"
+                />
+              )}
+            </span>
+            <strong>
+              {item.rewardCoins ? `+${item.rewardCoins}` : item.rewardLabel}
+            </strong>
+            <small>Day {item.day}</small>
+          </motion.div>
+        ))}
+      </motion.div>
+    </motion.section>
+  );
+};
+
+const TodayRewardsCard: React.FC<{ onClaimAll: () => void }> = ({
+  onClaimAll,
+}) => {
+  const shouldReduceMotion = Boolean(useReducedMotion());
+  const motionConfig = createMissionsMotion(shouldReduceMotion);
+
+  return (
+    <motion.section
+      className="missions-card today-rewards-card"
+      variants={motionConfig.sidebar}
+    >
+      <CardTitle icon={Gift}>TODAY&apos;S REWARDS</CardTitle>
+      <div className="today-rewards-card__body">
+        <span className="today-rewards-card__amount">
+          <img src={missionAssets.goldCoin} alt="Gold Coin" />
+          <strong>{formatNumber(demoMissionSummary.todayEarnedCoins)}</strong>
+          <small>Gold Coins earned</small>
+        </span>
         <img
-          src={missionAssets.achievementBadge}
-          alt="Dedicated Adventurer achievement badge"
+          src={missionAssets.todayRewardsChest}
+          alt=""
+          aria-hidden="true"
+          className="today-rewards-card__art"
           loading="lazy"
         />
-      </motion.span>
-      <div>
-        <strong>Dedicated Adventurer</strong>
-        <p>Complete 10 daily missions</p>
-        <ProgressBar value={8} max={10} label="Dedicated Adventurer achievement progress" />
-        <small>8 / 10</small>
       </div>
-      <b><img src={missionAssets.specialCoin} alt="Special Coin" /> +500</b>
-    </div>
-  </motion.section>;
-};
-
-const MissionsNotice: React.FC<{ message: string; onClose: () => void }> = ({ message, onClose }) => {
-  const motionConfig = createMissionsMotion(Boolean(useReducedMotion()));
-
-  return <motion.div
-    className="missions-notice"
-    role="status"
-    variants={motionConfig.notice}
-    initial="hidden"
-    animate="visible"
-    exit="exit"
-  >
-    <BadgeCheck aria-hidden="true" />
-    <span>{message}</span>
-    <button type="button" onClick={onClose} aria-label="Dismiss message"><X /></button>
-  </motion.div>;
-};
-
-const MissionHistoryModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const motionConfig = createMissionsMotion(Boolean(useReducedMotion()));
-
-  return <motion.div
-    className="missions-modal-backdrop"
-    role="presentation"
-    onMouseDown={onClose}
-    variants={motionConfig.backdrop}
-    initial="hidden"
-    animate="visible"
-    exit="exit"
-  >
-    <motion.section
-      className="missions-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="mission-history-title"
-      onMouseDown={(event) => event.stopPropagation()}
-      variants={motionConfig.modal}
-    >
-      <div>
-        <h2 id="mission-history-title">Mission History</h2>
-        <button type="button" onClick={onClose} aria-label="Close mission history"><X /></button>
-      </div>
-      <p>Mission history will be loaded from the mission service when its endpoint is available.</p>
-      <ul>
-        <li><CheckCircle2 /> Daily Login <span>Completed today</span></li>
-        <li><CheckCircle2 /> Visit Marketplace <span>Completed today</span></li>
-        <li><CheckCircle2 /> Weekly Explorer <span>Completed Jun 18</span></li>
-      </ul>
+      <motion.button
+        type="button"
+        onClick={onClaimAll}
+        whileHover={shouldReduceMotion ? undefined : { y: -1 }}
+        whileTap={shouldReduceMotion ? undefined : { scale: 0.98 }}
+      >
+        Claim All
+      </motion.button>
     </motion.section>
-  </motion.div>;
+  );
+};
+
+const MissionsLeaderboardCard: React.FC<{ onViewAll: () => void }> = ({
+  onViewAll,
+}) => {
+  const shouldReduceMotion = Boolean(useReducedMotion());
+  const motionConfig = createMissionsMotion(shouldReduceMotion);
+
+  return (
+    <motion.section
+      className="missions-card missions-leaderboard-card"
+      variants={motionConfig.sidebar}
+    >
+      <CardTitle
+        icon={Trophy}
+        action={
+          <button type="button" onClick={onViewAll}>
+            View All <ArrowRight />
+          </button>
+        }
+      >
+        MISSIONS LEADERBOARD
+      </CardTitle>
+      <ol>
+        {missionLeaderboard.map((entry, index) => (
+          <motion.li
+            key={entry.id}
+            className={entry.currentUser ? "is-current" : ""}
+            initial={shouldReduceMotion ? false : { opacity: 0, x: 6 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{
+              duration: shouldReduceMotion ? 0.14 : 0.24,
+              delay: shouldReduceMotion ? 0 : index * 0.04,
+            }}
+          >
+            <motion.span
+              className={`missions-rank missions-rank--${entry.rank <= 3 ? entry.rank : "other"}`}
+              initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.88 }}
+              animate={{ opacity: 1, scale: 1 }}
+            >
+              {entry.rank <= 3 ? (
+                <img
+                  src={
+                    entry.rank === 1
+                      ? missionAssets.leaderboardRanks.gold
+                      : entry.rank === 2
+                        ? missionAssets.leaderboardRanks.silver
+                        : missionAssets.leaderboardRanks.bronze
+                  }
+                  alt={`Rank ${entry.rank}`}
+                  loading="lazy"
+                />
+              ) : (
+                entry.rank
+              )}
+            </motion.span>
+            <span className="missions-avatar">
+              {entry.name.slice(0, 2).toUpperCase()}
+            </span>
+            <strong>{entry.name}</strong>
+            <span className="missions-leaderboard-card__score">
+              {formatNumber(entry.score)}{" "}
+              <img src={missionAssets.goldCoin} alt="Gold Coin" />
+            </span>
+          </motion.li>
+        ))}
+      </ol>
+    </motion.section>
+  );
+};
+
+const RecentAchievementCard: React.FC<{ onViewAll: () => void }> = ({
+  onViewAll,
+}) => {
+  const shouldReduceMotion = Boolean(useReducedMotion());
+  const motionConfig = createMissionsMotion(shouldReduceMotion);
+
+  return (
+    <motion.section
+      className="missions-card recent-achievement-card"
+      variants={motionConfig.sidebar}
+    >
+      <CardTitle
+        icon={Medal}
+        action={
+          <button type="button" onClick={onViewAll}>
+            View All <ArrowRight />
+          </button>
+        }
+      >
+        RECENT ACHIEVEMENT
+      </CardTitle>
+      <div className="recent-achievement-card__body">
+        <motion.span
+          className="recent-achievement-card__badge"
+          initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.88 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{
+            type: shouldReduceMotion ? "tween" : "spring",
+            stiffness: 360,
+            damping: 26,
+          }}
+        >
+          <img
+            src={missionAssets.achievementBadge}
+            alt="Dedicated Adventurer achievement badge"
+            loading="lazy"
+          />
+        </motion.span>
+        <div>
+          <strong>Dedicated Adventurer</strong>
+          <p>Complete 10 daily missions</p>
+          <ProgressBar
+            value={8}
+            max={10}
+            label="Dedicated Adventurer achievement progress"
+          />
+          <small>8 / 10</small>
+        </div>
+        <b>
+          <img src={missionAssets.goldCoin} alt="Gold Coin" /> +500
+        </b>
+      </div>
+    </motion.section>
+  );
+};
+
+const MissionsNotice: React.FC<{ message: string; onClose: () => void }> = ({
+  message,
+  onClose,
+}) => {
+  const motionConfig = createMissionsMotion(Boolean(useReducedMotion()));
+
+  return (
+    <motion.div
+      className="missions-notice"
+      role="status"
+      variants={motionConfig.notice}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+    >
+      <BadgeCheck aria-hidden="true" />
+      <span>{message}</span>
+      <button type="button" onClick={onClose} aria-label="Dismiss message">
+        <X />
+      </button>
+    </motion.div>
+  );
 };
 
 export const MissionsPage: React.FC = () => {
@@ -609,27 +710,66 @@ export const MissionsPage: React.FC = () => {
     () => createMissionsMotion(shouldReduceMotion),
     [shouldReduceMotion],
   );
+
+  type ChallengeView = "MISSIONS" | "MISSION_CENTER";
+  const [currentView, setCurrentView] =
+    React.useState<ChallengeView>("MISSIONS");
   const [category, setCategory] = React.useState<MissionCategory>("daily");
   const [showAll, setShowAll] = React.useState(false);
   const [notice, setNotice] = React.useState<string | null>(null);
-  const [historyOpen, setHistoryOpen] = React.useState(false);
-
-  const filteredMissions = React.useMemo(
-    () => missionItems.filter((mission) => mission.category === category),
-    [category],
+  const [rewardNotification, setRewardNotification] = React.useState<RewardData | null>(null);
+  const [particles, setParticles] = React.useState<RewardParticle[]>([]);
+  const { user } = useAuth();
+  const [currentSeasonExp, setCurrentSeasonExp] = React.useState<number>(
+    user?.seasonExp ?? demoMissionSummary.seasonExp,
   );
-  const visibleMissions = showAll ? filteredMissions : filteredMissions.slice(0, 5);
 
   React.useEffect(() => {
-    if (!historyOpen) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setHistoryOpen(false);
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [historyOpen]);
+    setCurrentSeasonExp(user?.seasonExp ?? demoMissionSummary.seasonExp);
+  }, [user?.seasonExp]);
+  const [missions, setMissions] = React.useState<MissionItem[]>(missionItems);
+  const queryClient = useQueryClient();
+  const { data: aiCoinWallet } = useAiCoinWallet();
+  const aiCoinBalance = aiCoinWallet?.balance ?? demoRewardWallet.goldCoins;
 
-  const handleMissionAction = async (mission: MissionItem) => {
+  const filteredMissions = React.useMemo(
+    () => missions.filter((mission) => mission.category === category),
+    [missions, category],
+  );
+  const visibleMissions = showAll
+    ? filteredMissions
+    : filteredMissions.slice(0, 5);
+
+  React.useEffect(() => {
+    gamificationService
+      .getMissionStatus()
+      .then((statuses) => {
+        if (statuses) {
+          setMissions((prevMissions) => {
+            return prevMissions.map((m) => {
+              const statusUpdate = statuses.find((s) => s.missionId === m.id);
+              if (statusUpdate) {
+                if (statusUpdate.claimed) {
+                  return { ...m, status: "claimed" as const };
+                }
+                return m;
+              } else {
+                // If missing from backend response (due to reset or not started), revert to its default state
+                const defaultMission = missionItems.find(
+                  (def) => def.id === m.id,
+                );
+                return defaultMission ? defaultMission : m;
+              }
+            });
+          });
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load mission statuses", err);
+      });
+  }, []);
+
+  const handleMissionAction = async (mission: MissionItem, e?: React.MouseEvent) => {
     if (mission.actionType === "navigate" && mission.actionTarget) {
       navigate(mission.actionTarget);
       return;
@@ -637,33 +777,93 @@ export const MissionsPage: React.FC = () => {
     if (mission.actionType === "share") {
       try {
         if (navigator.share) {
-          await navigator.share({ title: "AI Travel Marketplace", url: window.location.origin });
+          await navigator.share({
+            title: "AI Travel Marketplace",
+            url: window.location.origin,
+          });
         } else {
           await navigator.clipboard.writeText(window.location.origin);
-          setNotice("Marketplace link copied. Mission progress requires backend verification.");
+          setNotice(
+            "Marketplace link copied. Mission progress requires backend verification.",
+          );
         }
       } catch {
         // A cancelled native share sheet should leave mission state unchanged.
       }
       return;
     }
-    setNotice("Claim preview only. The mission service must validate and issue this reward.");
+
+    if (mission.actionType === "claim") {
+      try {
+        const response = await gamificationService.claimMissionReward(
+          mission.id,
+          mission.rewardCoins,
+          mission.rewardExp,
+        );
+        if (response.data?.claimed) {
+          if (response.data.latestSeasonExp !== undefined) {
+            setCurrentSeasonExp(response.data.latestSeasonExp);
+          }
+          setMissions((prevMissions) =>
+            prevMissions.map((m) =>
+              m.id === mission.id ? { ...m, status: "claimed" as const } : m,
+            ),
+          );
+          queryClient.setQueryData<AiCoinWallet>(
+            AI_COIN_WALLET_QUERY_KEY,
+            (oldData) =>
+              oldData
+                ? { ...oldData, balance: response.data.latestAiCoinBalance }
+                : oldData,
+          );
+          queryClient.invalidateQueries({ queryKey: AI_COIN_WALLET_QUERY_KEY });
+          setRewardNotification({
+            aiCoins: mission.rewardCoins,
+            exp: mission.rewardExp
+          });
+          
+          if (e) {
+            const rect = (e.target as HTMLElement).getBoundingClientRect();
+            const startX = rect.left + rect.width / 2;
+            const startY = rect.top + rect.height / 2;
+            
+            const newParticles: RewardParticle[] = [];
+            if (mission.rewardCoins) {
+              newParticles.push({ id: `coin-${Date.now()}`, type: "coin", startX, startY, endX: window.innerWidth / 2, endY: 50 });
+            }
+            if (mission.rewardExp) {
+              newParticles.push({ id: `exp-${Date.now()}`, type: "exp", startX, startY, endX: window.innerWidth / 2, endY: 80 });
+            }
+            setParticles(newParticles);
+          }
+        }
+      } catch (error) {
+        setNotice(
+          "Failed to claim mission. It might have been claimed already.",
+        );
+      }
+      return;
+    }
+
+    setNotice("Feature not fully implemented yet.");
   };
 
   const showDemoNotice = (label: string) =>
-    setNotice(`${label} preview only. Production data will come from the mission service.`);
+    setNotice(
+      `${label} preview only. Production data will come from the mission service.`,
+    );
 
   return (
     <>
       <MissionsMobilePresentation
         category={category}
-        missions={missionItems}
+        missions={missions}
         onCategoryChange={(nextCategory) => {
           setCategory(nextCategory);
           setShowAll(false);
         }}
         onMissionAction={handleMissionAction}
-        onHistory={() => setHistoryOpen(true)}
+        onHistory={() => setCurrentView("MISSION_CENTER")}
         onUpgrade={() => navigate("/membership")}
         reduceMotion={shouldReduceMotion}
       />
@@ -674,100 +874,185 @@ export const MissionsPage: React.FC = () => {
         initial="hidden"
         animate="visible"
       >
-        <div className="missions-page__container">
-          <section className="missions-page__main">
-            <MissionsHero onHistory={() => setHistoryOpen(true)} />
-            <MissionsSummary />
-            <SeasonProgress />
+        <AnimatePresence mode="wait">
+          {currentView === "MISSIONS" ? (
+            <motion.div
+              key="missions-dashboard"
+              className="missions-page__container"
+              variants={{
+                hidden: { opacity: 0, scale: 0.97, y: -30 },
+                visible: {
+                  opacity: 1,
+                  scale: 1,
+                  y: 0,
+                  transition: {
+                    duration: 0.4,
+                    ease: "easeOut",
+                    when: "beforeChildren",
+                    staggerChildren: 0.055,
+                  },
+                },
+                exit: {
+                  opacity: 0,
+                  scale: 0.97,
+                  y: -30,
+                  transition: { duration: 0.4, ease: "easeOut" },
+                },
+              }}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <section className="missions-page__main">
+                <MissionsHero
+                  onHistory={() => setCurrentView("MISSION_CENTER")}
+                />
+                <MissionsSummary seasonExp={currentSeasonExp} aiCoinBalance={aiCoinBalance} />
+                <SeasonProgress seasonExp={currentSeasonExp} />
 
-            <motion.section className="missions-card missions-board" variants={motionConfig.section}>
-              <nav className="mission-tabs" aria-label="Mission categories">
-                {categoryTabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    aria-current={category === tab.id ? "page" : undefined}
-                    className={category === tab.id ? "is-active" : ""}
-                    onClick={() => {
-                      setCategory(tab.id);
-                      setShowAll(false);
-                    }}
-                  >
-                    {category === tab.id && (
-                      <motion.span
-                        layoutId="mission-tab-active-desktop"
-                        className="mission-tab-active"
-                        transition={shouldReduceMotion ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 34 }}
-                      />
-                    )}
-                    <span className="mission-tab-label">
-                      {tab.id === "events" && <Gift aria-hidden="true" />}
-                      {tab.label}
-                    </span>
-                  </button>
-                ))}
-              </nav>
-
-              <div className="mission-list" aria-live="polite">
-                <AnimatePresence initial={false} mode="popLayout">
-                  <motion.div
-                    key={`${category}-${showAll ? "all" : "compact"}`}
-                    className="mission-list__results"
-                    variants={motionConfig.list}
-                    initial="hidden"
-                    animate="visible"
-                    exit="exit"
-                  >
-                    {visibleMissions.length ? (
-                      visibleMissions.map((mission) => (
-                        <MissionRow key={mission.id} mission={mission} onAction={handleMissionAction} />
-                      ))
-                    ) : (
-                      <motion.div className="mission-list__empty" variants={motionConfig.row}>
-                        <Star aria-hidden="true" />
-                        <strong>No missions available</strong>
-                        <p>New missions will appear here when the mission service publishes them.</p>
-                      </motion.div>
-                    )}
-                  </motion.div>
-                </AnimatePresence>
-              </div>
-
-              {filteredMissions.length > 5 && (
-                <motion.button
-                  type="button"
-                  className="mission-list__more"
-                  onClick={() => setShowAll((value) => !value)}
-                  whileTap={shouldReduceMotion ? undefined : { scale: 0.98 }}
+                <motion.section
+                  className="missions-card missions-board"
+                  variants={motionConfig.section}
                 >
-                  {showAll ? "Show Fewer Missions" : "Show More Missions"}
-                  <ChevronDown className={showAll ? "is-open" : ""} aria-hidden="true" />
-                </motion.button>
-              )}
-            </motion.section>
+                  <nav className="mission-tabs" aria-label="Mission categories">
+                    {categoryTabs.map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        aria-current={category === tab.id ? "page" : undefined}
+                        className={category === tab.id ? "is-active" : ""}
+                        onClick={() => {
+                          setCategory(tab.id);
+                          setShowAll(false);
+                        }}
+                      >
+                        {category === tab.id && (
+                          <motion.span
+                            layoutId="mission-tab-active-desktop"
+                            className="mission-tab-active"
+                            transition={
+                              shouldReduceMotion
+                                ? { duration: 0 }
+                                : {
+                                    type: "spring",
+                                    stiffness: 380,
+                                    damping: 34,
+                                  }
+                            }
+                          />
+                        )}
+                        <span className="mission-tab-label">
+                          {tab.id === "events" && <Gift aria-hidden="true" />}
+                          {tab.label}
+                        </span>
+                      </button>
+                    ))}
+                  </nav>
 
-            <VipUpgradeBanner onUpgrade={() => navigate("/membership")} />
-          </section>
+                  {category === "events" ? (
+                    <div style={{ padding: "16px" }}>
+                      <EventTab
+                        missions={missions}
+                        onMissionAction={handleMissionAction}
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mission-list" aria-live="polite">
+                        <AnimatePresence initial={false} mode="popLayout">
+                          <motion.div
+                            key={`${category}-${showAll ? "all" : "compact"}`}
+                            className="mission-list__results"
+                            variants={motionConfig.list}
+                            initial="hidden"
+                            animate="visible"
+                            exit="exit"
+                          >
+                            {visibleMissions.length ? (
+                              visibleMissions.map((mission) => (
+                                <MissionRow
+                                  key={mission.id}
+                                  mission={mission}
+                                  onAction={handleMissionAction}
+                                />
+                              ))
+                            ) : (
+                              <motion.div
+                                className="mission-list__empty"
+                                variants={motionConfig.row}
+                              >
+                                <Star aria-hidden="true" />
+                                <strong>No missions available</strong>
+                                <p>
+                                  New missions will appear here when the mission
+                                  service publishes them.
+                                </p>
+                              </motion.div>
+                            )}
+                          </motion.div>
+                        </AnimatePresence>
+                      </div>
 
-          <motion.aside
-            className="missions-page__sidebar"
-            aria-label="Mission rewards and rankings"
-            variants={motionConfig.list}
-          >
-            <DailyCheckInCard />
-            <TodayRewardsCard onClaimAll={() => showDemoNotice("Claim All")} />
-            <MissionsLeaderboardCard onViewAll={() => showDemoNotice("Leaderboard")} />
-            <RecentAchievementCard onViewAll={() => showDemoNotice("Achievements")} />
-          </motion.aside>
-        </div>
+                      {filteredMissions.length > 5 && (
+                        <motion.button
+                          type="button"
+                          className="mission-list__more"
+                          onClick={() => setShowAll((value) => !value)}
+                          whileTap={
+                            shouldReduceMotion ? undefined : { scale: 0.98 }
+                          }
+                        >
+                          {showAll
+                            ? "Show Fewer Missions"
+                            : "Show More Missions"}
+                          <ChevronDown
+                            className={showAll ? "is-open" : ""}
+                            aria-hidden="true"
+                          />
+                        </motion.button>
+                      )}
+                    </>
+                  )}
+                </motion.section>
+
+                <VipUpgradeBanner onUpgrade={() => navigate("/membership")} />
+              </section>
+
+              <motion.aside
+                className="missions-page__sidebar"
+                aria-label="Mission rewards and rankings"
+                variants={motionConfig.list}
+              >
+                <DailyCheckInCard />
+                <TodayRewardsCard
+                  onClaimAll={() => showDemoNotice("Claim All")}
+                />
+                <MissionsLeaderboardCard
+                  onViewAll={() => showDemoNotice("Leaderboard")}
+                />
+                <RecentAchievementCard
+                  onViewAll={() => showDemoNotice("Achievements")}
+                />
+              </motion.aside>
+            </motion.div>
+          ) : (
+            <MissionCenterView
+              key="mission-center"
+              onBack={() => setCurrentView("MISSIONS")}
+            />
+          )}
+        </AnimatePresence>
       </motion.main>
 
       <AnimatePresence>
-        {notice && <MissionsNotice message={notice} onClose={() => setNotice(null)} />}
+        {notice && (
+          <MissionsNotice message={notice} onClose={() => setNotice(null)} />
+        )}
+        {rewardNotification && (
+          <RewardToast rewards={rewardNotification} onClose={() => setRewardNotification(null)} />
+        )}
       </AnimatePresence>
-      <AnimatePresence>
-        {historyOpen && <MissionHistoryModal onClose={() => setHistoryOpen(false)} />}
-      </AnimatePresence>
+      <RewardParticleSystem particles={particles} />
     </>
   );
 };

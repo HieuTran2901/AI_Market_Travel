@@ -38,6 +38,7 @@ export type RewardItem = {
 };
 
 export type RewardWalletSummary = {
+  goldCoins: number;
   specialCoins: number;
   expiringCoins: number;
 };
@@ -52,6 +53,7 @@ export type RedemptionHistoryItem = {
 
 // TODO: Replace this isolated display data with wallet and reward APIs.
 export const demoRewardWallet: RewardWalletSummary = {
+  goldCoins: 12_560,
   specialCoins: 12_560,
   expiringCoins: 360,
 };

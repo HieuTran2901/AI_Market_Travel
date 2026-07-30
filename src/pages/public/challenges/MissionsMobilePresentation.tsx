@@ -16,16 +16,18 @@ import type {
   MissionIconName,
   MissionItem,
 } from "./missionData";
+import { EventTab } from "./EventTab";
 import "./MissionsMobilePresentation.css";
 
 const mobileCategoryTabs: Array<{
-  id: Exclude<MissionCategory, "events">;
+  id: MissionCategory;
   label: string;
 }> = [
   { id: "daily", label: "Daily Missions" },
   { id: "weekly", label: "Weekly Missions" },
   { id: "monthly", label: "Monthly Missions" },
   { id: "special", label: "Special Missions" },
+  { id: "events", label: "Events" },
 ];
 
 const mobileCheckInRewards = [50, 50, 100, 100, 150, 150, 300] as const;
@@ -109,7 +111,7 @@ const MobileMissionRow: React.FC<{
 
       <div className="missions-mobile-row__trailing">
         <strong className="missions-mobile-row__reward">
-          <img src={missionAssets.specialCoin} alt="Special Coin" />
+          <img src={missionAssets.goldCoin} alt="Special Coin" />
           +{mission.rewardCoins}
         </strong>
         <motion.button
@@ -150,7 +152,7 @@ export const MissionsMobilePresentation: React.FC<{
     () => createMissionsMotion(reduceMotion),
     [reduceMotion],
   );
-  const activeMobileCategory = category === "events" ? "daily" : category;
+  const activeMobileCategory = category;
   const visibleMissions = missions
     .filter((mission) => mission.category === activeMobileCategory)
     .slice(0, 5);
@@ -232,7 +234,7 @@ export const MissionsMobilePresentation: React.FC<{
                         loading="lazy"
                       />
                     ) : (
-                      <img src={missionAssets.specialCoin} alt="" aria-hidden="true" />
+                      <img src={missionAssets.goldCoin} alt="" aria-hidden="true" />
                     )}
                   </span>
                   <strong>+{reward}</strong>
@@ -288,31 +290,43 @@ export const MissionsMobilePresentation: React.FC<{
 
           <div className="missions-mobile-list" aria-live="polite">
             <AnimatePresence initial={false} mode="popLayout">
-              <motion.div
-                key={activeMobileCategory}
-                className="missions-mobile-list__results"
-                variants={motionConfig.list}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-              >
-                {visibleMissions.length ? (
-                  visibleMissions.map((mission) => (
-                    <MobileMissionRow
-                      key={mission.id}
-                      mission={mission}
-                      onAction={onMissionAction}
-                      reduceMotion={reduceMotion}
-                    />
-                  ))
-                ) : (
-                  <motion.div className="missions-mobile-empty" variants={motionConfig.row}>
-                    <Sparkles aria-hidden="true" />
-                    <strong>No missions available</strong>
-                    <p>New missions will appear here when they become available.</p>
-                  </motion.div>
-                )}
-              </motion.div>
+              {activeMobileCategory === "events" ? (
+                <motion.div
+                  key="events-tab"
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
+                  variants={motionConfig.list}
+                >
+                  <EventTab missions={missions} onMissionAction={onMissionAction} />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key={activeMobileCategory}
+                  className="missions-mobile-list__results"
+                  variants={motionConfig.list}
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
+                >
+                  {visibleMissions.length ? (
+                    visibleMissions.map((mission) => (
+                      <MobileMissionRow
+                        key={mission.id}
+                        mission={mission}
+                        onAction={onMissionAction}
+                        reduceMotion={reduceMotion}
+                      />
+                    ))
+                  ) : (
+                    <motion.div className="missions-mobile-empty" variants={motionConfig.row}>
+                      <Sparkles aria-hidden="true" />
+                      <strong>No missions available</strong>
+                      <p>New missions will appear here when they become available.</p>
+                    </motion.div>
+                  )}
+                </motion.div>
+              )}
             </AnimatePresence>
           </div>
         </section>

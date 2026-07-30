@@ -17,6 +17,7 @@ export interface User {
   phoneNumber?: string;
   avatarUrl?: string;
   coinBalance?: number;
+  seasonExp?: number;
   roles: string[];
   providerProfile?: ProviderProfile;
 }
