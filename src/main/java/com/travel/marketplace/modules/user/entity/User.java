@@ -46,6 +46,10 @@ public class User {
     @Builder.Default
     private Integer aiCoinBalance = 0;
 
+    @Column(name = "season_exp", nullable = false)
+    @Builder.Default
+    private Integer seasonExp = 0;
+
     @Column(name = "banned_at")
     private Instant bannedAt;
 

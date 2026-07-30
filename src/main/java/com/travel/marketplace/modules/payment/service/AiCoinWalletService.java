@@ -119,6 +119,63 @@ public class AiCoinWalletService {
         }
     }
 
+    @Transactional
+    public AiCoinCreditResult creditMissionReward(
+            Long userId,
+            String missionId,
+            long rewardCoins,
+            String idempotencyKey
+    ) {
+        if (userId == null || missionId == null || idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "MISSION_REWARD_CREDIT_INVALID");
+        }
+        if (rewardCoins <= 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "MISSION_REWARD_CREDIT_INVALID");
+        }
+
+        if (transactionRepository.existsByIdempotencyKey(idempotencyKey)) {
+            UserAiCoinWallet wallet = getOrCreateWalletForUpdate(userId);
+            return AiCoinCreditResult.builder()
+                    .balance(wallet.getBalance())
+                    .creditedAmount(0L)
+                    .duplicate(true)
+                    .build();
+        }
+
+        UserAiCoinWallet wallet = getOrCreateWalletForUpdate(userId);
+        long balanceBefore = wallet.getBalance();
+
+        try {
+            credit(wallet, AiCoinTransactionType.BONUS, rewardCoins, null, null, idempotencyKey,
+                    "Reward for completing mission: " + missionId);
+                    
+            wallet.setLifetimeEarned(wallet.getLifetimeEarned() + rewardCoins);
+            wallet = walletRepository.save(wallet);
+
+            User user = wallet.getUser();
+            long boundedBalance = Math.min(Integer.MAX_VALUE, wallet.getBalance());
+            user.setAiCoinBalance((int) boundedBalance);
+            userRepository.save(user);
+
+            log.info("Credited Mission Reward: userId={} missionId={} rewardCoins={} balanceBefore={} balanceAfter={}",
+                    userId, missionId, rewardCoins, balanceBefore, wallet.getBalance());
+
+            return AiCoinCreditResult.builder()
+                    .balance(wallet.getBalance())
+                    .creditedAmount(rewardCoins)
+                    .duplicate(false)
+                    .build();
+        } catch (DataIntegrityViolationException exception) {
+            UserAiCoinWallet currentWallet = getOrCreateWalletForUpdate(userId);
+            log.info("Duplicate Mission Reward ignored: userId={} missionId={}", userId, missionId);
+            return AiCoinCreditResult.builder()
+                    .balance(currentWallet.getBalance())
+                    .creditedAmount(0L)
+                    .duplicate(true)
+                    .build();
+        }
+    }
+
     private void credit(
             UserAiCoinWallet wallet,
             AiCoinTransactionType type,

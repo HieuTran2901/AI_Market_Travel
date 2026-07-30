@@ -19,6 +19,7 @@ public class UserResponse {
     private String fullName;
     private String phoneNumber;
     private String avatarUrl;
+    private Integer seasonExp;
     private Set<String> roles;
     private ProviderProfileResponse providerProfile;
 
