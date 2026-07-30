@@ -380,11 +380,11 @@ const MissionRow: React.FC<{
             alignItems: "center",
             gap: "2px",
             fontSize: "12px",
-            color: "#fbbf24",
+            color: "#4ade80",
             fontWeight: 600,
           }}
         >
-          <Star className="h-3 w-3 fill-amber-400" />+{mission.rewardExp} EXP
+          <Star className="h-3 w-3 fill-green-400" />+{mission.rewardExp} EXP
         </div>
       </strong>
       <motion.button

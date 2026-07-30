@@ -394,12 +394,12 @@ export const MissionCenterView = React.forwardRef<
                               alignItems: "center",
                               gap: "4px",
                               fontSize: "13px",
-                              color: "#fbbf24",
+                              color: "#4ade80",
                               fontWeight: 600,
                             }}
                           >
                             +{item.rewardExp} EXP
-                            <Star className="h-3 w-3 fill-amber-400" />
+                            <Star className="h-3 w-3 fill-green-400" />
                           </div>
                         </>
                       ) : (

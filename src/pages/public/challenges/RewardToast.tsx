@@ -58,7 +58,7 @@ export const RewardToast: React.FC<RewardToastProps> = ({ rewards, onClose }) =>
         
         {rewards.exp ? (
           <div className="reward-toast__item reward-toast__item--exp">
-            <Star size={16} className="fill-amber-400 text-amber-400" />
+            <Star size={16} className="fill-green-400 text-green-400" />
             <span>+{rewards.exp} EXP</span>
           </div>
         ) : null}
