@@ -158,33 +158,6 @@ export const ProviderLayout: React.FC = () => {
             </nav>
 
             <div className="relative shrink-0 space-y-4 p-5 pt-3">
-              {/* <div className="overflow-hidden rounded-[18px] border border-blue-100 bg-blue-50/65 p-4 shadow-sm dark:border-blue-300/15 dark:bg-white/[0.055]">
-                <div className="flex items-start gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-blue-100 text-blue-600 ring-1 ring-blue-200/70 dark:bg-blue-500/15 dark:text-blue-200 dark:ring-blue-300/20">
-                    <BriefcaseBusiness className="h-5 w-5" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-black text-slate-900 dark:text-white">
-                      Provider Tools
-                    </p>
-                    <p className="mt-1 text-sm font-semibold leading-5 text-slate-600 dark:text-slate-300">
-                      Everything you need to manage and grow your hospitality
-                      business.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSidebarOpen(false);
-                    navigate("/provider/analytics");
-                  }}
-                  className="mt-4 inline-flex h-9 items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 text-sm font-black text-blue-700 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50 dark:border-blue-300/15 dark:bg-blue-500/15 dark:text-blue-200 dark:hover:bg-blue-500 dark:hover:text-white"
-                >
-                  Explore Tools
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-              </div> */}
               <button
                 onClick={handleLogout}
                 className="flex h-12 w-full items-center gap-3 rounded-[14px] border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm transition-all duration-200 hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-300/40 dark:border-white/10 dark:bg-white/[0.055] dark:text-slate-200 dark:hover:border-red-400/30 dark:hover:bg-red-500/10 dark:hover:text-red-300"

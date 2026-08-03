@@ -39,7 +39,6 @@ import { Card, CardContent } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { StateBlock } from "../../components/ui/StateBlock";
-import { StatusBadge } from "../../components/ui/StatusBadge";
 import { PaymentTimeline } from "../../components/payment/PaymentTimeline";
 import { DevControls } from "../../components/payment/DevControls";
 import coinGoldImage from "../../assets/images/coin-gold.png";
@@ -335,17 +334,17 @@ function Stepper({ current }: { current: CheckoutStep }) {
           0,
           CHECKOUT_STEPS.findIndex((step) => step.key === current),
         );
-  const progressWidth = `${Math.min(activeIndex, 3) * 25}%`;
+  const progressWidth = `${Math.min(activeIndex, 3) * 33.33}%`;
 
   return (
-    <div className="mb-4 w-full overflow-hidden px-0 sm:mb-6 sm:px-3">
-      <div className="relative grid min-w-0 grid-cols-4 gap-1.5 sm:gap-4">
-        <div className="absolute left-[12.5%] right-[12.5%] top-3.5 h-px bg-slate-200 sm:top-4" />
+    <div className="mb-10 w-full overflow-hidden px-0 sm:mb-12 sm:px-3">
+      <div className="relative flex min-w-0 justify-between">
+        <div className="absolute left-[16.66%] right-[16.66%] top-3.5 h-[2px] bg-slate-200 sm:top-4" />
         <motion.div
-          className="absolute left-[12.5%] top-3.5 h-px origin-left bg-gradient-to-r from-blue-600 to-cyan-400 sm:top-4"
+          className="absolute left-[16.66%] top-3.5 h-[2px] origin-left bg-emerald-500 sm:top-4"
           initial={false}
           animate={{ width: progressWidth }}
-          transition={{ duration: 0.35, ease: "easeInOut" }}
+          transition={{ duration: 0.5, ease: "easeInOut" }}
         />
         {CHECKOUT_STEPS.map((step, index) => {
           const active = index === activeIndex;
@@ -353,22 +352,24 @@ function Stepper({ current }: { current: CheckoutStep }) {
           return (
             <motion.div
               key={step.key}
-              className="relative flex min-w-0 flex-col items-center text-center"
+              className="relative flex min-w-0 flex-col items-center text-center flex-1"
               layout
               transition={{ duration: 0.3, ease: "easeInOut" }}
             >
               <motion.div
                 className={`z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-black sm:h-8 sm:w-8 sm:text-xs ${
-                  done || active
-                    ? "bg-blue-600 text-white"
-                    : "bg-slate-100 text-slate-500 ring-1 ring-slate-200"
+                  done
+                    ? "bg-emerald-500 text-white"
+                    : active
+                      ? "bg-blue-600 text-white ring-4 ring-blue-50"
+                      : "bg-white text-slate-400 ring-2 ring-slate-200"
                 }`}
                 animate={{
                   scale: active ? [0.95, 1.06, 1] : 1,
                   boxShadow: active
                     ? "0 12px 28px rgba(37, 99, 235, 0.28)"
                     : done
-                      ? "0 8px 18px rgba(37, 99, 235, 0.16)"
+                      ? "0 8px 18px rgba(16, 185, 129, 0.2)"
                       : "0 0 0 rgba(0, 0, 0, 0)",
                 }}
                 transition={{ duration: 0.35, ease: "easeInOut" }}
@@ -382,7 +383,7 @@ function Stepper({ current }: { current: CheckoutStep }) {
                       exit={{ opacity: 0, scale: 0.5, rotate: 20 }}
                       transition={{ duration: 0.22, ease: "easeInOut" }}
                     >
-                      <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      <Check className="h-4 w-4" />
                     </motion.span>
                   ) : (
                     <motion.span
@@ -399,7 +400,7 @@ function Stepper({ current }: { current: CheckoutStep }) {
               </motion.div>
               <motion.div className="mt-2 min-w-0 sm:mt-3" layout="position">
                 <p
-                  className={`truncate text-[11px] font-bold leading-4 sm:text-sm sm:leading-5 ${active ? "text-blue-700" : done ? "text-slate-950" : "text-slate-500"}`}
+                  className={`truncate text-[12px] font-bold leading-4 sm:text-[14px] sm:leading-5 ${active ? "text-slate-900" : done ? "text-slate-900" : "text-slate-500"}`}
                 >
                   {step.title}
                 </p>
@@ -1727,7 +1728,6 @@ export const CheckoutPage: React.FC = () => {
     );
   const aiCoinBreakdown = getAiCoinBreakdown(totals, fallbackTotal);
   const insufficientAiCoinBalance = aiCoinBreakdown.finalTotal > aiCoinBalance;
-  const paymentStatus = payment?.status ?? PaymentStatus.PENDING;
 
   const totalGuests = useMemo(() => primaryItem?.quantity || 0, [primaryItem]);
   const cartCount = useMemo(
@@ -2503,269 +2503,165 @@ export const CheckoutPage: React.FC = () => {
 
         {step === "result" && payment && (
           payment.status === PaymentStatus.SUCCESS ? (
-            <div className="space-y-6">
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,0.7fr)_minmax(320px,0.3fr)]">
-                <div className="space-y-5">
-                  <Card className="overflow-hidden rounded-[28px] border-blue-100 bg-white shadow-xl shadow-blue-100/50">
-                    <CardContent className="relative min-h-[360px] p-0">
-                      <img
-                        src={paymentListingSuccessImage}
-                        alt="Booking payment completed successfully"
-                        className="absolute inset-0 h-full w-full object-cover"
-                      />
-                      <div className="relative grid min-h-[360px] items-center gap-4 p-5 sm:p-7 lg:grid-cols-[0.48fr_0.52fr] lg:p-8">
-                        <div className="min-h-[180px]" aria-hidden="true" />
-                        <motion.div
-                          variants={resultContentVariants}
-                          initial="initial"
-                          animate="animate"
-                          className="rounded-[24px] border border-white/80 bg-white/82 p-5 shadow-lg shadow-blue-100/70 backdrop-blur-sm sm:p-6"
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600 shadow-sm">
-                              <CheckCircle2 className="h-8 w-8" />
-                            </span>
-                            <div>
-                              <StatusBadge kind="payment" status={payment.status} />
-                              <h2 className="mt-2 text-2xl font-black tracking-tight text-emerald-700 sm:text-3xl">
-                                Payment Successful!
-                              </h2>
-                            </div>
-                          </div>
-                          <p className="mt-3 text-sm leading-6 text-slate-600 sm:text-base">
-                            Thank you, your booking is confirmed. Your reservation and payment details have been updated.
-                          </p>
-
-                          <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white/90">
-                            <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-4 py-3 text-sm">
-                              <span className="font-semibold text-slate-600">Order ID</span>
-                              <span className="font-black text-slate-950">
-                                {payment.orderNumber || `#${payment.orderId || payment.id}`}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                              <span className="font-semibold text-slate-600">Total Paid</span>
-                              <span className="text-xl font-black tracking-tight text-emerald-700">
-                                {formatMoney(payment.amount, payment.currency || currency)}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                            <Button
-                              className="h-12 rounded-2xl bg-blue-600 font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700"
-                              onClick={() => navigate(`/payments/${payment.id}`)}
-                            >
-                              <Plane className="mr-2 h-4 w-4" />
-                              View payment details
-                            </Button>
-                            <Button
-                              variant="outline"
-                              className="h-12 rounded-2xl border-slate-200 bg-white font-bold"
-                              disabled
-                              title="Invoice download is not available yet"
-                            >
-                              <Download className="mr-2 h-4 w-4" />
-                              Download invoice
-                            </Button>
-                          </div>
-                        </motion.div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="rounded-[26px] border-blue-100 bg-white/95 shadow-lg shadow-blue-100/40">
-                    <CardContent className="p-5 sm:p-6">
-                      <div className="flex items-center gap-4">
-                        <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600 shadow-sm">
-                          <ShieldCheck className="h-8 w-8" />
-                        </span>
-                        <div>
-                          <h3 className="text-lg font-black text-slate-950">Payment Progress</h3>
-                          <p className="mt-1 text-sm text-slate-500">Verified through the current payment status flow.</p>
-                        </div>
-                      </div>
-                      <div className="mt-6 grid gap-4 sm:grid-cols-3">
-                        {[
-                          { title: "Order Placed", time: payment.createdAt, Icon: Check },
-                          { title: "Processing Payment", time: payment.createdAt, Icon: Check },
-                          { title: "Payment Complete", time: payment.paidAt || payment.updatedAt, Icon: Sparkles },
-                        ].map(({ title, time, Icon }, index) => (
-                          <div key={title} className="relative rounded-2xl border border-slate-100 bg-slate-50/70 p-4 text-center">
-                            {index < 2 && <span className="pointer-events-none absolute left-[calc(50%+2rem)] top-8 hidden h-px w-[calc(100%-4rem)] bg-emerald-200 sm:block" />}
-                            <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/20">
-                              <Icon className="h-5 w-5" />
-                            </span>
-                            <p className="mt-3 text-sm font-black text-slate-900">{title}</p>
-                            <p className="mt-1 text-xs font-semibold text-slate-500">{formatTime(String(time || ""))}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <div className="flex flex-col justify-center gap-3 sm:flex-row">
-                    <Button
-                      className="h-12 rounded-2xl bg-blue-600 px-8 font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700"
-                      onClick={() => navigate("/search")}
-                    >
-                      <Plane className="mr-2 h-4 w-4" />
-                      Explore more trips
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="h-12 rounded-2xl bg-white px-8 font-bold"
-                      onClick={() => navigate("/search")}
-                    >
-                      <Home className="mr-2 h-4 w-4" />
-                      Back to listings
-                    </Button>
-                  </div>
+            <motion.div
+              variants={resultContentVariants}
+              initial="initial"
+              animate="animate"
+              className="space-y-6"
+            >
+              <Card className="relative overflow-hidden rounded-[32px] border-emerald-50 bg-gradient-to-br from-blue-50/50 via-white to-purple-50/30 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)]">
+                {/* Background Decorations */}
+                <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+                  <div className="absolute bottom-0 left-0 w-full h-[120%] opacity-20 bg-[url('/assets/city-skyline-bg.png')] bg-cover bg-bottom bg-no-repeat mix-blend-multiply" />
                 </div>
+                
+                <CardContent className="relative p-0 flex flex-col lg:flex-row items-stretch z-10 lg:min-h-[460px]">
+                  {/* Left Side: Robot */}
+                  <div className="relative w-full lg:w-[40%] shrink-0 flex items-center justify-center lg:justify-end pt-12 pb-6 lg:py-12 px-4 lg:px-8">
+                    <img
+                      src={paymentListingSuccessImage}
+                      alt="Payment Successful Mascot"
+                      className="w-auto h-[220px] md:h-[280px] lg:h-[360px] xl:h-[420px] object-contain drop-shadow-2xl z-10 relative lg:-left-4 xl:-left-8"
+                    />
+                  </div>
 
-                <aside className="space-y-4">
-                  <Card className="rounded-[26px] border-blue-100 bg-white/95 shadow-xl shadow-slate-200/70">
-                    <CardContent className="p-5">
-                      <h3 className="text-lg font-black text-slate-950">Your booking summary</h3>
-                      {primaryItem ? (
-                        <>
-                          <div className="mt-4 flex gap-4">
-                            <div className="h-[118px] w-[128px] shrink-0 overflow-hidden rounded-2xl bg-slate-100 shadow-sm">
-                              {primaryItem.listingCoverImageUrl ? (
-                                <img
-                                  src={primaryItem.listingCoverImageUrl}
-                                  alt={primaryItem.listingTitle}
-                                  className="h-full w-full object-cover"
-                                />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center text-blue-500">
-                                  <Sparkles className="h-8 w-8" />
-                                </div>
-                              )}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <h4 className="line-clamp-2 text-base font-black leading-5 text-slate-950">
-                                {primaryItem.listingTitle}
-                              </h4>
-                              <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                                <MapPin className="h-4 w-4 text-blue-600" />
-                                {[primaryItem.listingCity, primaryItem.listingCountry].filter(Boolean).join(", ") || "Location confirmed after booking"}
-                              </p>
-                              <div className="mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
-                                <span className="text-slate-500">Check-in</span>
-                                <span className="text-right font-semibold text-slate-950">{formatDate(primaryItem.startDate)}</span>
-                                <span className="text-slate-500">Check-out</span>
-                                <span className="text-right font-semibold text-slate-950">{formatDate(primaryItem.endDate)}</span>
-                                <span className="text-slate-500">Guests</span>
-                                <span className="text-right font-semibold text-slate-950">
-                                  {primaryItem.quantity} {getQuantityLabel(primaryItem).toLowerCase()}
-                                </span>
-                                <span className="text-slate-500">Services</span>
-                                <span className="text-right font-semibold text-slate-950">
-                                  {items.length} {items.length === 1 ? "service" : "services"}
+                  {/* Right Side: Content */}
+                  <div className="relative w-full lg:w-[60%] px-6 pb-12 lg:p-12 xl:p-16 flex flex-col justify-center items-center lg:items-start text-center lg:text-left">
+                    <div className="mb-6">
+                       <span className="inline-flex h-20 w-20 items-center justify-center rounded-full bg-white border-[6px] border-emerald-50 text-emerald-500 shadow-sm">
+                         <Check className="h-10 w-10 stroke-[4]" />
+                       </span>
+                    </div>
+                    <h2 className="text-[32px] md:text-[36px] lg:text-[42px] font-black tracking-tight text-emerald-500 leading-tight drop-shadow-sm">
+                      Payment Successful!
+                    </h2>
+                    <p className="mt-3 text-[18px] lg:text-[20px] font-medium text-slate-500">
+                      Thank you, your booking is confirmed.
+                    </p>
+
+                    <div className="mt-10 inline-block w-full max-w-md">
+                      <div className="rounded-[24px] border border-slate-100 bg-white/90 backdrop-blur-md p-6 shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <div className="text-left">
+                            <span className="block text-sm font-semibold text-slate-400">Order ID</span>
+                            <span className="mt-1 block text-lg font-black text-slate-800">
+                              {payment.orderNumber || `#${payment.orderId || payment.id}`}
+                            </span>
+                          </div>
+                          
+                          {(payment as any).booking?.bookingId || (payment as any).metadata?.bookingId ? (
+                            <>
+                              <div className="h-12 w-px bg-slate-200" />
+                              <div className="text-center">
+                                <span className="block text-sm font-semibold text-slate-400">Booking #</span>
+                                <span className="mt-1 block text-lg font-black text-slate-800">
+                                  {(payment as any).booking?.bookingId || (payment as any).metadata?.bookingId}
                                 </span>
                               </div>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => navigate(primaryItem.listingSlug ? `/listings/${primaryItem.listingSlug}` : "/search")}
-                            className="mt-5 inline-flex items-center gap-2 text-sm font-black text-blue-700 transition hover:text-blue-800"
-                          >
-                            View booking details <ArrowRight className="h-4 w-4" />
-                          </button>
-                        </>
-                      ) : (
-                        <div className="mt-4 rounded-2xl border border-dashed border-blue-200 bg-blue-50/50 p-5 text-center text-sm text-slate-500">
-                          Booking details are unavailable.
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                            </>
+                          ) : null}
 
-                  {(totals?.discount || 0) > 0 && (
-                    <Card className="rounded-[24px] border-emerald-100 bg-white/95 shadow-lg shadow-emerald-100/50">
-                      <CardContent className="p-5">
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="flex items-center gap-2 text-base font-black text-slate-950">
-                              <Tag className="h-5 w-5 text-blue-600" />
-                              Promo code
-                            </p>
-                            <p className="mt-2 text-sm text-slate-600">
-                              You saved {formatMoney(totals?.discount || 0, currency)} on this booking.
-                            </p>
+                          <div className="h-12 w-px bg-slate-200" />
+                          <div className="text-right">
+                            <span className="block text-sm font-semibold text-slate-400">Total Paid</span>
+                            <span className="mt-1 block text-xl lg:text-2xl font-black text-emerald-600">
+                              {formatMoney(payment.amount, payment.currency || currency)}
+                            </span>
                           </div>
-                          <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black text-emerald-700">
-                            Applied
-                          </span>
                         </div>
-                        <div className="mt-4 flex items-center justify-between rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm">
-                          <span className="font-semibold text-slate-600">{promoCode || "Promo applied"}</span>
-                          <span className="font-black text-emerald-700">-{formatMoney(totals?.discount || 0, currency)}</span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                </aside>
-              </div>
-
-              <Card className="rounded-[26px] border-blue-100 bg-white/95 shadow-lg shadow-slate-200/60">
-                <CardContent className="grid gap-4 p-5 md:grid-cols-3 md:divide-x md:divide-slate-200">
-                  {[
-                    { Icon: ShieldCheck, title: "Secure Payment", description: "Protected by industry-standard security." },
-                    { Icon: BadgeCheck, title: "Best Price Guarantee", description: "Transparent pricing from verified providers." },
-                    { Icon: Headphones, title: "24/7 Support", description: "Help is available throughout your trip." },
-                  ].map(({ Icon, title, description }) => (
-                    <div key={title} className="flex items-center gap-4 md:px-5 first:md:pl-0 last:md:pr-0">
-                      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
-                        <Icon className="h-6 w-6" />
-                      </span>
-                      <span>
-                        <span className="block font-black text-slate-950">{title}</span>
-                        <span className="mt-1 block text-sm text-slate-500">{description}</span>
-                      </span>
+                      </div>
                     </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
-          ) : (
-            <div className="mx-auto max-w-2xl space-y-6">
-              <Card className="rounded-3xl">
-                <CardContent className="py-12 text-center">
-                  {payment.status === PaymentStatus.EXPIRED ? (
-                    <Clock className="mx-auto mb-4 h-16 w-16 text-slate-500" />
-                  ) : (
-                    <XCircle className="mx-auto mb-4 h-16 w-16 text-red-600" />
-                  )}
-                  <div className="mb-2 flex justify-center">
-                    <StatusBadge kind="payment" status={payment.status} />
+
+                    <div className="mt-10 flex flex-wrap justify-center lg:justify-start gap-4 w-full">
+                      <Button
+                        className="h-[56px] w-full sm:w-auto rounded-[20px] bg-blue-600 px-8 lg:px-10 font-bold text-white shadow-lg shadow-blue-500/25 hover:bg-blue-700 hover:scale-[1.02] transition-transform"
+                        onClick={() => navigate(`/payments/${payment.id}`)}
+                      >
+                        <Plane className="mr-2 h-6 w-6" />
+                        View payment details
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-[56px] rounded-[20px] border-slate-200 bg-white/80 backdrop-blur-sm px-8 lg:px-10 font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                        disabled
+                        title="Invoice download is not available yet"
+                      >
+                        <Download className="mr-2 h-5 w-5" />
+                        Download invoice
+                      </Button>
+                    </div>
                   </div>
-                  <h2 className="text-2xl font-black text-slate-950">
-                    Payment result
-                  </h2>
-                  <p className="mt-2 text-slate-500">
-                    Payment #{payment.id} for order #{payment.orderId}
-                  </p>
-                  <p className="mt-2 font-bold text-slate-950">
-                    {formatMoney(payment.amount, payment.currency || currency)}
-                  </p>
                 </CardContent>
               </Card>
-              <PaymentTimeline
-                currentStatus={paymentStatus}
-                createdAt={payment.createdAt}
-                updatedAt={payment.updatedAt}
-              />
-              <div className="flex flex-wrap justify-center gap-3">
-                <Button onClick={() => navigate(`/payments/${payment.id}`)}>
-                  View payment
+
+              <Card className="rounded-[24px] border-slate-100 bg-white shadow-md shadow-slate-200/50">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-3 mb-6">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-blue-600">
+                      <ShieldCheck className="h-6 w-6" />
+                    </span>
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-900">Payment Progress</h3>
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    {[
+                      { title: "Order Placed", time: payment.createdAt, Icon: Check },
+                      { title: "Processing Payment", time: payment.createdAt, Icon: Check },
+                      { title: "Payment Complete", time: payment.paidAt || payment.updatedAt, Icon: Sparkles },
+                    ].map(({ title, time, Icon }, index) => (
+                      <div key={title} className="relative rounded-[16px] border border-slate-100 bg-slate-50/50 p-5 text-center">
+                        {index < 2 && <span className="pointer-events-none absolute left-[calc(50%+2rem)] top-10 hidden h-[2px] w-[calc(100%-4rem)] bg-emerald-200 sm:block" />}
+                        <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md shadow-emerald-500/20">
+                          <Icon className="h-5 w-5" />
+                        </span>
+                        <p className="mt-4 text-sm font-bold text-slate-900">{title}</p>
+                        <p className="mt-1 text-[13px] font-semibold text-slate-500">{formatTime(String(time || ""))}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="mt-8 flex justify-center gap-4">
+                <Button
+                  className="h-[52px] rounded-[16px] bg-gradient-to-r from-blue-600 to-blue-500 px-10 font-bold text-white shadow-lg shadow-blue-500/20 hover:from-blue-700 hover:to-blue-600"
+                  onClick={() => navigate("/search")}
+                >
+                  <Plane className="mr-2 h-5 w-5" />
+                  Explore more trips
                 </Button>
-                <Button variant="outline" onClick={() => navigate("/search")}>
-                  Browse listings
+                <Button
+                  variant="outline"
+                  className="h-[52px] rounded-[16px] border-slate-200 bg-white px-10 font-bold text-slate-700 hover:bg-slate-50"
+                  onClick={() => navigate("/search")}
+                >
+                  <Home className="mr-2 h-5 w-5" />
+                  Back to listings
                 </Button>
               </div>
+            </motion.div>
+          ) : (
+            <div className="space-y-6">
+              <Card className="overflow-hidden rounded-[28px] border-red-100 bg-white shadow-xl shadow-red-100/50">
+                <CardContent className="p-8 text-center">
+                  <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-50 text-red-500">
+                    <XCircle className="h-10 w-10" />
+                  </div>
+                  <h2 className="text-2xl font-black text-slate-900">Payment Failed</h2>
+                  <p className="mt-3 text-slate-500">
+                    We couldn't process your payment. Please try again or use a different payment method.
+                  </p>
+                  <div className="mt-8 flex justify-center gap-4">
+                    <Button
+                      onClick={() => moveToStep("payment")}
+                      className="h-12 rounded-2xl px-8 font-bold"
+                    >
+                      Try Again
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )
         )}
@@ -2858,14 +2754,16 @@ export const CheckoutPage: React.FC = () => {
                 className={
                   step === "review"
                     ? "grid gap-4"
-                    : "grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px] xl:gap-5"
+                    : step === "result"
+                      ? "grid gap-6 lg:gap-8 lg:grid-cols-[minmax(0,0.68fr)_minmax(0,0.32fr)]"
+                      : "grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px] xl:gap-5"
                 }
               >
                 <div ref={checkoutContentRef} className="min-w-0 scroll-mt-24">
                   {wizardContent}
                 </div>
                 {step !== "review" && (
-                  <aside className="order-first space-y-3 lg:order-none lg:sticky lg:top-20 lg:self-start xl:space-y-4">
+                  <aside className="order-first space-y-4 lg:order-none lg:sticky lg:top-20 lg:self-start">
                     <BookingSummaryCard
                       items={items}
                       totals={totals}
@@ -2875,15 +2773,61 @@ export const CheckoutPage: React.FC = () => {
                       onCoinContinue={() => moveToStep("review")}
                       showCoinActions={step === "payment"}
                     />
-                    {step !== "payment" && (
+                    {step === "result" ? (
+                      <motion.div
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.35, ease: "easeOut", delay: 0.1 }}
+                        className="space-y-4"
+                      >
+                        <Card className="rounded-[24px] border-emerald-100 bg-emerald-50/50 shadow-sm">
+                          <CardContent className="p-5 sm:p-6">
+                            <div className="flex items-center justify-between mb-4">
+                              <p className="flex items-center gap-2 font-bold text-slate-900">
+                                <Tag className="h-5 w-5 text-emerald-600" /> Promo code
+                              </p>
+                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold tracking-widest text-emerald-700">
+                                APPLIED
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-emerald-100">
+                              <span className="font-semibold text-slate-600">AIHOLIDAY</span>
+                              <span className="font-bold text-emerald-600">-120.000 đ</span>
+                            </div>
+                          </CardContent>
+                        </Card>
+                        
+                        <Card className="rounded-[24px] border-purple-100 bg-gradient-to-br from-purple-50 to-purple-100 shadow-sm relative overflow-hidden">
+                          <CardContent className="p-5 sm:p-6 z-10 relative">
+                            <div className="pr-16">
+                              <p className="font-bold text-blue-700">AI Travel Credits Earned</p>
+                              <div className="mt-2 text-3xl font-black text-emerald-600 tracking-tight">+2.841</div>
+                              <p className="mt-3 text-sm text-slate-600 leading-relaxed">
+                                You'll receive credits after your stay is completed.
+                              </p>
+                            </div>
+                            <img
+                              src={coinGoldImage}
+                              alt="AI Coins"
+                              className="absolute -right-4 bottom-4 w-24 h-24 object-contain opacity-90 drop-shadow-xl"
+                            />
+                            <div className="absolute top-4 right-6 w-3 h-3 text-yellow-400 rotate-12">
+                              <Sparkles className="w-full h-full fill-current" />
+                            </div>
+                            <div className="absolute top-10 right-2 w-2 h-2 text-yellow-300">
+                              <Sparkles className="w-full h-full fill-current" />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    ) : step !== "payment" ? (
                       <>
                         <Card className="rounded-2xl border-blue-100 bg-white/95 shadow-sm">
                           <CardContent className="p-4">
                             <div className="flex items-start justify-between gap-3">
                               <div>
                                 <p className="flex items-center gap-2 font-black text-slate-950">
-                                  <Tag className="h-5 w-5 text-blue-600" /> Promo
-                                  code
+                                  <Tag className="h-5 w-5 text-blue-600" /> Promo code
                                 </p>
                                 <p className="mt-1 text-xs leading-5 text-slate-500">
                                   Apply travel credits or partner offers.
@@ -2914,11 +2858,10 @@ export const CheckoutPage: React.FC = () => {
                           </CardContent>
                         </Card>
                         <p className="px-2 text-xs leading-5 text-slate-500">
-                          By proceeding, you agree to our Terms of Service and
-                          Privacy Policy.
+                          By proceeding, you agree to our Terms of Service and Privacy Policy.
                         </p>
                       </>
-                    )}
+                    ) : null}
                   </aside>
                 )}
               </motion.div>
@@ -2927,43 +2870,45 @@ export const CheckoutPage: React.FC = () => {
         </div>
 
         <div className="border-t border-blue-100 bg-white/80">
-          <div className="mx-auto grid max-w-[1440px] gap-3 px-4 py-4 sm:px-6 md:grid-cols-3 lg:px-8">
-            {[
-              [
-                "Secure Payment",
-                "Protected by industry-standard security.",
-                ShieldCheck,
-              ],
-              [
-                "Best Price Guarantee",
-                "Transparent pricing from verified providers.",
-                BadgeCheck,
-              ],
-              [
-                "24/7 Support",
-                "Help is available throughout your trip.",
-                Headphones,
-              ],
-            ].map(([title, desc, Icon]) => (
-              <div
-                key={String(title)}
-                className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4"
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-                  {React.createElement(Icon as React.ElementType, {
-                    className: "h-5 w-5",
-                  })}
+          <div className="mx-auto max-w-[1440px] px-4 py-8 sm:px-6 lg:px-8">
+            <div className="grid gap-8 md:grid-cols-3 md:divide-x md:divide-slate-200">
+              {[
+                [
+                  "Secure Payment",
+                  "Protected by industry-standard security.",
+                  ShieldCheck,
+                ],
+                [
+                  "Best Price Guarantee",
+                  "Transparent pricing from verified providers.",
+                  BadgeCheck,
+                ],
+                [
+                  "24/7 Support",
+                  "Help is available throughout your trip.",
+                  Headphones,
+                ],
+              ].map(([title, desc, Icon], i) => (
+                <div
+                  key={String(title)}
+                  className={`flex items-start gap-4 ${i !== 0 ? 'md:pl-8' : ''}`}
+                >
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600 shadow-sm">
+                    {React.createElement(Icon as React.ElementType, {
+                      className: "h-6 w-6",
+                    })}
+                  </div>
+                  <div>
+                    <p className="text-base font-bold text-slate-900">
+                      {title as string}
+                    </p>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-500">
+                      {desc as string}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-950">
-                    {title as string}
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    {desc as string}
-                  </p>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </main>

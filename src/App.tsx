@@ -12,6 +12,8 @@ import { ListingDetail } from "./pages/public/ListingDetail";
 import AuthPage from "./pages/auth/AuthPage";
 
 import { ProviderLayout } from "./components/layout/ProviderLayout";
+import { ProviderRouteGuard } from "./components/provider/ProviderRouteGuard";
+import { GlobalProviderAccessModal } from "./components/provider/GlobalProviderAccessModal";
 import { ProviderOverview } from "./pages/provider/ProviderOverview";
 import { MyListings } from "./pages/provider/MyListings";
 import { ProviderProfile } from "./pages/provider/ProviderProfile";
@@ -64,6 +66,7 @@ const App = () => {
         <AuthProvider>
           <AuthenticationGateProvider>
             <AiCoinsModalProvider>
+              <GlobalProviderAccessModal />
               <ScrollToTop />
           <Routes>
             <Route path="/" element={<PublicLayout />}>
@@ -109,7 +112,11 @@ const App = () => {
             </Route>
 
             <Route element={<ProtectedRoute />}>
-              <Route path="/provider" element={<ProviderLayout />}>
+              <Route path="/provider" element={
+                <ProviderRouteGuard>
+                  <ProviderLayout />
+                </ProviderRouteGuard>
+              }>
                 <Route
                   index
                   element={<Navigate to="/provider/dashboard" replace />}

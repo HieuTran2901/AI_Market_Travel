@@ -23,14 +23,12 @@ import {
   Zap,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { demoRewardWallet } from "./rewardData";
 import { missionAssets } from "./missionAssets";
 import { MissionsMobilePresentation } from "./MissionsMobilePresentation";
 import { createMissionsMotion, missionsEase } from "./missionsMotion";
 import { EventTab } from "./EventTab";
 import {
   dailyCheckInItems,
-  demoMissionSummary,
   missionItems,
   missionLeaderboard,
   seasonMilestones,
@@ -38,9 +36,9 @@ import {
   type MissionIconName,
   type MissionItem,
 } from "./missionData";
-import { gamificationService } from "@/services/gamificationService";
-import { useQueryClient } from "@tanstack/react-query";
-import { useAiCoinWallet } from "@/hooks/useAiCoinWallet";
+import { gamificationService, type MissionDashboardSummaryResponse } from "@/services/gamificationService";
+import { useSeasonCountdown } from "@/hooks/useSeasonCountdown";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   AI_COIN_WALLET_QUERY_KEY,
   type AiCoinWallet,
@@ -180,35 +178,35 @@ const MissionsHero: React.FC<{ onHistory: () => void }> = ({ onHistory }) => {
   );
 };
 
-const MissionsSummary: React.FC<{ seasonExp: number; aiCoinBalance?: number }> = ({ seasonExp, aiCoinBalance = demoRewardWallet.goldCoins }) => {
+const MissionsSummary: React.FC<{ summary: MissionDashboardSummaryResponse }> = ({ summary }) => {
   const motionConfig = createMissionsMotion(Boolean(useReducedMotion()));
   const metrics = [
     {
       label: "Your Gold Coins",
-      value: formatNumber(aiCoinBalance),
-      rawValue: aiCoinBalance,
+      value: formatNumber(summary.goldCoins),
+      rawValue: summary.goldCoins,
       suffix: "",
       accent: true,
       animated: true as boolean,
     },
     {
       label: "Season EXP",
-      value: formatNumber(seasonExp),
-      rawValue: seasonExp,
-      suffix: ` / ${formatNumber(demoMissionSummary.seasonExpTarget)} EXP`,
+      value: formatNumber(summary.seasonExp),
+      rawValue: summary.seasonExp,
+      suffix: ` / ${formatNumber(summary.seasonExpTarget)} EXP`,
       animated: true as boolean,
     },
     {
       label: "Missions Completed",
-      value: `${demoMissionSummary.completedMissions}`,
-      rawValue: demoMissionSummary.completedMissions,
-      suffix: ` / ${demoMissionSummary.totalMissions}`,
+      value: `${summary.completedMissions}`,
+      rawValue: summary.completedMissions,
+      suffix: ` / ${summary.totalMissions}`,
       animated: false as boolean,
     },
     {
       label: "Login Streak",
-      value: `${demoMissionSummary.loginStreakDays}`,
-      rawValue: demoMissionSummary.loginStreakDays,
+      value: `${summary.loginStreakDays}`,
+      rawValue: summary.loginStreakDays,
       suffix: " days",
       accent: true,
       animated: false as boolean,
@@ -237,7 +235,8 @@ const MissionsSummary: React.FC<{ seasonExp: number; aiCoinBalance?: number }> =
   );
 };
 
-const SeasonProgress: React.FC<{ seasonExp: number }> = ({ seasonExp }) => {
+const SeasonProgress: React.FC<{ summary: MissionDashboardSummaryResponse }> = ({ summary }) => {
+  const countdown = useSeasonCountdown(summary.seasonEndDate);
   const motionConfig = createMissionsMotion(Boolean(useReducedMotion()));
 
   return (
@@ -247,25 +246,25 @@ const SeasonProgress: React.FC<{ seasonExp: number }> = ({ seasonExp }) => {
     >
       <span
         className="season-progress-card__countdown"
-        aria-label="Season ends in 24 days"
+        aria-label={`Season ends in ${countdown}`}
       >
-        Season ends in: <strong>24 days 18:32:10</strong>
+        Season ends in: <strong>{countdown || "Loading..."}</strong>
       </span>
       <div className="season-level">
         <img
           src={missionAssets.seasonLevelBadge}
-          alt={`Season level ${demoMissionSummary.seasonLevel}`}
+          alt={`Season level ${summary.seasonLevel}`}
           className="season-level__badge"
         />
         <div>
-          <strong>SEASON LEVEL {demoMissionSummary.seasonLevel}</strong>
+          <strong>SEASON LEVEL {summary.seasonLevel}</strong>
           <p>
-            EXP <b><AnimatedCounter value={seasonExp} /></b> /{" "}
-            {formatNumber(demoMissionSummary.seasonExpTarget)}
+            EXP <b><AnimatedCounter value={summary.seasonExp} /></b> /{" "}
+            {formatNumber(summary.seasonExpTarget)}
           </p>
           <ProgressBar
-            value={seasonExp}
-            max={demoMissionSummary.seasonExpTarget}
+            value={summary.seasonExp}
+            max={summary.seasonExpTarget}
             label="Season EXP progress"
           />
         </div>
@@ -516,8 +515,9 @@ const DailyCheckInCard = () => {
   );
 };
 
-const TodayRewardsCard: React.FC<{ onClaimAll: () => void }> = ({
+const TodayRewardsCard: React.FC<{ onClaimAll: () => void, summary?: MissionDashboardSummaryResponse }> = ({
   onClaimAll,
+  summary: missionSummary,
 }) => {
   const shouldReduceMotion = Boolean(useReducedMotion());
   const motionConfig = createMissionsMotion(shouldReduceMotion);
@@ -531,7 +531,7 @@ const TodayRewardsCard: React.FC<{ onClaimAll: () => void }> = ({
       <div className="today-rewards-card__body">
         <span className="today-rewards-card__amount">
           <img src={missionAssets.goldCoin} alt="Gold Coin" />
-          <strong>{formatNumber(demoMissionSummary.todayEarnedCoins)}</strong>
+          <strong>{formatNumber(missionSummary?.todayEarnedCoins || 0)}</strong>
           <small>Gold Coins earned</small>
         </span>
         <img
@@ -720,18 +720,15 @@ export const MissionsPage: React.FC = () => {
   const [rewardNotification, setRewardNotification] = React.useState<RewardData | null>(null);
   const [particles, setParticles] = React.useState<RewardParticle[]>([]);
   const { user } = useAuth();
-  const [currentSeasonExp, setCurrentSeasonExp] = React.useState<number>(
-    user?.seasonExp ?? demoMissionSummary.seasonExp,
-  );
 
-  React.useEffect(() => {
-    setCurrentSeasonExp(user?.seasonExp ?? demoMissionSummary.seasonExp);
-  }, [user?.seasonExp]);
+  const { data: missionSummary } = useQuery({
+    queryKey: ['missionDashboardSummary', user?.id],
+    queryFn: gamificationService.getDashboardSummary,
+    enabled: !!user?.id,
+  });
   const [missions, setMissions] = React.useState<MissionItem[]>(missionItems);
   const queryClient = useQueryClient();
-  const { data: aiCoinWallet } = useAiCoinWallet();
-  const aiCoinBalance = aiCoinWallet?.balance ?? demoRewardWallet.goldCoins;
-
+  
   const filteredMissions = React.useMemo(
     () => missions.filter((mission) => mission.category === category),
     [missions, category],
@@ -801,9 +798,7 @@ export const MissionsPage: React.FC = () => {
           mission.rewardExp,
         );
         if (response.data?.claimed) {
-          if (response.data.latestSeasonExp !== undefined) {
-            setCurrentSeasonExp(response.data.latestSeasonExp);
-          }
+          queryClient.invalidateQueries({ queryKey: ['missionDashboardSummary'] });
           setMissions((prevMissions) =>
             prevMissions.map((m) =>
               m.id === mission.id ? { ...m, status: "claimed" as const } : m,
@@ -907,8 +902,8 @@ export const MissionsPage: React.FC = () => {
                 <MissionsHero
                   onHistory={() => setCurrentView("MISSION_CENTER")}
                 />
-                <MissionsSummary seasonExp={currentSeasonExp} aiCoinBalance={aiCoinBalance} />
-                <SeasonProgress seasonExp={currentSeasonExp} />
+                {missionSummary ? <MissionsSummary summary={missionSummary} /> : <div className="missions-summary" style={{height: 100}}>Loading...</div>}
+                {missionSummary ? <SeasonProgress summary={missionSummary} /> : <div className="missions-card season-progress-card" style={{height: 200}}>Loading...</div>}
 
                 <motion.section
                   className="missions-card missions-board"
@@ -1024,7 +1019,7 @@ export const MissionsPage: React.FC = () => {
                 variants={motionConfig.list}
               >
                 <DailyCheckInCard />
-                <TodayRewardsCard
+                <TodayRewardsCard summary={missionSummary}
                   onClaimAll={() => showDemoNotice("Claim All")}
                 />
                 <MissionsLeaderboardCard

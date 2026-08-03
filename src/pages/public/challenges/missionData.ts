@@ -39,15 +39,6 @@ export type MissionItem = {
   tone: "violet" | "green" | "blue" | "amber" | "rose";
 };
 
-export type MissionSummary = {
-  seasonLevel: number;
-  seasonExp: number;
-  seasonExpTarget: number;
-  completedMissions: number;
-  totalMissions: number;
-  loginStreakDays: number;
-  todayEarnedCoins: number;
-};
 
 export type SeasonMilestone = {
   level: number;
@@ -72,16 +63,6 @@ export type MissionLeaderboardItem = {
   currentUser?: boolean;
 };
 
-// TODO: Replace these isolated fixtures with mission, season, and leaderboard APIs.
-export const demoMissionSummary: MissionSummary = {
-  seasonLevel: 15,
-  seasonExp: 2_450,
-  seasonExpTarget: 5_000,
-  completedMissions: 24,
-  totalMissions: 68,
-  loginStreakDays: 7,
-  todayEarnedCoins: 320,
-};
 
 export const seasonMilestones: SeasonMilestone[] = [
   { level: 5, rewardCoins: 500, rewardExp: 100, state: "completed" },

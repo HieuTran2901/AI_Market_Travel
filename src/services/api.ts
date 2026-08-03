@@ -97,6 +97,15 @@ api.interceptors.response.use(
       return Promise.reject(new Error('AuthenticationRequiredError'));
     }
 
+    // Check for 403 where user lacks role (e.g. Provider access required)
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.errorCode === 'FORBIDDEN'
+    ) {
+      window.dispatchEvent(new CustomEvent('provider:required'));
+      return Promise.reject(new Error('ProviderAccessRequiredError'));
+    }
+
     return Promise.reject(error.response?.data || error);
   }
 );

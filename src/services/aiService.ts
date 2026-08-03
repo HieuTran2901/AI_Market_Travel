@@ -17,6 +17,11 @@ export const aiService = {
     return response.data.data;
   },
 
+  generateListing: async (request: { prompt: string }, signal?: AbortSignal): Promise<{ rawJson: string }> => {
+    const response = await api.post('/ai/provider/generate-listing', request, { signal });
+    return response.data.data;
+  },
+
   confirmTripDraft: async (draftId: string): Promise<TripSaveResponse> => {
     const response = await api.post(`/ai/trips/${encodeURIComponent(draftId)}/confirm`);
     return response.data.data;
