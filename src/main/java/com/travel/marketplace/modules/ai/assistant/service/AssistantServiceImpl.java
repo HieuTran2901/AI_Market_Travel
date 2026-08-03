@@ -252,10 +252,11 @@ public class AssistantServiceImpl implements AssistantService {
                         For greetings, casual conversation, questions about yourself, or questions about your capabilities:
                         - answer briefly and naturally
                         - do not create an itinerary
-                        - do not return JSON
                         - do not attach listing data unless explicitly requested
                         - do not pretend to expose direct database access
                         When asked whether you can read the database, explain that you can use approved marketplace data supplied by the backend, such as active listings, prices, locations, and ratings, to help search and recommend.
+                        
+                        CRITICAL INSTRUCTION: If the user explicitly requests JSON, you MUST Return ONLY valid JSON. No markdown. No explanation. No prose. No code fences.
                         """)
                 .conversationHistory(toProviderHistory(request.getHistory()))
                 .maxTokens(900)

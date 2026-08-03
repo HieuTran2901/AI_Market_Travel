@@ -50,6 +50,13 @@ public class User {
     @Builder.Default
     private Integer seasonExp = 0;
 
+    @Column(name = "login_streak_days", nullable = false)
+    @Builder.Default
+    private Integer loginStreakDays = 0;
+
+    @Column(name = "last_login_date")
+    private Instant lastLoginDate;
+
     @Column(name = "banned_at")
     private Instant bannedAt;
 

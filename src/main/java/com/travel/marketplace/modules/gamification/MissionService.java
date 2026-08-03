@@ -11,7 +11,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -48,6 +53,11 @@ public class MissionService {
         userMission = userMissionRepository.saveAndFlush(userMission);
 
         user.setSeasonExp(user.getSeasonExp() + (int) rewardExp);
+
+        if ("daily-login".equals(missionId)) {
+            updateLoginStreak(user);
+        }
+
         userRepository.save(user);
 
         String idempotencyKey = "CLAIM_MISSION_USER_MISSION_ID_" + userMission.getId();
@@ -63,14 +73,31 @@ public class MissionService {
                 .build();
     }
 
+    private void updateLoginStreak(User user) {
+        Instant now = Instant.now();
+        if (user.getLastLoginDate() == null) {
+            user.setLoginStreakDays(1);
+        } else {
+            LocalDate lastLoginDate = user.getLastLoginDate().atZone(ZoneId.systemDefault()).toLocalDate();
+            LocalDate today = now.atZone(ZoneId.systemDefault()).toLocalDate();
+            long daysBetween = ChronoUnit.DAYS.between(lastLoginDate, today);
+
+            if (daysBetween == 1) {
+                user.setLoginStreakDays(user.getLoginStreakDays() + 1);
+            } else if (daysBetween > 1) {
+                user.setLoginStreakDays(1);
+            }
+        }
+        user.setLastLoginDate(now);
+    }
+
     @Transactional
-    public java.util.List<MissionStatusResponse> getUserMissions(Long userId) {
-        java.util.List<UserMission> missions = userMissionRepository.findByUserId(userId);
-        java.util.List<MissionStatusResponse> activeMissions = new java.util.ArrayList<>();
+    public List<MissionStatusResponse> getUserMissions(Long userId) {
+        List<UserMission> missions = userMissionRepository.findByUserId(userId);
+        List<MissionStatusResponse> activeMissions = new java.util.ArrayList<>();
 
         for (UserMission mission : missions) {
             MissionResetType resetType = missionRegistry.getResetTypeForMission(mission.getMissionId());
-            // Use updatedAt as the last completion timestamp (since we save when claiming)
             if (missionRegistry.shouldReset(resetType, mission.getUpdatedAt())) {
                 userMissionRepository.delete(mission);
                 log.info("Resetting mission {} for user {}", mission.getMissionId(), userId);
@@ -85,5 +112,58 @@ public class MissionService {
         }
 
         return activeMissions;
+    }
+
+    @Transactional(readOnly = true)
+    public MissionDashboardSummaryResponse getMissionDashboardSummary(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "User not found"));
+
+        List<UserMission> missions = userMissionRepository.findByUserId(userId);
+        int completedMissions = (int) missions.stream()
+                .filter(m -> "CLAIMED".equals(m.getStatus()))
+                .count();
+
+        LocalDate todayDate = LocalDate.now();
+        int todayEarnedCoins = missions.stream()
+                .filter(m -> "CLAIMED".equals(m.getStatus()) && m.getClaimedAt() != null && m.getClaimedAt().toLocalDate().equals(todayDate))
+                .mapToInt(UserMission::getRewardCoins)
+                .sum();
+
+        // Calculate season level dynamically from EXP.
+        // E.g. milestones are 5, 10, 15, 20, 30, 50
+        // max EXP target 5000.
+        int seasonExp = user.getSeasonExp();
+        int seasonLevel = (seasonExp / 100) + 1;
+        if (seasonLevel > 50) {
+            seasonLevel = 50;
+        }
+
+        // Hardcode a season end date 30 days from now for demo, or end of month.
+        // Here we just set it to end of current month.
+        LocalDateTime endOfMonth = LocalDateTime.now().with(java.time.temporal.TemporalAdjusters.lastDayOfMonth()).withHour(23).withMinute(59).withSecond(59);
+        Instant seasonEndDate = endOfMonth.atZone(ZoneId.systemDefault()).toInstant();
+
+        // Check if streak needs reset (if missed yesterday)
+        int validStreak = user.getLoginStreakDays();
+        if (user.getLastLoginDate() != null) {
+            LocalDate lastLoginDate = user.getLastLoginDate().atZone(ZoneId.systemDefault()).toLocalDate();
+            LocalDate today = LocalDate.now();
+            if (ChronoUnit.DAYS.between(lastLoginDate, today) > 1) {
+                validStreak = 0;
+            }
+        }
+
+        return MissionDashboardSummaryResponse.builder()
+                .goldCoins(user.getAiCoinBalance())
+                .todayEarnedCoins(todayEarnedCoins)
+                .seasonExp(seasonExp)
+                .seasonExpTarget(5000)
+                .seasonLevel(seasonLevel)
+                .completedMissions(completedMissions)
+                .totalMissions(68)
+                .loginStreakDays(validStreak)
+                .seasonEndDate(seasonEndDate)
+                .build();
     }
 }

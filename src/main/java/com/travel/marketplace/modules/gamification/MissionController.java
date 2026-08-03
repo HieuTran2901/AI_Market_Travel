@@ -32,4 +32,11 @@ public class MissionController {
     ) {
         return ApiResponse.success(missionService.getUserMissions(userPrincipal.getId()));
     }
+
+    @GetMapping("/summary")
+    public ApiResponse<MissionDashboardSummaryResponse> getMissionDashboardSummary(
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        return ApiResponse.success(missionService.getMissionDashboardSummary(userPrincipal.getId()));
+    }
 }

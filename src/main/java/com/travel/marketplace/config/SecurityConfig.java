@@ -90,6 +90,8 @@ public class SecurityConfig {
                     "/v3/api-docs/**",
                     "/api-docs/**"
                 ).permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/provider/register").authenticated()
+                .requestMatchers("/api/v1/provider/**").hasAnyRole("PROVIDER_HOTEL", "PROVIDER_TOUR", "PROVIDER_RESTAURANT", "PROVIDER_VEHICLE", "PROVIDER_EXPERIENCE")
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             );

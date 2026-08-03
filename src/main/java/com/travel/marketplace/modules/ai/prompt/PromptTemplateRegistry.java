@@ -182,6 +182,21 @@ public class PromptTemplateRegistry {
             """
         ));
 
+        register(createTemplate("listing_generation",
+            """
+            You are a backend AI microservice strictly tasked with generating and returning raw JSON data for a travel provider's listing.
+            
+            The user wants to generate a listing based on this input:
+            {{userMessage}}
+            
+            Return ONLY valid JSON matching the exact schema requested by the user.
+            No markdown fences (e.g. do not output ```json).
+            No conversational prose.
+            No explanations.
+            No text outside JSON.
+            """
+        ));
+
         log.info("PromptTemplateRegistry initialized with {} templates: {}", templates.size(), templates.keySet());
     }
 
