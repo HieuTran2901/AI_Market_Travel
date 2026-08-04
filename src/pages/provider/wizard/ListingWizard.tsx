@@ -1,5 +1,6 @@
 import React from 'react';
 import { useListingWizard } from '@/context/ListingWizardContext';
+import { ListingLanguageProvider } from '@/context/ListingLanguageContext';
 import { Step1BasicInfo } from './Step1BasicInfo';
 import { Step2Location } from './Step2Location';
 import { Step3CategoryDetails } from './Step3CategoryDetails';
@@ -33,8 +34,9 @@ export const ListingWizard: React.FC = () => {
   const completion = Math.round(((currentStep - 1) / (steps.length - 1)) * 100);
 
   return (
-    <div className="listing-wizard-premium mx-auto w-full max-w-[1180px] px-4 pb-10 pt-5 sm:px-6 lg:pt-8">
-      <div className="mb-6 flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-center sm:justify-between">
+    <ListingLanguageProvider>
+      <div className="listing-wizard-premium mx-auto w-full max-w-[1180px] px-4 pb-10 pt-5 sm:px-6 lg:pt-8">
+        <div className="mb-6 flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-4">
           <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 ring-1 ring-blue-100">
             <Building2 className="h-7 w-7" />
@@ -88,6 +90,7 @@ export const ListingWizard: React.FC = () => {
       </div>
 
       <p className="mt-5 text-center text-xs font-semibold text-slate-400">Your information is secure and only visible to your provider account until publication.</p>
-    </div>
+      </div>
+    </ListingLanguageProvider>
   );
 };

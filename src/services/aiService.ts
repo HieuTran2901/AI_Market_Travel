@@ -17,7 +17,7 @@ export const aiService = {
     return response.data.data;
   },
 
-  generateListing: async (request: { prompt: string }, signal?: AbortSignal): Promise<{ rawJson: string }> => {
+  generateListing: async (request: { prompt: string; language?: string }, signal?: AbortSignal): Promise<{ rawJson: string }> => {
     const response = await api.post('/ai/provider/generate-listing', request, { signal });
     return response.data.data;
   },

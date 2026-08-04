@@ -88,6 +88,7 @@ export interface AssistantRequest {
   contextListingId?: number;
   contextDestination?: string;
   extractedContext?: Record<string, unknown>;
+  language?: string;
 }
 
 export interface AssistantListingRecommendation {

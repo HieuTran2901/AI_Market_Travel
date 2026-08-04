@@ -1,7 +1,8 @@
 import React from 'react';
 import { motion, Variants } from 'framer-motion';
-import { X, Paperclip, Send, Loader2, Image } from 'lucide-react';
+import { X, Paperclip, Send, Loader2, Image as ImageIcon, Sparkles } from 'lucide-react';
 import { ChatAttachment, ChatTransitionState } from '../types/chat.types';
+
 
 export interface ChatInputProps {
   uploadError: string;
@@ -59,6 +60,7 @@ export const ChatInput = ({
   resizeComposer,
   sendMessage,
   canSend,
+  workingMode,
   isLoading,
   attachments,
   addFiles,
@@ -95,7 +97,7 @@ export const ChatInput = ({
           <Paperclip className="h-4 w-4" />
         </button>
         <button type="button" onClick={() => fileInputRef.current?.click()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-blue-100 transition hover:bg-white/10" aria-label="Pick image">
-          <Image className="h-4 w-4" />
+          <ImageIcon className="h-4 w-4" />
         </button>
         
         <textarea
@@ -107,9 +109,15 @@ export const ChatInput = ({
           }}
           onKeyDown={handleKeyDown}
           rows={1}
-          placeholder="Ask about trips, hotels, food, routes..."
+          placeholder={workingMode ? "Ask AI to improve your listing..." : "Ask about trips, hotels, food, routes..."}
           className="min-h-[42px] max-h-[104px] flex-1 resize-none overflow-y-auto border-0 bg-transparent px-2 py-2 text-sm text-white outline-none placeholder:text-blue-100/55 focus:ring-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         />
+        
+        {workingMode && (
+          <button type="button" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-purple-300 transition hover:bg-white/10 hover:text-purple-200" aria-label="AI Actions">
+            <Sparkles className="h-5 w-5" />
+          </button>
+        )}
         
         <button
           type="submit"
@@ -121,18 +129,20 @@ export const ChatInput = ({
         </button>
       </form>
 
-      <motion.div variants={revealVariants} initial="hidden" animate={chatState === 'closing' ? 'closing' : 'visible'} custom={0.62} className="mt-3 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {suggestionChips.slice(0, 5).map((suggestion) => (
-          <button
-            key={suggestion}
-            type="button"
-            onClick={() => sendMessage(suggestion)}
-            className="shrink-0 rounded-full border border-white/10 bg-white/8 px-3 py-2 text-xs font-semibold text-blue-100 transition hover:bg-white/14"
-          >
-            {suggestion}
-          </button>
-        ))}
-      </motion.div>
+      {!workingMode && (
+        <motion.div variants={revealVariants} initial="hidden" animate={chatState === 'closing' ? 'closing' : 'visible'} custom={0.62} className="mt-3 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {suggestionChips.slice(0, 5).map((suggestion) => (
+            <button
+              key={suggestion}
+              type="button"
+              onClick={() => sendMessage(suggestion)}
+              className="shrink-0 rounded-full border border-white/10 bg-white/8 px-3 py-2 text-[13px] font-medium text-blue-100 transition hover:border-white/20 hover:bg-white/14"
+            >
+              {suggestion}
+            </button>
+          ))}
+        </motion.div>
+      )}
     </motion.div>
   );
 };
