@@ -13,4 +13,6 @@ import lombok.NoArgsConstructor;
 public class ListingGenerationRequest {
     @NotBlank(message = "Prompt cannot be blank")
     private String prompt;
+    
+    private String language;
 }

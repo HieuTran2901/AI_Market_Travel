@@ -244,9 +244,7 @@ public class AssistantServiceImpl implements AssistantService {
         vars.put("userMessage", request.getMessage());
 
         String prompt = promptRegistry.render("assistant", vars);
-        AiResponse aiResponse = aiProvider.complete(AiRequest.builder()
-                .prompt(prompt)
-                .systemContext("""
+        String systemContext = """
                         You are the AI travel concierge for AI Marketplace Traveler.
                         Respond naturally in the user's language.
                         For greetings, casual conversation, questions about yourself, or questions about your capabilities:
@@ -257,7 +255,15 @@ public class AssistantServiceImpl implements AssistantService {
                         When asked whether you can read the database, explain that you can use approved marketplace data supplied by the backend, such as active listings, prices, locations, and ratings, to help search and recommend.
                         
                         CRITICAL INSTRUCTION: If the user explicitly requests JSON, you MUST Return ONLY valid JSON. No markdown. No explanation. No prose. No code fences.
-                        """)
+                        """;
+
+        if (request.getLanguage() != null && !request.getLanguage().trim().isEmpty() && !request.getLanguage().equalsIgnoreCase("en-US") && !request.getLanguage().equalsIgnoreCase("English (US)")) {
+            systemContext += "\nGenerate every output strictly in " + request.getLanguage() + " language.";
+        }
+
+        AiResponse aiResponse = aiProvider.complete(AiRequest.builder()
+                .prompt(prompt)
+                .systemContext(systemContext)
                 .conversationHistory(toProviderHistory(request.getHistory()))
                 .maxTokens(900)
                 .temperature(0.7)

@@ -30,9 +30,15 @@ public class AiGeneratorServiceImpl implements AiGeneratorService {
 
         String prompt = promptRegistry.render("listing_generation", vars);
 
+        String systemContext = "You are a specialized B2B listing generator. CRITICAL INSTRUCTION: Return ONLY valid JSON matching the exact schema requested by the user. No markdown fences. No conversational prose. No explanations. No text outside JSON.";
+        
+        if (request.getLanguage() != null && !request.getLanguage().trim().isEmpty() && !request.getLanguage().equalsIgnoreCase("en-US") && !request.getLanguage().equalsIgnoreCase("English (US)")) {
+            systemContext += " Generate every output strictly in " + request.getLanguage() + " language, while keeping the JSON keys in English.";
+        }
+
         AiRequest aiReq = AiRequest.builder()
                 .prompt(prompt)
-                .systemContext("You are a specialized B2B listing generator. CRITICAL INSTRUCTION: Return ONLY valid JSON matching the exact schema requested by the user. No markdown fences. No conversational prose. No explanations. No text outside JSON.")
+                .systemContext(systemContext)
                 .jsonResponse(true)
                 .maxTokens(2000)
                 .temperature(0.5)

@@ -37,4 +37,7 @@ public class AssistantRequest {
 
     /** Server-populated authenticated user ID, when the assistant is called by a signed-in user. */
     private Long authenticatedUserId;
+    
+    /** The desired language for the AI response (e.g., en-US, vi-VN) */
+    private String language;
 }
