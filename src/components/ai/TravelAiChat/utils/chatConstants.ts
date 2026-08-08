@@ -13,9 +13,13 @@ import {
 export const MAX_IMAGES = 4;
 export const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 export const CHAT_STORAGE_KEY = 'travel-ai-concierge-history-v2';
+export const CHAT_SESSIONS_INDEX_KEY = 'travel-ai-sessions-index-v2';
 
 export const getChatStorageKey = (ownerId?: string | number | null) =>
   ownerId ? `${CHAT_STORAGE_KEY}:user:${ownerId}` : `${CHAT_STORAGE_KEY}:guest`;
+
+export const getChatSessionsIndexKey = (ownerId?: string | number | null) =>
+  ownerId ? `${CHAT_SESSIONS_INDEX_KEY}:user:${ownerId}` : `${CHAT_SESSIONS_INDEX_KEY}:guest`;
 
 export const travelQuickActions = [
   { title: 'Plan a trip', helper: 'Personalized itineraries', icon: Plane, tone: 'from-cyan-400/20 to-blue-500/10 text-cyan-200' },

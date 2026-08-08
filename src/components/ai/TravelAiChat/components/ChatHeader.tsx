@@ -9,8 +9,8 @@ export interface ChatHeaderProps {
   workingMode: boolean;
   isSettingsOpen: boolean;
   setIsSettingsOpen: (open: boolean) => void;
-  minimizeChat: () => void;
   closeChat: () => void;
+  onHistoryClick: () => void;
   headerRobotVariants: Variants;
   revealVariants: Variants;
 }
@@ -21,8 +21,8 @@ export const ChatHeader = ({
   workingMode,
   isSettingsOpen,
   setIsSettingsOpen,
-  minimizeChat,
   closeChat,
+  onHistoryClick,
   headerRobotVariants,
   revealVariants
 }: ChatHeaderProps) => {
@@ -113,7 +113,7 @@ export const ChatHeader = ({
           </button>
           <button
             type="button"
-            onClick={minimizeChat}
+            onClick={onHistoryClick}
             className="flex h-9 w-9 items-center justify-center rounded-full text-blue-100 transition hover:bg-white/10"
             aria-label="Conversation history"
           >

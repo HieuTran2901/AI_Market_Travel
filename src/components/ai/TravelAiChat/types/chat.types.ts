@@ -69,3 +69,14 @@ export type ChatItinerary = {
 };
 
 export type NormalizedAssistantType = 'TEXT' | 'LISTING_RESULT' | 'RECOMMENDATIONS' | 'ITINERARY' | 'CLARIFICATION' | 'ERROR' | 'FLIGHT_RECOMMENDATIONS' | 'FLIGHT_DATE_RECOMMENDATIONS';
+
+export type ConversationType = 'NORMAL_CHAT' | 'WORKING_MODE';
+
+export type ConversationSession = {
+  id: string;
+  title: string;
+  type: ConversationType;
+  createdAt: number;
+  updatedAt: number;
+  messageCount: number;
+};

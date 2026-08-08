@@ -1,9 +1,11 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { TravelChatMessage, ChatAttachment } from '../types/chat.types';
+import { TravelChatMessage, ChatAttachment, ConversationSession } from '../types/chat.types';
 import { createGreetingMessage, hydrateMessages, hydrateTravelContext } from '../utils/messageFormatter';
+import { getSessionsIndex, saveSessionsIndex, createNewSession, generateSessionTitle, getSessionStorageKey } from '../utils/sessionManager';
+import { getChatStorageKey } from '../utils/chatConstants';
 
-export const useChatState = (accountOwnerKey: string, userFullName?: string) => {
+export const useChatState = (accountOwnerId: string | number | null, userFullName?: string) => {
   const queryClient = useQueryClient();
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -15,15 +17,36 @@ export const useChatState = (accountOwnerKey: string, userFullName?: string) => 
   const [savingDraftId, setSavingDraftId] = useState<string | null>(null);
   const [suggestedActions, setSuggestedActions] = useState<string[]>([]);
   const [messages, setMessages] = useState<TravelChatMessage[]>(() => [createGreetingMessage(userFullName)]);
-  const [messagesOwnerKey, setMessagesOwnerKey] = useState(accountOwnerKey);
   const [travelContext, setTravelContext] = useState<Record<string, unknown>>({});
   const [lastCompletedMessageId, setLastCompletedMessageId] = useState<string | undefined>();
-
-  const ownerScopedMessages = useMemo(
-    () => messagesOwnerKey === accountOwnerKey ? messages : [createGreetingMessage(userFullName)],
-    [accountOwnerKey, messages, messagesOwnerKey, userFullName]
-  );
   
+  const [sessions, setSessions] = useState<ConversationSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+
+  // Migrate old local storage key to a session if needed, then load sessions
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const oldKey = getChatStorageKey(accountOwnerId);
+    const stored = window.localStorage.getItem(oldKey);
+    let loadedSessions = getSessionsIndex(accountOwnerId);
+    
+    if (stored && loadedSessions.length === 0) {
+      const parsed = JSON.parse(stored);
+      const msgs = Array.isArray(parsed) ? parsed : parsed.messages || [];
+      if (msgs.length > 1) { // More than just greeting
+        const session = createNewSession('NORMAL_CHAT');
+        session.title = generateSessionTitle(msgs);
+        session.messageCount = msgs.length;
+        loadedSessions = [session];
+        saveSessionsIndex(loadedSessions, accountOwnerId);
+        window.localStorage.setItem(getSessionStorageKey(session.id, accountOwnerId), stored);
+      }
+      window.localStorage.removeItem(oldKey);
+    }
+    setSessions(loadedSessions);
+  }, [accountOwnerId]);
+
+  const ownerScopedMessages = messages;
   const history = useMemo(() => ownerScopedMessages.map(({ role, content }) => ({ role, content })), [ownerScopedMessages]);
 
   const clearSensitiveAiQueries = useCallback(() => {
@@ -34,7 +57,7 @@ export const useChatState = (accountOwnerKey: string, userFullName?: string) => 
     queryClient.removeQueries({ queryKey: ['trip-detail'] });
   }, [queryClient]);
 
-  const resetAiChatState = useCallback((storageKey: string, fallbackName?: string, _workingMode?: boolean, defaultSuggestions: string[] = []) => {
+  const switchSession = useCallback((sessionId: string, fallbackName?: string, _workingMode?: boolean, defaultSuggestions: string[] = []) => {
     setIsLoading(false);
     setRequestError(false);
     setUploadError('');
@@ -48,12 +71,14 @@ export const useChatState = (accountOwnerKey: string, userFullName?: string) => 
       current.forEach((attachment) => URL.revokeObjectURL(attachment.previewUrl));
       return [];
     });
-    const nextMessages = hydrateMessages(storageKey, fallbackName);
+    
+    setCurrentSessionId(sessionId);
+    const sessionKey = getSessionStorageKey(sessionId, accountOwnerId);
+    const nextMessages = hydrateMessages(sessionKey, fallbackName);
     setMessages(nextMessages);
-    setMessagesOwnerKey(storageKey);
     setTravelContext(hydrateTravelContext(nextMessages));
     clearSensitiveAiQueries();
-  }, [clearSensitiveAiQueries]);
+  }, [accountOwnerId, clearSensitiveAiQueries]);
 
   return {
     input, setInput,
@@ -66,12 +91,13 @@ export const useChatState = (accountOwnerKey: string, userFullName?: string) => 
     savingDraftId, setSavingDraftId,
     suggestedActions, setSuggestedActions,
     messages, setMessages,
-    messagesOwnerKey, setMessagesOwnerKey,
     travelContext, setTravelContext,
     lastCompletedMessageId, setLastCompletedMessageId,
     ownerScopedMessages,
     history,
-    resetAiChatState,
+    sessions, setSessions,
+    currentSessionId, setCurrentSessionId,
+    switchSession,
     clearSensitiveAiQueries
   };
 };

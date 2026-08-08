@@ -22,12 +22,15 @@ import { useAuth } from "@/context/AuthContext";
 import { AiSettingsModal } from "./modals/ChatSettingsModal";
 import {
   getChatStorageKey,
+  getChatSessionsIndexKey,
   MAX_IMAGES,
   MAX_IMAGE_SIZE,
   travelQuickActions,
   workQuickActions,
 } from "./utils/chatConstants";
 import { suggestionChips } from "./utils/messageFormatter";
+import { HistoryPanel } from "./components/HistoryPanel";
+import { createNewSession, deleteSession, saveSessionsIndex } from "./utils/sessionManager";
 import { ChatHeader } from "./components/ChatHeader";
 import { ChatMessages } from "./components/ChatMessages";
 import { QuickActions } from "./components/QuickActions";
@@ -53,7 +56,6 @@ export const TravelAiChat: React.FC = () => {
   const accountOwnerId = user?.id ?? null;
   const accountOwnerKey = getChatStorageKey(accountOwnerId);
   const accountOwnerRef = useRef(accountOwnerKey);
-  const previousOwnerKeyRef = useRef<string | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -68,12 +70,11 @@ export const TravelAiChat: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isConversationPanelOpen, setIsConversationPanelOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   useEffect(() => {
     console.log("Settings:", isSettingsOpen);
   }, [isSettingsOpen]);
-  const [messagesOwnerKey, setMessagesOwnerKey] =
-    useState<string>(accountOwnerKey);
   const [isDragging, setIsDragging] = useState(false);
   const [launcherCompress, setLauncherCompress] = useState(false);
   const [launcherPortalActive, setLauncherPortalActive] = useState(false);
@@ -103,9 +104,59 @@ export const TravelAiChat: React.FC = () => {
     clearSensitiveAiQueries,
     unreadCount,
     pendingResponseKind,
-  } = useChatState(accountOwnerKey, user?.fullName);
+    sessions,
+    setSessions,
+    currentSessionId,
+    switchSession,
+  } = useChatState(accountOwnerId, user?.fullName);
 
   const { workingMode, showToast, applyWorkingMode } = useWorkingMode();
+  // Handle working mode switch: pick the latest session of the corresponding type, or create one.
+  useEffect(() => {
+    if (authLoading) return;
+    const activeType = workingMode ? 'WORKING_MODE' : 'NORMAL_CHAT';
+    const typeSessions = sessions.filter(s => s.type === activeType).sort((a, b) => b.updatedAt - a.updatedAt);
+    
+    if (typeSessions.length > 0) {
+      if (currentSessionId !== typeSessions[0].id) {
+        switchSession(typeSessions[0].id);
+      }
+    } else {
+      const newSess = createNewSession(activeType);
+      setSessions([...sessions, newSess]);
+      switchSession(newSess.id);
+    }
+  }, [workingMode, authLoading]); // Only listen to workingMode changes, to switch sessions.
+
+  const handleNewSession = () => {
+    const activeType = workingMode ? 'WORKING_MODE' : 'NORMAL_CHAT';
+    const newSess = createNewSession(activeType);
+    setSessions([...sessions, newSess]);
+    switchSession(newSess.id);
+    setIsHistoryOpen(false);
+  };
+
+  const handleDeleteSession = (id: string) => {
+    deleteSession(id, accountOwnerId);
+    const updatedSessions = sessions.filter(s => s.id !== id);
+    setSessions(updatedSessions);
+    if (currentSessionId === id) {
+      const activeType = workingMode ? 'WORKING_MODE' : 'NORMAL_CHAT';
+      const typeSessions = updatedSessions.filter(s => s.type === activeType).sort((a, b) => b.updatedAt - a.updatedAt);
+      if (typeSessions.length > 0) {
+        switchSession(typeSessions[0].id);
+      } else {
+        const newSess = createNewSession(activeType);
+        setSessions([...updatedSessions, newSess]);
+        switchSession(newSess.id);
+      }
+    }
+  };
+
+  const handleSelectSession = (id: string) => {
+    switchSession(id);
+    setIsHistoryOpen(false);
+  };
 
   const actions = {
     setSavingDraftId,
@@ -196,42 +247,10 @@ export const TravelAiChat: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    if (authLoading) return;
-    const previousOwnerKey = previousOwnerKeyRef.current;
-    if (previousOwnerKey === accountOwnerKey) return;
 
-    if (typeof window !== "undefined") {
-      const savedMessages = localStorage.getItem(accountOwnerKey);
-      if (savedMessages) {
-        try {
-          const parsed = JSON.parse(savedMessages);
-          setMessages(
-            parsed.map((msg: any) => ({
-              ...msg,
-              createdAt: new Date(msg.createdAt),
-            })),
-          );
-        } catch (e) {
-          console.error("Failed to parse saved chat messages:", e);
-        }
-      } else if (previousOwnerKey !== null) {
-        setMessages([]);
-      }
-    }
-
-    setMessagesOwnerKey(accountOwnerKey);
-    accountOwnerRef.current = accountOwnerKey;
-    previousOwnerKeyRef.current = accountOwnerKey;
-  }, [accountOwnerKey, authLoading, setMessages]);
 
   useEffect(() => {
-    if (
-      typeof window === "undefined" ||
-      authLoading ||
-      messagesOwnerKey !== accountOwnerKey
-    )
-      return;
+    if (typeof window === "undefined" || authLoading || !currentSessionId) return;
     const serializable = messages.map((message) => ({
       ...message,
       itineraryCard: undefined,
@@ -242,8 +261,23 @@ export const TravelAiChat: React.FC = () => {
         uploadedUrl: a.uploadedUrl,
       })),
     }));
-    localStorage.setItem(accountOwnerKey, JSON.stringify(serializable));
-  }, [messages, accountOwnerKey, authLoading, messagesOwnerKey]);
+    const storageKey = getChatSessionsIndexKey(accountOwnerId) + ':session:' + currentSessionId;
+    localStorage.setItem(storageKey, JSON.stringify(serializable));
+    
+    setSessions(prev => {
+      const idx = prev.findIndex(s => s.id === currentSessionId);
+      if (idx === -1) return prev;
+      const updated = [...prev];
+      updated[idx] = {
+        ...updated[idx],
+        messageCount: messages.length,
+        updatedAt: Date.now(),
+        title: prev[idx].messageCount <= 1 && messages.length > 1 ? messages[1].content.trim().split('\n')[0].substring(0, 30) + '...' : prev[idx].title
+      };
+      saveSessionsIndex(updated, accountOwnerId);
+      return updated;
+    });
+  }, [messages, currentSessionId, authLoading, accountOwnerId]);
 
   useEffect(() => {
     if (!isVisible) return;
@@ -315,10 +349,6 @@ export const TravelAiChat: React.FC = () => {
       },
       reducedMotion ? 90 : 620,
     );
-  };
-
-  const minimizeChat = () => {
-    closeChat();
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -470,16 +500,28 @@ export const TravelAiChat: React.FC = () => {
                 <div aria-hidden="true" className="travel-ai-pull-beam" />
               )}
 
+              
               <ChatHeader
                 chatState={chatState}
                 robotMood={robotMood}
                 workingMode={workingMode}
                 isSettingsOpen={isSettingsOpen}
                 setIsSettingsOpen={setIsSettingsOpen}
-                minimizeChat={minimizeChat}
                 closeChat={closeChat}
+                onHistoryClick={() => setIsHistoryOpen(!isHistoryOpen)}
                 headerRobotVariants={headerRobotVariants}
                 revealVariants={revealVariants}
+              />
+
+              <HistoryPanel
+                isOpen={isHistoryOpen}
+                onClose={() => setIsHistoryOpen(false)}
+                sessions={sessions}
+                currentSessionId={currentSessionId}
+                activeType={workingMode ? 'WORKING_MODE' : 'NORMAL_CHAT'}
+                onSelectSession={handleSelectSession}
+                onNewSession={handleNewSession}
+                onDeleteSession={handleDeleteSession}
               />
 
               {!workingMode ? (
@@ -1071,3 +1113,6 @@ export const TravelAiChat: React.FC = () => {
     </>
   );
 };
+
+
+
