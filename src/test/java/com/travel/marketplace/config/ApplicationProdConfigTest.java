@@ -66,9 +66,9 @@ class ApplicationProdConfigTest {
         assertThat(spring).containsKey("datasource");
         @SuppressWarnings("unchecked")
         Map<String, Object> datasource = (Map<String, Object>) spring.get("datasource");
-        assertThat(datasource.get("url")).isEqualTo("${DATABASE_URL:jdbc:mysql://${MYSQLHOST:${MYSQL_HOST}}:${MYSQLPORT:${MYSQL_PORT:3306}}/${MYSQLDATABASE:${MYSQL_DATABASE}}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh}");
-        assertThat(datasource.get("username")).isEqualTo("${MYSQLUSER:${MYSQL_USER:${DATABASE_USERNAME}}}");
-        assertThat(datasource.get("password")).isEqualTo("${MYSQLPASSWORD:${MYSQL_PASSWORD:${MYSQL_ROOT_PASSWORD:${DATABASE_PASSWORD}}}}");
+        assertThat(datasource.get("url")).isEqualTo("jdbc:mysql://${MYSQLHOST}:${MYSQLPORT:3306}/${MYSQLDATABASE}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh");
+        assertThat(datasource.get("username")).isEqualTo("${MYSQLUSER}");
+        assertThat(datasource.get("password")).isEqualTo("${MYSQLPASSWORD}");
         assertThat(datasource.get("driver-class-name")).isEqualTo("com.mysql.cj.jdbc.Driver");
     }
 }

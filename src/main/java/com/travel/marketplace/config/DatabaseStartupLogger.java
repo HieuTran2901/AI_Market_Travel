@@ -23,30 +23,42 @@ public class DatabaseStartupLogger {
 
     @PostConstruct
     public void logStartupDiagnostics() {
-        String[] activeProfiles = environment.getActiveProfiles();
-        String activeProfileStr = activeProfiles.length > 0 ? String.join(", ", activeProfiles) : "default (dev)";
-        log.info("========== APPLICATION STARTUP DIAGNOSTICS ==========");
-        log.info("Active Spring Profiles: [{}]", activeProfileStr);
+        try {
+            String[] activeProfiles = environment.getActiveProfiles();
+            String activeProfileStr = activeProfiles.length > 0 ? String.join(", ", activeProfiles) : "default (dev)";
+            log.info("========== APPLICATION STARTUP DIAGNOSTICS ==========");
+            log.info("Active Spring Profiles: [{}]", activeProfileStr);
 
-        String datasourceUrl = environment.getProperty("spring.datasource.url", "");
-        String datasourceUser = environment.getProperty("spring.datasource.username", "");
-        String datasourcePassword = environment.getProperty("spring.datasource.password", "");
+            String datasourceUrl = "";
+            String datasourceUser = "";
+            String datasourcePassword = "";
 
-        // Sanitize URL for safe logging (strip embedded user/pass if present)
-        String sanitizedUrl = sanitizeJdbcUrl(datasourceUrl);
-        log.info("Datasource Target: {}", sanitizedUrl);
-        log.info("Datasource Username Configured: {}", (datasourceUser != null && !datasourceUser.isBlank()));
-        log.info("Datasource Password Configured: {}", (datasourcePassword != null && !datasourcePassword.isBlank()));
+            try {
+                datasourceUrl = environment.getProperty("spring.datasource.url", "");
+                datasourceUser = environment.getProperty("spring.datasource.username", "");
+                datasourcePassword = environment.getProperty("spring.datasource.password", "");
+            } catch (Exception ex) {
+                log.warn("Notice: Datasource property lookup returned placeholder or unresolved: {}", ex.getMessage());
+            }
 
-        boolean isProd = Arrays.asList(activeProfiles).contains("prod");
-        if (!isProd && System.getenv("PORT") != null) {
-            log.warn("WARNING: PORT environment variable detected but active profile is NOT 'prod'! Make sure SPRING_PROFILES_ACTIVE=prod is set in Railway.");
+            // Sanitize URL for safe logging (strip embedded user/pass if present)
+            String sanitizedUrl = sanitizeJdbcUrl(datasourceUrl);
+            log.info("Datasource Target: {}", sanitizedUrl);
+            log.info("Datasource Username Configured: {}", (datasourceUser != null && !datasourceUser.isBlank()));
+            log.info("Datasource Password Configured: {}", (datasourcePassword != null && !datasourcePassword.isBlank()));
+
+            boolean isProd = Arrays.asList(activeProfiles).contains("prod");
+            if (!isProd && System.getenv("PORT") != null) {
+                log.warn("WARNING: PORT environment variable detected but active profile is NOT 'prod'! Make sure SPRING_PROFILES_ACTIVE=prod is set in Railway.");
+            }
+
+            if (isProd && (datasourceUrl.contains("localhost") || datasourceUrl.contains("127.0.0.1"))) {
+                log.warn("WARNING: Production profile is active but datasource URL points to localhost/127.0.0.1! Check Railway MySQL environment variables.");
+            }
+            log.info("=====================================================");
+        } catch (Throwable t) {
+            log.warn("DatabaseStartupLogger encountered a non-blocking diagnostic issue: {}", t.getMessage());
         }
-
-        if (isProd && (datasourceUrl.contains("localhost") || datasourceUrl.contains("127.0.0.1"))) {
-            log.warn("WARNING: Production profile is active but datasource URL points to localhost/127.0.0.1! Check Railway MySQL environment variables.");
-        }
-        log.info("=====================================================");
     }
 
     private String sanitizeJdbcUrl(String url) {
