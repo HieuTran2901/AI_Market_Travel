@@ -6,3 +6,7 @@ uploads
 *.log
 .idea
 .vscode
+
+# Railway local environment export (contains secrets — never commit)
+railway-env.json
+railway-env-production.json
