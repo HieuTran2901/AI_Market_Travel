@@ -55,6 +55,20 @@ spring:
           timeout: 5000
           writetimeout: 5000
 
+# ── App & Email Provider Configuration ─────────────────────────────
+app:
+  email:
+    provider: ${EMAIL_PROVIDER:resend}
+    from: ${EMAIL_FROM:AI Travel Marketplace <onboarding@resend.dev>}
+    from-name: ${EMAIL_FROM_NAME:AI Travel Marketplace}
+    fallback-enabled: ${EMAIL_FALLBACK_ENABLED:true}
+
+# ── Resend Configuration ───────────────────────────────────────────
+resend:
+  api-key: ${RESEND_API_KEY:}
+  base-url: ${RESEND_BASE_URL:https://api.resend.com}
+  timeout: ${RESEND_TIMEOUT:10000}
+
 # ── OpenAPI / Swagger ──────────────────────────────────────────────
 springdoc:
   api-docs:

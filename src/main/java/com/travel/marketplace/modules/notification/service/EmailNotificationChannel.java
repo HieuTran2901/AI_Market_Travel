@@ -1,35 +1,21 @@
 package com.travel.marketplace.modules.notification.service;
 
 import com.travel.marketplace.modules.notification.dto.SendNotificationRequest;
+import com.travel.marketplace.modules.notification.email.EmailMessage;
+import com.travel.marketplace.modules.notification.email.EmailService;
 import com.travel.marketplace.modules.notification.enums.NotificationType;
 import com.travel.marketplace.modules.user.repository.UserRepository;
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.InternetAddress;
-import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.MailException;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
-
-import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class EmailNotificationChannel implements NotificationChannel {
 
-    private final JavaMailSender mailSender;
+    private final EmailService emailService;
     private final UserRepository userRepository;
-
-    @Value("${app.mail.from:noreply@aitravelmarketplace.com}")
-    private String mailFrom;
-
-    @Value("${app.mail.from-name:AI Travel Marketplace}")
-    private String mailFromName;
 
     @Override
     public void send(SendNotificationRequest request) {
@@ -41,27 +27,22 @@ public class EmailNotificationChannel implements NotificationChannel {
         }
 
         try {
-            MimeMessage mimeMessage = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(
-                    mimeMessage, 
-                    MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, 
-                    StandardCharsets.UTF_8.name()
-            );
-
-            helper.setFrom(new InternetAddress(mailFrom, mailFromName, StandardCharsets.UTF_8.name()));
-            helper.setTo(recipientEmail);
-            helper.setSubject(request.getTitle() != null ? request.getTitle() : "AI Travel Notification");
-
             boolean isHtml = request.isHtml() || (request.getMessage() != null && request.getMessage().trim().startsWith("<"));
-            helper.setText(request.getMessage() != null ? request.getMessage() : "", isHtml);
+            EmailMessage emailMessage = EmailMessage.builder()
+                    .to(recipientEmail)
+                    .subject(request.getTitle() != null ? request.getTitle() : "AI Travel Notification")
+                    .html(isHtml ? request.getMessage() : null)
+                    .text(!isHtml ? request.getMessage() : null)
+                    .isHtml(isHtml)
+                    .build();
 
-            mailSender.send(mimeMessage);
+            emailService.send(emailMessage);
             log.info("Email notification sent successfully to domain: {} [Subject: {}]", 
                      extractDomain(recipientEmail), request.getTitle());
-        } catch (MessagingException | UnsupportedEncodingException | MailException e) {
+        } catch (Exception e) {
             log.error("Failed to send email notification to domain: {} [Subject: {}]: {}", 
                       extractDomain(recipientEmail), request.getTitle(), e.getMessage());
-            throw new RuntimeException("Failed to send email notification", e);
+            throw new RuntimeException("Failed to send email notification: " + e.getMessage(), e);
         }
     }
 

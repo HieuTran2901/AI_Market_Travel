@@ -1,22 +1,20 @@
 package com.travel.marketplace.modules.notification.service;
 
 import com.travel.marketplace.modules.notification.dto.SendNotificationRequest;
+import com.travel.marketplace.modules.notification.email.EmailMessage;
+import com.travel.marketplace.modules.notification.email.EmailService;
+import com.travel.marketplace.modules.notification.email.exception.EmailSendException;
 import com.travel.marketplace.modules.notification.enums.NotificationType;
 import com.travel.marketplace.modules.user.entity.User;
 import com.travel.marketplace.modules.user.repository.UserRepository;
-import jakarta.mail.Session;
-import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mail.MailSendException;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
-import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,7 +25,7 @@ import static org.mockito.Mockito.*;
 class EmailNotificationChannelTest {
 
     @Mock
-    private JavaMailSender mailSender;
+    private EmailService emailService;
 
     @Mock
     private UserRepository userRepository;
@@ -36,16 +34,11 @@ class EmailNotificationChannelTest {
 
     @BeforeEach
     void setUp() {
-        emailNotificationChannel = new EmailNotificationChannel(mailSender, userRepository);
-        ReflectionTestUtils.setField(emailNotificationChannel, "mailFrom", "test@travel.com");
-        ReflectionTestUtils.setField(emailNotificationChannel, "mailFromName", "AI Travel");
+        emailNotificationChannel = new EmailNotificationChannel(emailService, userRepository);
     }
 
     @Test
     void sendShouldDeliverEmailWhenRecipientEmailIsProvidedDirectly() {
-        MimeMessage mimeMessage = new MimeMessage(Session.getInstance(new Properties()));
-        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
-
         SendNotificationRequest request = SendNotificationRequest.builder()
                 .recipientEmail("traveler@example.com")
                 .type(NotificationType.OTP_VERIFICATION)
@@ -56,15 +49,18 @@ class EmailNotificationChannelTest {
 
         emailNotificationChannel.send(request);
 
-        verify(mailSender, times(1)).send(any(MimeMessage.class));
+        ArgumentCaptor<EmailMessage> captor = ArgumentCaptor.forClass(EmailMessage.class);
+        verify(emailService, times(1)).send(captor.capture());
+        EmailMessage sent = captor.getValue();
+        assertThat(sent.getTo()).isEqualTo("traveler@example.com");
+        assertThat(sent.getSubject()).isEqualTo("Verify your email");
+        assertThat(sent.getHtml()).isEqualTo("<p>Your OTP code is 123456</p>");
+        assertThat(sent.isHtml()).isTrue();
         verify(userRepository, never()).findById(anyLong());
     }
 
     @Test
     void sendShouldResolveEmailFromUserRepositoryWhenUserIdIsProvided() {
-        MimeMessage mimeMessage = new MimeMessage(Session.getInstance(new Properties()));
-        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
-
         User user = User.builder()
                 .id(100L)
                 .email("user100@example.com")
@@ -82,7 +78,9 @@ class EmailNotificationChannelTest {
         emailNotificationChannel.send(request);
 
         verify(userRepository, times(1)).findById(100L);
-        verify(mailSender, times(1)).send(any(MimeMessage.class));
+        ArgumentCaptor<EmailMessage> captor = ArgumentCaptor.forClass(EmailMessage.class);
+        verify(emailService, times(1)).send(captor.capture());
+        assertThat(captor.getValue().getTo()).isEqualTo("user100@example.com");
     }
 
     @Test
@@ -95,15 +93,12 @@ class EmailNotificationChannelTest {
 
         emailNotificationChannel.send(request);
 
-        verify(mailSender, never()).createMimeMessage();
-        verify(mailSender, never()).send(any(MimeMessage.class));
+        verify(emailService, never()).send(any(EmailMessage.class));
     }
 
     @Test
-    void sendShouldThrowExceptionWhenMailSenderThrowsMailException() {
-        MimeMessage mimeMessage = new MimeMessage(Session.getInstance(new Properties()));
-        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
-        doThrow(new MailSendException("SMTP connection refused")).when(mailSender).send(any(MimeMessage.class));
+    void sendShouldThrowExceptionWhenEmailServiceFails() {
+        doThrow(new EmailSendException("Failed to send email")).when(emailService).send(any(EmailMessage.class));
 
         SendNotificationRequest request = SendNotificationRequest.builder()
                 .recipientEmail("failure@example.com")
