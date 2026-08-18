@@ -71,4 +71,24 @@ class ApplicationProdConfigTest {
         assertThat(datasource.get("password")).isEqualTo("${MYSQLPASSWORD}");
         assertThat(datasource.get("driver-class-name")).isEqualTo("com.mysql.cj.jdbc.Driver");
     }
+
+    @Test
+    @DisplayName("Verify application.yml exists, is valid YAML without duplicate root keys (DuplicateKeyException), and has required structure")
+    void testApplicationYamlStructure() throws Exception {
+        java.nio.file.Path path = java.nio.file.Path.of("src/main/resources/application.yml");
+        assertThat(java.nio.file.Files.exists(path)).as("src/main/resources/application.yml must exist").isTrue();
+
+        Yaml yaml = new Yaml();
+        try (InputStream is = java.nio.file.Files.newInputStream(path)) {
+            Map<String, Object> config = yaml.load(is);
+            assertThat(config).isNotNull();
+
+            // Verify Single App Root & Sub-blocks without DuplicateKeyException
+            assertThat(config).containsKey("app");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> app = (Map<String, Object>) config.get("app");
+            assertThat(app).containsKeys("cors", "otp", "email", "mail", "jwt");
+            assertThat(config).containsKey("resend");
+        }
+    }
 }

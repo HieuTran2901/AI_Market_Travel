@@ -55,14 +55,6 @@ spring:
           timeout: 5000
           writetimeout: 5000
 
-# ── App & Email Provider Configuration ─────────────────────────────
-app:
-  email:
-    provider: ${EMAIL_PROVIDER:resend}
-    from: ${EMAIL_FROM:AI Travel Marketplace <onboarding@resend.dev>}
-    from-name: ${EMAIL_FROM_NAME:AI Travel Marketplace}
-    fallback-enabled: ${EMAIL_FALLBACK_ENABLED:true}
-
 # ── Resend Configuration ───────────────────────────────────────────
 resend:
   api-key: ${RESEND_API_KEY:}
@@ -85,6 +77,11 @@ app:
     expiration-seconds: ${OTP_EXPIRATION_SECONDS:60}
     resend-cooldown-seconds: ${OTP_RESEND_COOLDOWN_SECONDS:60}
     max-verification-attempts: ${OTP_MAX_VERIFICATION_ATTEMPTS:5}
+  email:
+    provider: ${EMAIL_PROVIDER:resend}
+    from: ${EMAIL_FROM:AI Travel Marketplace <onboarding@resend.dev>}
+    from-name: ${EMAIL_FROM_NAME:AI Travel Marketplace}
+    fallback-enabled: ${EMAIL_FALLBACK_ENABLED:true}
   mail:
     from: ${MAIL_FROM:noreply@aitravelmarketplace.com}
     from-name: ${MAIL_FROM_NAME:AI Travel Marketplace}
