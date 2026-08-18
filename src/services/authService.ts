@@ -1,8 +1,18 @@
 import api from './api';
 import { ApiResponse, TokenResponse, User } from '@/types';
-import { LoginRequest, RegisterRequest } from '@/types/auth';
+import { LoginRequest, RegisterRequest, SendOtpRequest, VerifyOtpRequest } from '@/types/auth';
 
 export const authService = {
+  async sendOtp(data: SendOtpRequest): Promise<ApiResponse<string>> {
+    const response = await api.post<ApiResponse<string>>('/auth/otp/send', data);
+    return response.data;
+  },
+
+  async verifyOtp(data: VerifyOtpRequest): Promise<ApiResponse<string>> {
+    const response = await api.post<ApiResponse<string>>('/auth/otp/verify', data);
+    return response.data;
+  },
+
   async signup(data: RegisterRequest): Promise<ApiResponse<string>> {
     const response = await api.post<ApiResponse<string>>('/auth/signup', data);
     return response.data;

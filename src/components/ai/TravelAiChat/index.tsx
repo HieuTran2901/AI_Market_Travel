@@ -3,13 +3,12 @@ import {
   FileText,
   Wand2,
   CheckCircle2,
-  Paperclip,
   Sparkles,
-  Image as ImageIcon,
   BookOpen,
-  TrendingUp,
   Send,
   X,
+  MapPin,
+  MessageSquare,
 } from "lucide-react";
 import {
   AnimatePresence,
@@ -596,321 +595,181 @@ export const TravelAiChat: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-[#071633] px-4 py-4 pb-8 [scrollbar-width:thin] relative">
-                    {/* Badge & Quality Ring */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2 rounded-full border border-purple-500/30 bg-purple-950/40 px-3 py-1.5 shadow-[0_0_10px_rgba(168,85,247,0.1)]">
-                        <Sparkles className="h-3.5 w-3.5 text-purple-400" />
-                        <span className="text-[11px] font-semibold tracking-wider text-purple-300">
-                          WORKING MODE: LISTING EXPERT
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-slate-400">
-                          Listing Quality
-                        </span>
-                        <div className="relative flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[#160f2e] shadow-[0_0_10px_rgba(168,85,247,0.1)]">
-                          <svg
-                            className="h-[30px] w-[30px] -rotate-90 transform"
-                            viewBox="0 0 36 36"
-                          >
-                            <path
-                              className="text-white/10"
-                              strokeWidth="3"
-                              stroke="currentColor"
-                              fill="none"
-                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                            />
-                            <motion.path
-                              className="text-emerald-400"
-                              strokeWidth="3"
-                              strokeDasharray="82, 100"
-                              stroke="currentColor"
-                              fill="none"
-                              strokeLinecap="round"
-                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                              initial={{ strokeDasharray: "0, 100" }}
-                              animate={{ strokeDasharray: "82, 100" }}
-                              transition={{ duration: 1.5, ease: "easeOut" }}
-                            />
-                          </svg>
-                          <span className="absolute text-[9px] font-bold text-white">
-                            82%
-                          </span>
-                          <Sparkles className="absolute -bottom-1 -right-1 h-2.5 w-2.5 text-emerald-400" />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* BIG Recommendation Card */}
-                    <motion.div
-                      initial={{ opacity: 0, y: 15 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.4, delay: 0.1 }}
-                      className="relative mb-5 overflow-hidden rounded-[20px] border border-[#2e265c] bg-gradient-to-b from-[#1c153b] to-[#120c26] p-5 shadow-2xl"
-                    >
-                      <div className="absolute top-[20%] right-[-10px] text-purple-400/20 pointer-events-none">
-                        <FileText className="h-20 w-20 rotate-12 drop-shadow-[0_0_15px_rgba(168,85,247,0.4)]" />
-                      </div>
-                      <div className="absolute bottom-4 right-4 z-0 pointer-events-none">
-                        <Wand2 className="h-8 w-8 -rotate-12 text-blue-400/50 drop-shadow-[0_0_10px_rgba(96,165,250,0.6)]" />
-                      </div>
-
-                      <div className="relative z-10 flex flex-col gap-3">
-                        <div className="flex items-center gap-1.5">
-                          <Sparkles className="h-4 w-4 text-purple-400 drop-shadow-[0_0_4px_rgba(192,132,252,0.8)]" />
-                          <span className="text-[13px] font-bold tracking-wide text-white drop-shadow-[0_0_2px_rgba(255,255,255,0.4)]">
-                            AI Recommendation
-                          </span>
-                        </div>
-                        <div className="max-w-[75%]">
-                          <h3 className="mb-2 text-[17px] font-bold leading-tight text-white">
-                            Improve your description
-                          </h3>
-                          <p className="text-[12px] leading-relaxed text-slate-300">
-                            Your description is too short and missing key
-                            highlights that guests care about.
-                          </p>
-                        </div>
-                        <div className="mt-2 flex items-center gap-2 w-full pr-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleQuickAction("Improve Description")
-                            }
-                            className="flex flex-1 h-[40px] items-center justify-center rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 px-3 shadow-[0_4px_15px_rgba(124,58,237,0.3)] transition hover:from-blue-400 hover:to-purple-500"
-                          >
-                            <span className="text-[13px] font-bold text-white">
-                              Improve Now
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            className="flex h-[40px] items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 shrink-0 transition hover:bg-white/10"
-                          >
-                            <span className="text-[12px] font-medium text-slate-300">
-                              Why this?
-                            </span>
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
-
-                    {/* AI Roadmap */}
-                    <div className="flex flex-col gap-3 mb-5">
+                  <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-[#071633] px-4 py-4 pb-8 [scrollbar-width:thin] relative flex flex-col gap-5">
+                    {/* LISTING PROGRESS */}
+                    <div className="flex flex-col gap-2">
                       <div className="flex items-center justify-between">
-                        <h4 className="flex items-center gap-1.5 text-[13px] font-bold text-white">
-                          <BookOpen className="h-4 w-4 text-purple-400" /> AI
-                          Roadmap
-                        </h4>
-                        <span className="text-[11px] font-medium text-slate-400">
-                          5 steps • 2 in progress
-                        </span>
+                        <span className="text-[12px] font-bold text-slate-300">Listing Progress</span>
+                        <span className="text-[11px] font-semibold text-purple-400">Step 3 of 5</span>
                       </div>
-
-                      <div className="relative flex gap-4 overflow-x-auto pb-2 pt-1 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden w-full items-start">
-                        {/* Connecting Line */}
-                        <div className="absolute left-[36px] top-[16px] h-[1px] border-t border-dashed border-white/20 z-0 min-w-[344px]" />
-
-                        {/* Step 1: Title (Completed) */}
-                        <div className="relative z-10 flex w-[72px] shrink-0 flex-col items-center text-center gap-2">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1c153b] border border-purple-500/50 text-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.2)]">
-                            <span className="text-[12px] font-bold">1</span>
+                      <div className="flex items-center justify-between">
+                        {/* Step 1 */}
+                        <div className="flex flex-col items-center gap-1.5 w-1/5">
+                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/50">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
                           </div>
-                          <div className="flex flex-col items-center">
-                            <span className="text-[11px] font-bold text-white">
-                              Improve Description
-                            </span>
-                            <span className="mt-1 rounded-full bg-purple-500/20 px-1.5 py-0.5 text-[8px] font-bold tracking-wider text-purple-300">
-                              In Progress
-                            </span>
-                          </div>
+                          <span className="text-[9px] font-semibold text-emerald-400 text-center leading-tight">Basic Info</span>
                         </div>
-
-                        {/* Step 2: Description (Next) */}
-                        <div className="relative z-10 flex w-[72px] shrink-0 flex-col items-center text-center gap-2">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0a0a14] border border-white/10 text-slate-400">
-                            <span className="text-[12px] font-bold">2</span>
+                        <div className="h-[1px] flex-1 bg-emerald-500/30 mx-1" />
+                        {/* Step 2 */}
+                        <div className="flex flex-col items-center gap-1.5 w-1/5">
+                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/50">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
                           </div>
-                          <div className="flex flex-col items-center">
-                            <span className="text-[11px] font-medium text-slate-300">
-                              Enhance Photos
-                            </span>
-                            <span className="mt-1 rounded bg-white/5 px-1.5 py-0.5 text-[8px] font-medium text-slate-500">
-                              Pending
-                            </span>
-                          </div>
+                          <span className="text-[9px] font-semibold text-emerald-400 text-center leading-tight">Location</span>
                         </div>
-
-                        {/* Step 3: Optimize Tags */}
-                        <div className="relative z-10 flex w-[72px] shrink-0 flex-col items-center text-center gap-2">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0a0a14] border border-white/10 text-slate-400">
+                        <div className="h-[1px] flex-1 bg-purple-500/50 mx-1" />
+                        {/* Step 3 (Current) */}
+                        <div className="flex flex-col items-center gap-1.5 w-1/5">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-purple-600 border border-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.4)] text-white">
                             <span className="text-[12px] font-bold">3</span>
                           </div>
-                          <div className="flex flex-col items-center">
-                            <span className="text-[11px] font-medium text-slate-300">
-                              Optimize Tags
-                            </span>
-                            <span className="mt-1 rounded bg-white/5 px-1.5 py-0.5 text-[8px] font-medium text-slate-500">
-                              Pending
-                            </span>
+                          <span className="text-[9px] font-bold text-white text-center leading-tight">Details</span>
+                        </div>
+                        <div className="h-[1px] flex-1 bg-white/10 mx-1" />
+                        {/* Step 4 */}
+                        <div className="flex flex-col items-center gap-1.5 w-1/5 opacity-50">
+                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/5 border border-white/20 text-slate-400">
+                            <span className="text-[11px] font-medium">4</span>
+                          </div>
+                          <span className="text-[9px] font-medium text-slate-400 text-center leading-tight">Images</span>
+                        </div>
+                        <div className="h-[1px] flex-1 bg-white/10 mx-1" />
+                        {/* Step 5 */}
+                        <div className="flex flex-col items-center gap-1.5 w-1/5 opacity-50">
+                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/5 border border-white/20 text-slate-400">
+                            <span className="text-[11px] font-medium">5</span>
+                          </div>
+                          <span className="text-[9px] font-medium text-slate-400 text-center leading-tight">Review</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* LISTING QUALITY */}
+                    <div className="rounded-[20px] border border-blue-500/20 bg-gradient-to-br from-[#121b3d] to-[#0a1024] p-4 shadow-lg flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-1">Current Quality</span>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-2xl font-black text-white">82%</span>
+                          <span className="text-[13px] font-bold text-emerald-400">Excellent</span>
+                        </div>
+                        <span className="text-[11px] text-slate-400 mt-0.5"><strong className="text-purple-400">+8%</strong> to publish-ready</span>
+                      </div>
+                      <div className="h-12 w-12 shrink-0">
+                        <svg className="h-full w-full -rotate-90 transform" viewBox="0 0 36 36">
+                          <path className="text-white/5" strokeWidth="4" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                          <motion.path className="text-purple-500" strokeWidth="4" strokeDasharray="82, 100" stroke="currentColor" fill="none" strokeLinecap="round" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" initial={{ strokeDasharray: "0, 100" }} animate={{ strokeDasharray: "82, 100" }} transition={{ duration: 1.5, ease: "easeOut" }} />
+                        </svg>
+                      </div>
+                    </div>
+
+                    {/* TOP 3 AI SUGGESTIONS */}
+                    <div className="flex flex-col gap-2.5">
+                      <h4 className="flex items-center gap-1.5 text-[12px] font-bold text-slate-300 uppercase tracking-wider">
+                        <Sparkles className="h-3.5 w-3.5 text-purple-400" /> Top AI Suggestions
+                      </h4>
+                      <div className="flex flex-col gap-2">
+                        {/* Suggestion 1 */}
+                        <div className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-3 transition hover:bg-white/[0.04]">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/20 text-blue-400">
+                            <FileText className="h-4 w-4" />
+                          </div>
+                          <div className="flex flex-1 flex-col overflow-hidden">
+                            <span className="truncate text-[13px] font-bold text-white">Improve description</span>
+                            <span className="truncate text-[11px] text-slate-400">Missing key highlights</span>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span className="text-[10px] font-bold text-emerald-400">+12% Quality</span>
+                            <button onClick={() => handleQuickAction("Improve Description")} className="rounded-md bg-purple-600/20 px-2 py-1 text-[10px] font-bold text-purple-300 transition hover:bg-purple-600/40">Apply</button>
                           </div>
                         </div>
-
-                        {/* Step 4: Pricing */}
-                        <div className="relative z-10 flex w-[72px] shrink-0 flex-col items-center text-center gap-2">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0a0a14] border border-white/10 text-slate-400">
-                            <span className="text-[12px] font-bold">4</span>
+                        {/* Suggestion 2 */}
+                        <div className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-3 transition hover:bg-white/[0.04]">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400">
+                            <Sparkles className="h-4 w-4" />
                           </div>
-                          <div className="flex flex-col items-center">
-                            <span className="text-[11px] font-medium text-slate-300">
-                              Set Pricing
-                            </span>
-                            <span className="mt-1 rounded bg-white/5 px-1.5 py-0.5 text-[8px] font-medium text-slate-500">
-                              Pending
-                            </span>
+                          <div className="flex flex-1 flex-col overflow-hidden">
+                            <span className="truncate text-[13px] font-bold text-white">Add more amenities</span>
+                            <span className="truncate text-[11px] text-slate-400">4 popular missing</span>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span className="text-[10px] font-bold text-emerald-400">+8% Quality</span>
+                            <button onClick={() => handleQuickAction("Suggest Amenities")} className="rounded-md bg-purple-600/20 px-2 py-1 text-[10px] font-bold text-purple-300 transition hover:bg-purple-600/40">Apply</button>
                           </div>
                         </div>
-
-                        {/* Step 5: Publish */}
-                        <div className="relative z-10 flex w-[72px] shrink-0 flex-col items-center text-center gap-2">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0a0a14] border border-white/10 text-slate-400">
-                            <span className="text-[12px] font-bold">5</span>
+                        {/* Suggestion 3 */}
+                        <div className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-3 transition hover:bg-white/[0.04]">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-500/20 text-orange-400">
+                            <MapPin className="h-4 w-4" />
                           </div>
-                          <div className="flex flex-col items-center">
-                            <span className="text-[11px] font-medium text-slate-300">
-                              Review & Publish
-                            </span>
-                            <span className="mt-1 rounded bg-white/5 px-1.5 py-0.5 text-[8px] font-medium text-slate-500">
-                              Pending
-                            </span>
+                          <div className="flex flex-1 flex-col overflow-hidden">
+                            <span className="truncate text-[13px] font-bold text-white">Add local tips</span>
+                            <span className="truncate text-[11px] text-slate-400">Attracts more views</span>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span className="text-[10px] font-bold text-emerald-400">+5% Quality</span>
+                            <button onClick={() => handleQuickAction("Add local tips")} className="rounded-md bg-purple-600/20 px-2 py-1 text-[10px] font-bold text-purple-300 transition hover:bg-purple-600/40">Apply</button>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* AI Activity Timeline */}
-                    <div className="flex flex-col gap-3 mb-5">
-                      <div className="flex items-center justify-between">
-                        <h4 className="flex items-center gap-1.5 text-[13px] font-bold text-white">
-                          <Sparkles className="h-4 w-4 text-purple-400" />{" "}
-                          Recent AI Activity
-                        </h4>
-                        <button className="text-[11px] font-medium text-slate-400 hover:text-white transition">
-                          View all
-                        </button>
-                      </div>
-                      <div className="flex flex-col gap-2.5">
-                        <div className="flex items-center gap-3 bg-[#0d152a]/40 rounded-xl px-3 py-2 border border-white/5">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                          <span className="text-[11px] text-slate-400 shrink-0">
-                            10:31 AM
-                          </span>
-                          <span className="text-[12px] text-slate-200 flex-1 truncate">
-                            Description improved successfully
-                          </span>
-                          <span className="text-[11px] font-semibold text-purple-400">
-                            +12% Quality
-                          </span>
+                    {/* LATEST AI ACTION */}
+                    <div className="flex flex-col gap-2">
+                      <h4 className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        Latest Action
+                      </h4>
+                      <div className="flex items-center justify-between rounded-lg bg-emerald-950/30 px-3 py-2 border border-emerald-500/20">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                          <span className="text-[11px] text-emerald-200 truncate font-medium">Description improved</span>
                         </div>
-                        <div className="flex items-center gap-3 bg-[#0d152a]/40 rounded-xl px-3 py-2 border border-white/5">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                          <span className="text-[11px] text-slate-400 shrink-0">
-                            10:28 AM
-                          </span>
-                          <span className="text-[12px] text-slate-200 flex-1 truncate">
-                            Title optimized
-                          </span>
-                          <span className="text-[11px] font-semibold text-purple-400">
-                            +5% Quality
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 bg-[#0d152a]/40 rounded-xl px-3 py-2 border border-white/5">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                          <span className="text-[11px] text-slate-400 shrink-0">
-                            10:25 AM
-                          </span>
-                          <span className="text-[12px] text-slate-200 flex-1 truncate">
-                            SEO keywords generated
-                          </span>
-                          <span className="text-[11px] font-semibold text-purple-400">
-                            +8% Quality
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 bg-[#0d152a]/40 rounded-xl px-3 py-2 border border-white/5">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                          <span className="text-[11px] text-slate-400 shrink-0">
-                            10:20 AM
-                          </span>
-                          <span className="text-[12px] text-slate-200 flex-1 truncate">
-                            Amenities suggestions added
-                          </span>
-                          <span className="text-[11px] font-semibold text-purple-400">
-                            +6% Quality
-                          </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[10px] text-emerald-400/70">2 mins ago</span>
+                          <span className="text-[10px] font-bold text-emerald-400">+8% Quality</span>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Quick Actions Pills */}
-                    <div className="flex items-center gap-2 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                      <span className="text-[12px] font-bold text-white shrink-0 mr-1 flex items-center gap-1">
-                        <Sparkles className="w-3.5 h-3.5 text-purple-400" />{" "}
-                        Quick Actions
-                      </span>
-                      <button
-                        onClick={() => handleQuickAction("Improve Title")}
-                        className="flex items-center gap-1.5 shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-medium text-slate-200 transition hover:bg-white/10 hover:border-white/20"
-                      >
-                        <FileText className="h-3 w-3 text-slate-400" /> Improve
-                        Title
-                      </button>
-                      <button
-                        onClick={() => handleQuickAction("Enhance Photos")}
-                        className="flex items-center gap-1.5 shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-medium text-slate-200 transition hover:bg-white/10 hover:border-white/20"
-                      >
-                        <ImageIcon className="h-3 w-3 text-slate-400" /> Enhance
-                        Photos
-                      </button>
-                      <button
-                        onClick={() => handleQuickAction("Optimize Tags")}
-                        className="flex items-center gap-1.5 shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-medium text-slate-200 transition hover:bg-white/10 hover:border-white/20"
-                      >
-                        <TrendingUp className="h-3 w-3 text-slate-400" />{" "}
-                        Optimize Tags
-                      </button>
-                      <button
-                        onClick={() => handleQuickAction("Suggest Amenities")}
-                        className="flex items-center gap-1.5 shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-medium text-slate-200 transition hover:bg-white/10 hover:border-white/20"
-                      >
-                        <Sparkles className="h-3 w-3 text-slate-400" /> Suggest
-                        Amenities
-                      </button>
                     </div>
                   </div>
 
-                  {/* Pinned Input (Triggers Panel) */}
-                  <div
-                    className="border-t border-white/10 bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-950 p-3 cursor-text"
-                    onClick={() => setIsConversationPanelOpen(true)}
-                  >
-                    <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/8 p-2 transition hover:border-blue-300/50">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-blue-100 transition hover:bg-white/10">
-                        <Paperclip className="h-4 w-4" />
+                  {/* AI COMMAND (Triggers Panel) */}
+                  <div className="border-t border-white/10 bg-[#040d21] p-3 flex flex-col gap-2">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[10px] font-bold text-purple-400 uppercase tracking-widest">AI Command — Not a chat</span>
+                    </div>
+                    <div
+                      className="cursor-text flex items-center gap-2 rounded-xl border border-purple-500/30 bg-[#0b1229] p-2 transition hover:border-purple-400/50 hover:bg-[#0f1733] shadow-[0_0_15px_rgba(168,85,247,0.1)]"
+                      onClick={() => setIsConversationPanelOpen(true)}
+                    >
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-purple-400">
+                        <Wand2 className="h-4 w-4" />
                       </div>
-                      <div className="flex-1 text-sm text-blue-100/55 px-2">
-                        Ask AI to improve your listing...
-                        <br />
-                        <span className="text-[10px]">Press Enter to send</span>
+                      <div className="flex-1 text-[13px] text-slate-400 px-1">
+                        Tell AI what to improve...
                       </div>
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-purple-300 transition hover:bg-white/10">
-                        <Sparkles className="h-5 w-5" />
-                      </div>
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-violet-500 text-white shadow-lg shadow-violet-950/30">
-                        <Send className="h-5 w-5" />
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-600 text-white shadow-lg">
+                        <Send className="h-3.5 w-3.5 ml-0.5" />
                       </div>
                     </div>
+                  </div>
+
+                  {/* BOTTOM NAVIGATION */}
+                  <div className="flex items-center justify-around border-t border-white/5 bg-[#030917] px-2 py-2.5">
+                    <button className="flex flex-col items-center gap-1 w-16 text-purple-400">
+                      <BookOpen className="h-4 w-4" />
+                      <span className="text-[9px] font-bold">Overview</span>
+                    </button>
+                    <button className="flex flex-col items-center gap-1 w-16 text-slate-500 hover:text-slate-300 transition">
+                      <Sparkles className="h-4 w-4" />
+                      <span className="text-[9px] font-medium">Suggestions</span>
+                    </button>
+                    <button 
+                      onClick={() => setIsConversationPanelOpen(true)}
+                      className="flex flex-col items-center gap-1 w-16 text-slate-500 hover:text-slate-300 transition"
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                      <span className="text-[9px] font-medium">Chat</span>
+                    </button>
                   </div>
 
                   {/* Bottom Sheet Conversation Panel */}

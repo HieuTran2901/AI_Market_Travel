@@ -1,3 +1,16 @@
+export type OtpPurpose = 'REGISTER' | 'LOGIN' | 'PASSWORD_RESET';
+
+export interface SendOtpRequest {
+  email: string;
+  purpose: OtpPurpose;
+}
+
+export interface VerifyOtpRequest {
+  email: string;
+  purpose: OtpPurpose;
+  code: string;
+}
+
 export interface LoginRequest {
   email: string;
   password?: string;

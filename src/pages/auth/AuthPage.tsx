@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -27,6 +27,7 @@ import {
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { Variants } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
+import authService from "@/services/authService";
 import bannedAccountIllustration from "@/assets/auth/banned-account-boy.png";
 
 type AuthMode = "login" | "register";
@@ -75,6 +76,7 @@ const registerSchema = z
       .string()
       .min(1, "Email is required")
       .email("Invalid email address"),
+    otp: z.string().optional(),
     password: z.string().min(6, "Password must be at least 6 characters"),
     confirmPassword: z.string().min(1, "Please confirm your password"),
     terms: z.boolean().refine(Boolean, {
@@ -1366,6 +1368,138 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
   const [isRegisterSubmitting, setIsRegisterSubmitting] = React.useState(false);
   const [bannedAccountDialog, setBannedAccountDialog] =
     React.useState<BannedAccountDialogState | null>(null);
+  const loginForm = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: "", password: "", remember: false },
+  });
+
+  const registerForm = useForm<RegisterFormData>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      firstName: "",
+      lastName: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+      terms: false,
+    },
+  });
+
+  const [otpStatus, setOtpStatus] =
+    React.useState<"idle" | "sending" | "sent" | "verifying" | "verified">("idle");
+  const [otpCountdown, setOtpCountdown] = React.useState(0);
+  const [otpMessage, setOtpMessage] = React.useState<string | null>(null);
+  const [verifiedEmail, setVerifiedEmail] = React.useState<string | null>(null);
+  const [sentEmail, setSentEmail] = React.useState<string | null>(null);
+
+  // Invalidate OTP verification state when the user changes the registration email
+  const watchedRegisterEmail = registerForm.watch("email");
+  React.useEffect(() => {
+    const currentNormalized = (watchedRegisterEmail || "").trim().toLowerCase();
+    if (otpStatus === "verified" && verifiedEmail && currentNormalized !== verifiedEmail) {
+      setOtpStatus("idle");
+      setVerifiedEmail(null);
+      setSentEmail(null);
+      setOtpCountdown(0);
+      setOtpMessage(null);
+      registerForm.setValue("otp", "");
+      registerForm.clearErrors("otp");
+    } else if (
+      (otpStatus === "sent" || otpStatus === "verifying") &&
+      sentEmail &&
+      currentNormalized !== sentEmail
+    ) {
+      setOtpStatus("idle");
+      setSentEmail(null);
+      setOtpCountdown(0);
+      setOtpMessage(null);
+      registerForm.setValue("otp", "");
+      registerForm.clearErrors("otp");
+    }
+  }, [watchedRegisterEmail, otpStatus, verifiedEmail, sentEmail, registerForm]);
+
+  React.useEffect(() => {
+    let timer: number;
+    if (otpCountdown > 0) {
+      timer = window.setTimeout(() => setOtpCountdown((c) => c - 1), 1000);
+    }
+    return () => window.clearTimeout(timer);
+  }, [otpCountdown]);
+
+  const handleSendOtp = async () => {
+    if (otpStatus === "sending") return;
+
+    const isEmailValid = await registerForm.trigger("email");
+    const emailValue = registerForm.getValues("email");
+    if (!isEmailValid || !emailValue || !emailValue.trim()) {
+      return;
+    }
+
+    const normalizedEmail = emailValue.trim().toLowerCase();
+    setOtpStatus("sending");
+    setRegisterError(null);
+    setOtpMessage(null);
+    registerForm.clearErrors("otp");
+
+    try {
+      const response = await authService.sendOtp({
+        email: normalizedEmail,
+        purpose: "REGISTER",
+      });
+      setOtpStatus("sent");
+      setSentEmail(normalizedEmail);
+      setOtpCountdown(60);
+      setOtpMessage(response.message || "OTP has been sent to your email.");
+      registerForm.setValue("otp", "");
+    } catch (err: unknown) {
+      setOtpStatus("idle");
+      const error = err as { message?: string; errorCode?: string };
+      if (error?.errorCode === "EMAIL_ALREADY_EXISTS") {
+        registerForm.setError("email", {
+          message: "This email is already registered.",
+        });
+      } else {
+        const msg = error?.message || "Failed to send OTP. Please try again.";
+        registerForm.setError("otp", { message: msg });
+        setRegisterError(msg);
+      }
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otpStatus === "verifying") return;
+
+    const emailValue = registerForm.getValues("email");
+    const otpCode = (registerForm.getValues("otp") || "").trim();
+
+    if (!otpCode || otpCode.length !== 6 || !/^\d{6}$/.test(otpCode)) {
+      registerForm.setError("otp", { message: "Please enter a valid 6-digit code" });
+      return;
+    }
+
+    const normalizedEmail = (emailValue || "").trim().toLowerCase();
+    setOtpStatus("verifying");
+    setRegisterError(null);
+    registerForm.clearErrors("otp");
+
+    try {
+      const response = await authService.verifyOtp({
+        email: normalizedEmail,
+        purpose: "REGISTER",
+        code: otpCode,
+      });
+      setOtpStatus("verified");
+      setVerifiedEmail(normalizedEmail);
+      setOtpMessage(response.message || "Email verified successfully.");
+      registerForm.clearErrors("otp");
+    } catch (err: unknown) {
+      setOtpStatus("sent");
+      const error = err as { message?: string; errorCode?: string };
+      const msg = error?.message || "Invalid or expired OTP";
+      registerForm.setError("otp", { message: msg });
+      setRegisterError(msg);
+    }
+  };
 
   React.useEffect(() => {
     if (pendingRouteModeRef.current) {
@@ -1427,23 +1561,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
     redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")
       ? redirectTo
       : "/profile";
-
-  const loginForm = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "", remember: false },
-  });
-
-  const registerForm = useForm<RegisterFormData>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: {
-      firstName: "",
-      lastName: "",
-      email: "",
-      password: "",
-      confirmPassword: "",
-      terms: false,
-    },
-  });
 
   React.useEffect(() => {
     (["login", "register"] as AuthMode[]).forEach((mode) => {
@@ -1584,6 +1701,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
   };
 
   const onRegisterSubmit = async (data: RegisterFormData) => {
+    if (otpStatus !== "verified") {
+      registerForm.setError("otp", {
+        message: "Please verify your email with the OTP code first",
+      });
+      setRegisterError("Please verify your email before registering.");
+      return;
+    }
     setRegisterError(null);
     setIsRegisterSubmitting(true);
     try {
@@ -2559,17 +2683,117 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
                           >
                             Email address
                           </label>
-                          <AuthInput
-                            compact
-                            {...registerForm.register("email")}
-                            id="traveler-register-email"
-                            icon={Mail}
-                            type="email"
-                            placeholder="Email address"
-                            autoComplete="email"
-                            error={registerForm.formState.errors.email?.message}
-                          />
+                          <div className="flex gap-2">
+                            <div className="flex-1">
+                              <AuthInput
+                                compact
+                                {...registerForm.register("email")}
+                                id="traveler-register-email"
+                                icon={Mail}
+                                type="email"
+                                placeholder="Email address"
+                                autoComplete="email"
+                                disabled={otpStatus === "verified"}
+                                error={registerForm.formState.errors.email?.message}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleSendOtp}
+                              disabled={
+                                otpStatus === "sending" ||
+                                otpStatus === "verified" ||
+                                (otpStatus === "sent" && otpCountdown > 0)
+                              }
+                              className="flex h-[50px] min-w-[100px] items-center justify-center rounded-2xl bg-slate-900 px-3 text-xs font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
+                            >
+                              {otpStatus === "sending" ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : otpStatus === "verified" ? (
+                                <span className="flex items-center gap-1 font-bold text-emerald-600">
+                                  <ShieldCheck className="h-4 w-4" />
+                                  Verified
+                                </span>
+                              ) : otpCountdown > 0 ? (
+                                `00:${otpCountdown.toString().padStart(2, "0")}`
+                              ) : otpStatus === "sent" ? (
+                                "Resend OTP"
+                              ) : (
+                                "Send OTP"
+                              )}
+                            </button>
+                          </div>
+                          <p className="px-1 text-[11px] font-semibold text-slate-500">
+                            We'll send a 6-digit code to verify your email.
+                          </p>
                         </motion.div>
+                        <AnimatePresence>
+                          {otpStatus !== "idle" && (
+                            <motion.div
+                              variants={fieldItem}
+                              initial={{ opacity: 0, height: 0, filter: "blur(4px)" }}
+                              animate={{ opacity: 1, height: "auto", filter: "blur(0px)" }}
+                              exit={{ opacity: 0, height: 0, filter: "blur(4px)" }}
+                              className="space-y-1.5 overflow-hidden"
+                            >
+                              <div className="pt-2">
+                                <label
+                                  htmlFor="traveler-register-otp"
+                                  className="text-xs font-extrabold text-slate-700"
+                                >
+                                  OTP code
+                                </label>
+                                <div className="mt-1.5 flex gap-2">
+                                  <div className="relative flex-1">
+                                    <AuthInput
+                                      compact
+                                      {...registerForm.register("otp")}
+                                      id="traveler-register-otp"
+                                      icon={ShieldCheck}
+                                      type="text"
+                                      inputMode="numeric"
+                                      maxLength={6}
+                                      disabled={otpStatus === "verified" || otpStatus === "verifying"}
+                                      placeholder="Enter 6-digit code"
+                                      error={registerForm.formState.errors.otp?.message}
+                                    />
+                                  </div>
+                                  {otpStatus !== "verified" ? (
+                                    <button
+                                      type="button"
+                                      onClick={handleVerifyOtp}
+                                      disabled={
+                                        otpStatus === "verifying" ||
+                                        (registerForm.watch("otp") || "").length !== 6
+                                      }
+                                      className="flex h-[50px] min-w-[90px] items-center justify-center rounded-2xl bg-blue-600 px-3 text-xs font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
+                                    >
+                                      {otpStatus === "verifying" ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        "Verify"
+                                      )}
+                                    </button>
+                                  ) : (
+                                    <div className="flex h-[50px] min-w-[90px] items-center justify-center gap-1 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-600">
+                                      <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                                      <span>Verified</span>
+                                    </div>
+                                  )}
+                                </div>
+                                {otpStatus === "verified" ? (
+                                  <p className="px-1 pt-1 text-[11px] font-semibold text-emerald-600">
+                                    Email verified successfully.
+                                  </p>
+                                ) : otpMessage ? (
+                                  <p className="px-1 pt-1 text-[11px] font-semibold text-blue-600">
+                                    {otpMessage}
+                                  </p>
+                                ) : null}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                         <motion.div
                           variants={fieldItem}
                           className="space-y-1.5"
