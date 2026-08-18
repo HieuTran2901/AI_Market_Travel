@@ -120,9 +120,15 @@ public class OtpService {
                 .isHtml(true)
                 .build();
 
-        notificationPublisher.publish(notificationRequest);
-        log.info("Dispatched OTP verification email for domain: {} [Purpose: {}]", 
-                 extractDomain(normalizedEmail), request.getPurpose());
+        try {
+            notificationPublisher.publish(notificationRequest);
+            log.info("Dispatched OTP verification email for domain: {} [Purpose: {}]", 
+                     extractDomain(normalizedEmail), request.getPurpose());
+        } catch (Exception e) {
+            log.error("Failed to dispatch OTP verification email for domain: {} [Purpose: {}]: {}", 
+                      extractDomain(normalizedEmail), request.getPurpose(), e.getMessage());
+            throw new RuntimeException("Failed to send OTP verification email. Please try again later.", e);
+        }
     }
 
     /**

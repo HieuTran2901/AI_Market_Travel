@@ -23,6 +23,7 @@ public class SynchronousNotificationPublisher implements NotificationPublisher {
                     channel.send(request);
                 } catch (Exception e) {
                     log.error("Failed to send notification via channel {}", channel.getClass().getSimpleName(), e);
+                    throw new RuntimeException("Failed to deliver notification via " + channel.getClass().getSimpleName() + ": " + e.getMessage(), e);
                 }
             }
         }
