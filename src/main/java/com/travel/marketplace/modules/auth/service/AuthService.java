@@ -7,6 +7,9 @@ import com.travel.marketplace.modules.auth.dto.LoginRequest;
 import com.travel.marketplace.modules.auth.dto.RegisterRequest;
 import com.travel.marketplace.modules.auth.dto.TokenRefreshRequest;
 import com.travel.marketplace.modules.auth.dto.TokenResponse;
+import com.travel.marketplace.modules.auth.entity.OtpVerification;
+import com.travel.marketplace.modules.auth.enums.OtpPurpose;
+import com.travel.marketplace.modules.auth.repository.OtpVerificationRepository;
 import com.travel.marketplace.modules.provider.enums.BusinessType;
 import com.travel.marketplace.modules.provider.enums.VerificationStatus;
 import com.travel.marketplace.modules.user.entity.ProviderProfile;
@@ -63,6 +66,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
     private final UserDetailsService userDetailsService;
+    private final OtpVerificationRepository otpVerificationRepository;
 
     public AuthService(
             AuthenticationManager authenticationManager,
@@ -71,7 +75,8 @@ public class AuthService {
             ProviderProfileRepository providerProfileRepository,
             PasswordEncoder passwordEncoder,
             JwtTokenProvider tokenProvider,
-            UserDetailsService userDetailsService
+            UserDetailsService userDetailsService,
+            OtpVerificationRepository otpVerificationRepository
     ) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
@@ -80,12 +85,23 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
         this.tokenProvider = tokenProvider;
         this.userDetailsService = userDetailsService;
+        this.otpVerificationRepository = otpVerificationRepository;
     }
 
     @Transactional
     public void register(RegisterRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
+        String normalizedEmail = request.getEmail() == null ? "" : request.getEmail().trim().toLowerCase();
+
+        if (userRepository.existsByEmail(normalizedEmail)) {
             throw new BadRequestException("Email is already registered", ErrorCode.EMAIL_ALREADY_EXISTS);
+        }
+
+        OtpVerification otpVerification = otpVerificationRepository
+                .findTopByEmailAndPurposeOrderByCreatedAtDesc(normalizedEmail, OtpPurpose.REGISTER)
+                .orElseThrow(() -> new BadRequestException("Email verification is required"));
+
+        if (otpVerification.getVerifiedAt() == null || otpVerification.getConsumedAt() == null) {
+            throw new BadRequestException("Email verification is required");
         }
 
         String fullName = resolveFullName(request);
@@ -132,10 +148,12 @@ public class AuthService {
         }
 
         User user = User.builder()
-                .email(request.getEmail())
+                .email(normalizedEmail)
                 .password(passwordEncoder.encode(request.getPassword()))
                 .fullName(fullName)
                 .phoneNumber(request.getPhoneNumber())
+                .emailVerified(true)
+                .emailVerifiedAt(otpVerification.getVerifiedAt())
                 .roles(roles)
                 .isActive(true)
                 .build();
@@ -146,7 +164,7 @@ public class AuthService {
         }
 
         userRepository.save(user);
-        log.info("Successfully registered user: {}", request.getEmail());
+        log.info("Successfully registered user: {}", normalizedEmail);
     }
 
     private String resolveFullName(RegisterRequest request) {

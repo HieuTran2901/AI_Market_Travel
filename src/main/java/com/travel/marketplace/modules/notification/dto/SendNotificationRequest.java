@@ -14,9 +14,11 @@ import java.util.Map;
 @AllArgsConstructor
 public class SendNotificationRequest {
     private Long userId;
+    private String recipientEmail;
     private NotificationType type;
     private String title;
     private String message;
+    private boolean isHtml;
     
     /** Used by email channels to render templates */
     private Map<String, Object> templateData;

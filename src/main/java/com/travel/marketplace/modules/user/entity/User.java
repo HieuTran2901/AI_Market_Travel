@@ -42,6 +42,13 @@ public class User {
     @Builder.Default
     private boolean isActive = true;
 
+    @Column(name = "email_verified", nullable = false)
+    @Builder.Default
+    private boolean emailVerified = false;
+
+    @Column(name = "email_verified_at")
+    private Instant emailVerifiedAt;
+
     @Column(name = "ai_coin_balance", nullable = false)
     @Builder.Default
     private Integer aiCoinBalance = 0;

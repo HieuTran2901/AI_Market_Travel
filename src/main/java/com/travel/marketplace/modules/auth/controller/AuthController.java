@@ -3,9 +3,12 @@ package com.travel.marketplace.modules.auth.controller;
 import com.travel.marketplace.dto.ApiResponse;
 import com.travel.marketplace.modules.auth.dto.LoginRequest;
 import com.travel.marketplace.modules.auth.dto.RegisterRequest;
+import com.travel.marketplace.modules.auth.dto.SendOtpRequest;
 import com.travel.marketplace.modules.auth.dto.TokenRefreshRequest;
 import com.travel.marketplace.modules.auth.dto.TokenResponse;
+import com.travel.marketplace.modules.auth.dto.VerifyOtpRequest;
 import com.travel.marketplace.modules.auth.service.AuthService;
+import com.travel.marketplace.modules.auth.service.OtpService;
 import com.travel.marketplace.modules.user.dto.UserResponse;
 import com.travel.marketplace.modules.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,10 +26,26 @@ public class AuthController {
 
     private final AuthService authService;
     private final UserService userService;
+    private final OtpService otpService;
 
-    public AuthController(AuthService authService, UserService userService) {
+    public AuthController(AuthService authService, UserService userService, OtpService otpService) {
         this.authService = authService;
         this.userService = userService;
+        this.otpService = otpService;
+    }
+
+    @PostMapping("/otp/send")
+    @Operation(summary = "Send an email OTP verification code")
+    public ResponseEntity<ApiResponse<String>> sendOtp(@Valid @RequestBody SendOtpRequest request) {
+        otpService.sendOtp(request);
+        return ResponseEntity.ok(ApiResponse.success("OTP has been sent to your email."));
+    }
+
+    @PostMapping("/otp/verify")
+    @Operation(summary = "Verify an email OTP code")
+    public ResponseEntity<ApiResponse<String>> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
+        otpService.verifyOtp(request);
+        return ResponseEntity.ok(ApiResponse.success("OTP verified successfully."));
     }
 
     @PostMapping("/signup")

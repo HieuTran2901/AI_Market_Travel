@@ -5,9 +5,9 @@ spring:
 
   # ── Database (Railway MySQL) ────────────────────────────────────
   datasource:
-    url: jdbc:mysql://${MYSQLHOST}:${MYSQLPORT:3306}/${MYSQLDATABASE}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh
-    username: ${MYSQLUSER}
-    password: ${MYSQLPASSWORD}
+    url: ${DATABASE_URL:jdbc:mysql://${MYSQLHOST:${MYSQL_HOST}}:${MYSQLPORT:${MYSQL_PORT:3306}}/${MYSQLDATABASE:${MYSQL_DATABASE}}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh}
+    username: ${MYSQLUSER:${MYSQL_USER:${DATABASE_USERNAME}}}
+    password: ${MYSQLPASSWORD:${MYSQL_PASSWORD:${MYSQL_ROOT_PASSWORD:${DATABASE_PASSWORD}}}}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   # ── JPA / Hibernate (Production schema validation) ──────────────

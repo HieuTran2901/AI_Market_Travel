@@ -18,6 +18,11 @@ public class InAppNotificationChannel implements NotificationChannel {
 
     @Override
     public void send(SendNotificationRequest request) {
+        if (request.getUserId() == null) {
+            log.debug("Skipping In-App notification: userId is null for type {}", request.getType());
+            return;
+        }
+
         Notification notification = Notification.builder()
                 .userId(request.getUserId())
                 .type(request.getType())
@@ -32,7 +37,7 @@ public class InAppNotificationChannel implements NotificationChannel {
 
     @Override
     public boolean supports(NotificationType type) {
-        // In-App supports all notification types
-        return true;
+        // In-App supports all notification types except direct email-only transactional verifications
+        return type != NotificationType.OTP_VERIFICATION;
     }
 }
