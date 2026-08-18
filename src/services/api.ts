@@ -6,8 +6,24 @@ interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
 }
 
+const getBaseUrl = (): string => {
+  const envUrl =
+    import.meta.env.VITE_API_URL ||
+    import.meta.env.VITE_API_BASE_URL;
+
+  if (!envUrl) {
+    return '/api/v1';
+  }
+
+  const cleanUrl = envUrl.trim().replace(/\/+$/, '');
+
+  return cleanUrl.endsWith('/api/v1')
+    ? cleanUrl
+    : `${cleanUrl}/api/v1`;
+};
+
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: getBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
   },
@@ -42,7 +58,7 @@ api.interceptors.response.use(
       if (refreshToken) {
         try {
           // Attempt token rotation
-          const response = await axios.post<ApiResponse<TokenResponse>>('/api/v1/auth/refresh', {
+          const response = await axios.post<ApiResponse<TokenResponse>>(`${getBaseUrl()}/auth/refresh`, {
             refreshToken,
           });
 
