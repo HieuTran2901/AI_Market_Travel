@@ -9,6 +9,7 @@ import com.travel.marketplace.modules.notification.email.EmailSendResult.ErrorCa
 import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -31,6 +32,7 @@ public class ResendEmailProvider implements EmailProvider {
     private final String baseUrl;
     private final RestClient restClient;
 
+    @Autowired
     public ResendEmailProvider(
             @Value("${resend.api-key:}") String apiKey,
             @Value("${resend.base-url:https://api.resend.com}") String baseUrl,

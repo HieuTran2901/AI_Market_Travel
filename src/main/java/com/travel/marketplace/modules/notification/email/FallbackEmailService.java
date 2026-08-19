@@ -5,6 +5,7 @@ import com.travel.marketplace.modules.notification.email.exception.NonRetryableE
 import com.travel.marketplace.modules.notification.email.provider.ResendEmailProvider;
 import com.travel.marketplace.modules.notification.email.provider.SmtpEmailProvider;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -26,6 +27,7 @@ public class FallbackEmailService implements EmailService {
     @Value("${app.email.fallback-enabled:true}")
     private boolean fallbackEnabled;
 
+    @Autowired
     public FallbackEmailService(ResendEmailProvider resendProvider, SmtpEmailProvider smtpProvider) {
         this.resendProvider = resendProvider;
         this.smtpProvider = smtpProvider;
