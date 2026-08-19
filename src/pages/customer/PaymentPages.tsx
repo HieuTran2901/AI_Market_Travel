@@ -49,6 +49,14 @@ export const MomoReturnPage: React.FC = () => {
       return;
     }
 
+    const resultCode = searchParams.get('resultCode');
+    const resultMessage = searchParams.get('message') || '';
+    if (resultCode === '1006' || resultCode === '1005' || /cancel|reject|decline/i.test(resultMessage)) {
+      setState('cancelled');
+      setMessage('The MoMo payment was cancelled.');
+      return;
+    }
+
     let cancelled = false;
     let timer: number | undefined;
     let attempts = 0;

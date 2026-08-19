@@ -11,6 +11,11 @@ export function PaymentResultPage() {
     if (hasRestoredRef.current) return;
     hasRestoredRef.current = true;
 
+    // Preserve MoMo / Payment Gateway return query parameters so AiCoinsModal can parse them
+    if (window.location.search) {
+      sessionStorage.setItem("aiCoinMomoReturnQuery", window.location.search);
+    }
+
     openAiCoinsModal();
 
     let originPath = '/ai-coins';

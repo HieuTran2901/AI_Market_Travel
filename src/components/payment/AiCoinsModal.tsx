@@ -317,11 +317,19 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
             };
             setMomoSession(sessionData);
 
-            // Read MoMo & SePay return params
-            const params = new URLSearchParams(window.location.search);
+            // Read MoMo & SePay return params from URL or preserved sessionStorage
+            const returnQuery =
+              window.location.search ||
+              sessionStorage.getItem("aiCoinMomoReturnQuery") ||
+              "";
+            const params = new URLSearchParams(returnQuery);
             const momoResultCode = params.get("resultCode");
             const momoMessage = params.get("message") ?? "";
             const sepayResult = params.get("result");
+
+            if (sessionStorage.getItem("aiCoinMomoReturnQuery")) {
+              sessionStorage.removeItem("aiCoinMomoReturnQuery");
+            }
 
             if (sepayResult) {
               // Clean up URL
@@ -471,6 +479,8 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
     }
 
     let isChecking = false;
+    let attempts = 0;
+    const maxAttempts = 15;
     const controller = new AbortController();
 
     const checkPaymentStatus = async () => {
@@ -479,6 +489,7 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
       }
 
       isChecking = true;
+      attempts += 1;
 
       try {
         const res = await paymentService.getAiCoinPaymentStatus(
@@ -503,10 +514,21 @@ export const AiCoinsModal: React.FC<AiCoinsModalProps> = ({
           setDirection(1);
           setPurchaseStep("payment-failed");
           sessionStorage.removeItem("aiCoinMomoPaymentSession");
+        } else if (attempts >= maxAttempts) {
+          setDirection(1);
+          setPurchaseStep("payment-failed");
+          setStatusMessage("Payment verification is taking longer than expected. Please check your transaction history.");
+          sessionStorage.removeItem("aiCoinMomoPaymentSession");
         }
       } catch (error) {
         if (!controller.signal.aborted) {
           console.error("Unable to check MoMo payment status", error);
+          if (attempts >= maxAttempts) {
+            setDirection(1);
+            setPurchaseStep("payment-failed");
+            setStatusMessage("Unable to verify payment status. Please try again.");
+            sessionStorage.removeItem("aiCoinMomoPaymentSession");
+          }
         }
       } finally {
         isChecking = false;
