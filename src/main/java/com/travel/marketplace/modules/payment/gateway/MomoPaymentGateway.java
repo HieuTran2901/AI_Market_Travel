@@ -11,6 +11,7 @@ import com.travel.marketplace.modules.payment.momo.MomoProperties;
 import com.travel.marketplace.modules.payment.momo.MomoSigner;
 import com.travel.marketplace.modules.payment.repository.PaymentTransactionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -20,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "payment.momo", name = "enabled", havingValue = "true")
@@ -44,6 +46,13 @@ public class MomoPaymentGateway implements PaymentGateway {
         String targetRedirectUrl = payment.getPurpose() == com.travel.marketplace.modules.payment.enums.PaymentPurpose.AI_COIN_PURCHASE
                 ? properties.getAiCoinRedirectUrl()
                 : properties.getRedirectUrl();
+
+        String endpointHost = extractHost(properties.getEndpoint());
+        String redirectHost = extractHost(targetRedirectUrl);
+        String ipnHost = extractHost(properties.getIpnUrl());
+
+        log.info("Initiating MoMo payment creation for paymentId={} orderId={} amount={} endpointHost={} redirectHost={} ipnHost={}",
+                payment.getId(), orderId, amount, endpointHost, redirectHost, ipnHost);
 
         MomoCreatePaymentRequest unsigned = new MomoCreatePaymentRequest(
                 properties.getPartnerCode(),
@@ -94,10 +103,14 @@ public class MomoPaymentGateway implements PaymentGateway {
                 .build();
         transactionRepository.saveAndFlush(transaction);
 
+        long startTime = System.currentTimeMillis();
         try {
             MomoCreatePaymentResponse response = client.createPayment(request);
+            long latencyMs = System.currentTimeMillis() - startTime;
             if (response == null) {
-                return markUncertain(transaction, "MoMo returned an empty response");
+                log.error("MoMo payment creation returned null response for paymentId={} orderId={} latency={}ms",
+                        payment.getId(), orderId, latencyMs);
+                return markFailure(transaction, "MoMo returned an empty response");
             }
 
             transaction.setResultCode(response.resultCode());
@@ -105,15 +118,20 @@ public class MomoPaymentGateway implements PaymentGateway {
             transaction.setPayUrl(response.payUrl());
             transaction.setGatewayResponse(toJson(sanitizedResponse(response)));
 
+            boolean validPayUrl = isExpectedPayUrl(response.payUrl());
             boolean accepted = Integer.valueOf(0).equals(response.resultCode())
                     && properties.getPartnerCode().equals(response.partnerCode())
                     && orderId.equals(response.orderId())
                     && requestId.equals(response.requestId())
                     && Long.valueOf(amount).equals(response.amount())
                     && response.payUrl() != null
-                    && isExpectedSandboxPayUrl(response.payUrl());
+                    && validPayUrl;
+
             transaction.setStatus(accepted ? "PROCESSING" : "FAILED");
             transactionRepository.save(transaction);
+
+            log.info("MoMo payment creation result for paymentId={} orderId={} accepted={} resultCode={} validPayUrl={} latency={}ms",
+                    payment.getId(), orderId, accepted, response.resultCode(), validPayUrl, latencyMs);
 
             return GatewayResponse.builder()
                     .success(accepted)
@@ -123,7 +141,10 @@ public class MomoPaymentGateway implements PaymentGateway {
                     .rawResponse(sanitizedResponse(response))
                     .build();
         } catch (RuntimeException exception) {
-            return markUncertain(transaction, "MoMo payment creation is temporarily unavailable");
+            long latencyMs = System.currentTimeMillis() - startTime;
+            log.error("MoMo payment creation failed for paymentId={} orderId={} latency={}ms: {}",
+                    payment.getId(), orderId, latencyMs, exception.getMessage());
+            return markFailure(transaction, "MoMo payment creation is temporarily unavailable");
         }
     }
 
@@ -148,15 +169,15 @@ public class MomoPaymentGateway implements PaymentGateway {
         return amount;
     }
 
-    private GatewayResponse markUncertain(PaymentTransaction transaction, String message) {
-        transaction.setStatus("PROCESSING");
+    private GatewayResponse markFailure(PaymentTransaction transaction, String message) {
+        transaction.setStatus("FAILED");
         transaction.setResponseMessage(message);
         transaction.setGatewayResponse(toJson(Map.of("message", message)));
         transactionRepository.save(transaction);
         return GatewayResponse.builder()
-                .success(true)
+                .success(false)
                 .gatewayTransactionId(transaction.getGatewayRequestId())
-                .gatewayStatus("PROCESSING")
+                .gatewayStatus("FAILED")
                 .errorMessage(message)
                 .rawResponse(Map.of("message", message))
                 .build();
@@ -183,13 +204,35 @@ public class MomoPaymentGateway implements PaymentGateway {
                 : sanitize(response.message());
     }
 
-    private boolean isExpectedSandboxPayUrl(String payUrl) {
+    private boolean isExpectedPayUrl(String payUrl) {
+        if (payUrl == null || payUrl.isBlank()) {
+            return false;
+        }
         try {
-            URI uri = URI.create(payUrl);
-            return "https".equalsIgnoreCase(uri.getScheme())
-                    && "test-payment.momo.vn".equalsIgnoreCase(uri.getHost());
+            URI payUri = URI.create(payUrl);
+            if (!"https".equalsIgnoreCase(payUri.getScheme()) || payUri.getHost() == null) {
+                return false;
+            }
+            String payHost = payUri.getHost().toLowerCase();
+            String endpointHost = extractHost(properties.getEndpoint());
+
+            return payHost.equals("test-payment.momo.vn")
+                    || payHost.equals("payment.momo.vn")
+                    || (endpointHost != null && !endpointHost.isBlank() && payHost.equalsIgnoreCase(endpointHost));
         } catch (IllegalArgumentException exception) {
             return false;
+        }
+    }
+
+    private String extractHost(String uriString) {
+        if (uriString == null || uriString.isBlank()) {
+            return "unspecified";
+        }
+        try {
+            URI uri = URI.create(uriString);
+            return uri.getHost() != null ? uri.getHost() : "invalid";
+        } catch (Exception e) {
+            return "invalid";
         }
     }
 

@@ -74,7 +74,7 @@ springdoc:
 # ── Application Properties ─────────────────────────────────────────
 app:
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://ai-market-travel.vercel.app,http://localhost:5173,http://localhost:3000}
   otp:
     expiration-seconds: ${OTP_EXPIRATION_SECONDS:60}
     resend-cooldown-seconds: ${OTP_RESEND_COOLDOWN_SECONDS:60}
@@ -112,7 +112,7 @@ payment:
     partner-code: ${MOMO_PARTNER_CODE:MOMO}
     access-key: ${MOMO_ACCESSKEY:}
     secret-key: ${MOMO_SECRETKEY:}
-    endpoint: ${MOMO_ENDPOINT:https://payment.momo.vn/v2/gateway/api/create}
+    endpoint: ${MOMO_ENDPOINT:https://test-payment.momo.vn/v2/gateway/api/create}
     redirect-url: ${MOMO_REDIRECT_URL:}
     ai-coin-redirect-url: ${MOMO_AI_COIN_REDIRECT_URL:}
     ipn-url: ${MOMO_IPN_URL:}
